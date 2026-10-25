@@ -5,7 +5,7 @@
   var Geo = window.Geo, H = window.Holdridge, Climate = window.Climate, A = window.Analysis, Fmt = window.Fmt,
       Gps = window.Gps, Store = window.Store, Diagram = window.Diagram, Report = window.Report,
       Gis = window.Gis, Backup = window.Backup, IO = window.IO, WL = window.WalterLieth;
-  var APP_VERSION = '2.0.0';
+  var APP_VERSION = '2.0.1';
 
   var S = Store.loadState();
   var MEM = new Climate.Memory();
@@ -702,8 +702,8 @@
     } else {
       var cl = a.climate, noT = !cl.chartT, noP = !cl.chartP;
       h += '<p class="lead">Muestra mes a mes cuándo hay sequía y cuándo sobra la lluvia. Necesita la temperatura y la lluvia de los 12 meses.</p>';
-      h += '<div class="tip">Falta ' + (noT && noP ? 'la temperatura y la lluvia mensuales' : noT ? 'la temperatura mensual' : 'la lluvia mensual') + '. «Completar con internet» (más abajo) las trae, o puedes escribir los 12 meses.</div>';
-      h += '<div class="btns"><button class="btn btn-primary" data-act="fetchOnline"' + (ui.fetching ? ' disabled' : '') + '>' + (ui.fetching ? 'Consultando…' : 'Completar con internet') + '</button><button class="btn" data-act="monthly">Escribir los 12 meses</button></div>';
+      h += '<div class="tip">Falta ' + (noT && noP ? 'la temperatura y la lluvia mensuales' : noT ? 'la temperatura mensual' : 'la lluvia mensual') + '. El botón «Completar con internet» (más abajo) las trae, o puedes escribir los 12 meses.</div>';
+      h += '<div class="btns"><button class="btn" data-act="monthly">Escribir los 12 meses</button></div>';
     }
     return h + '</div>';
   }

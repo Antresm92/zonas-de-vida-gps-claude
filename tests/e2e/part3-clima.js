@@ -45,10 +45,15 @@ module.exports = async function (c) {
     assert.match(await text('#tab-clima'), /Ningún punto tiene altitud/);
     assert.match(await text('#tab-clima'), /La precipitación no se estima/);
     assert.match(await text('#tab-clima'), /Falta la temperatura y la lluvia mensuales/);
+    // Un solo botón «Completar con internet» (el de la sección de abajo); el aviso solo ofrece escribir los 12 meses
+    assert.equal(await page.locator('#tab-clima [data-act="fetchOnline"]').count(), 1);
+    assert.equal(await page.locator('#tab-clima [data-act="monthly"]').count(), 1);
     await tab('informe');
     assert.match(await text('#tab-informe'), /Falta la altitud/);
     await page.click('[data-act="tab"][data-tab="clima"]');
     await shot('20-clima-vacio');
+    await page.locator('#tab-clima .tip', { hasText: 'Falta la temperatura' }).scrollIntoViewIfNeeded();
+    await shot('20b-walter-lieth-sin-datos');
   });
 
   await step('Escribir altitud, temperatura y precipitación a mano, con validación', async () => {
