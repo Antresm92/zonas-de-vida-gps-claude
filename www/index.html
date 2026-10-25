@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#14301F">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>Zonas de Vida</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <header class="top">
+    <button class="proj" data-act="projects" aria-label="Cambiar de proyecto">
+      <span class="proj-name" id="projName">Proyecto</span>
+      <svg viewBox="0 0 12 8" width="12" height="8" aria-hidden="true"><path d="M1 1l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+    </button>
+    <div class="chips">
+      <span class="chip chip-off" id="netChip" hidden>Sin conexión</span>
+      <span class="chip chip-off" id="gpsChip"><i></i><span id="gpsChipText">GPS apagado</span></span>
+    </div>
+  </header>
+
+  <main id="main" tabindex="-1">
+    <section class="tab" id="tab-puntos" aria-labelledby="nav-puntos"></section>
+    <section class="tab" id="tab-area" aria-labelledby="nav-area" hidden></section>
+    <section class="tab" id="tab-clima" aria-labelledby="nav-clima" hidden></section>
+    <section class="tab" id="tab-informe" aria-labelledby="nav-informe" hidden></section>
+  </main>
+
+  <nav class="tabs" aria-label="Secciones">
+    <button id="nav-puntos" data-act="tab" data-tab="puntos" aria-current="page">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.2A7 7 0 0 1 19 9.8C19 14.8 12 21 12 21z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="9.8" r="2.4" fill="currentColor"/></svg>
+      <span>Puntos</span>
+    </button>
+    <button id="nav-area" data-act="tab" data-tab="area">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 17l3-11 11 3-2 10z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="5" cy="17" r="1.6" fill="currentColor"/><circle cx="8" cy="6" r="1.6" fill="currentColor"/><circle cx="19" cy="9" r="1.6" fill="currentColor"/><circle cx="17" cy="19" r="1.6" fill="currentColor"/></svg>
+      <span>Área</span>
+    </button>
+    <button id="nav-clima" data-act="tab" data-tab="clima">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 14.8V5a2 2 0 0 0-4 0v9.8a4 4 0 1 0 4 0z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="17.5" r="1.8" fill="currentColor"/></svg>
+      <span>Clima</span>
+    </button>
+    <button id="nav-informe" data-act="tab" data-tab="informe">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l8 4.6v9.8l-8 4.6-8-4.6V7.1z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M8.5 12.5l2.4 2.4 4.6-5" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+      <span>Informe</span>
+    </button>
+  </nav>
+
+  <div id="sheet" class="sheet" hidden></div>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  <input type="file" id="csvFile" accept=".csv,.txt,text/csv,text/plain" hidden>
+  <input type="file" id="gisFile" accept=".kml,.kmz,.geojson,.json,.gpx,application/vnd.google-earth.kml+xml,application/vnd.google-earth.kmz,application/geo+json,application/json,application/gpx+xml,application/xml,text/xml,application/octet-stream" hidden>
+  <input type="file" id="backupFile" accept=".json,application/json,text/plain" hidden>
+
+  <script src="js/geo.js"></script>
+  <script src="js/holdridge.js"></script>
+  <script src="js/climate.js"></script>
+  <script src="js/analysis.js"></script>
+  <script src="js/fmt.js"></script>
+  <script src="js/gps.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/xml.js"></script>
+  <script src="js/zip.js"></script>
+  <script src="js/gis.js"></script>
+  <script src="js/backup.js"></script>
+  <script src="js/walter-lieth.js"></script>
+  <script src="js/io.js"></script>
+  <script src="js/diagram.js"></script>
+  <script src="js/report.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

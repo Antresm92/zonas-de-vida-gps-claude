@@ -1,0 +1,7 @@
+{
+  "appId": "co.zonasdevida.app",
+  "appName": "Zonas de Vida",
+  "webDir": "www",
+  "server": { "androidScheme": "https" },
+  "android": { "backgroundColor": "#EEF2EC" }
+}

@@ -1,0 +1,20 @@
+{
+  "name": "zonas-de-vida-gps",
+  "version": "2.0.0",
+  "private": true,
+  "description": "App tipo GPS que calcula el área de un terreno y entrega un informe de zona de vida de Holdridge. Funciona sin conexión.",
+  "scripts": {
+    "test": "node --test \"tests/*.test.js\"",
+    "android:add": "cap add android && node scripts/patch-android.js && cap sync android",
+    "android:apk": "cd android && ./gradlew assembleDebug"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.0.0",
+    "@capacitor/core": "^7.0.0",
+    "@capacitor/filesystem": "^7.0.0",
+    "@capacitor/share": "^7.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.0.0"
+  }
+}
