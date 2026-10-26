@@ -127,3 +127,35 @@ test('sin setBackend: usa el localStorage del navegador si existe, y funciona en
   assert.equal(S2.loadState().projects.length, 1);
   delete require.cache[ruta];
 });
+
+test('marcas del equipo: se guardan, se leen y no se mezclan con los proyectos', () => {
+  const st = fakeStorage();
+  Store.setBackend(st);
+  assert.equal(Store.loadFlag('webNoteAt'), null);
+  assert.deepEqual(Store.saveFlag('webNoteAt', 1234), { ok: true });
+  assert.deepEqual(Store.saveFlag('otra', 'x'), { ok: true });
+  assert.equal(Store.loadFlag('webNoteAt'), 1234);
+  assert.equal(Store.loadFlag('otra'), 'x');
+  assert.equal(Store.loadFlag('nunca'), null);
+  assert.equal(Store.loadFlag('toString'), null, 'no lee propiedades heredadas');
+  assert.equal(st.getItem('zvg.v1.state'), null, 'no toca los proyectos');
+  assert.deepEqual(JSON.parse(st.getItem('zvg.v1.flags')), { webNoteAt: 1234, otra: 'x' });
+});
+
+test('marcas del equipo: un contenido dañado se ignora y se reemplaza', () => {
+  for (const bad of ['[1,2]', '"texto"', '5', 'null', '{no json']) {
+    const st = fakeStorage({ 'zvg.v1.flags': bad });
+    Store.setBackend(st);
+    assert.equal(Store.loadFlag('webNoteAt'), null, bad);
+    assert.deepEqual(Store.saveFlag('webNoteAt', 7), { ok: true });
+    assert.equal(Store.loadFlag('webNoteAt'), 7, bad);
+  }
+});
+
+test('marcas del equipo: si no hay dónde guardar, avisa pero la sesión sigue recordándola', () => {
+  Store.setBackend(null);
+  const r = Store.saveFlag('webNoteAt', 99);
+  assert.equal(r.ok, false);
+  assert.match(r.error, /no permite guardar/);
+  assert.equal(Store.loadFlag('webNoteAt'), 99);
+});

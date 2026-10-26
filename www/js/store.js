@@ -8,6 +8,7 @@
 
   var KEY_STATE = 'zvg.v1.state';
   var KEY_MEM = 'zvg.v1.memory';
+  var KEY_FLAGS = 'zvg.v1.flags';
   var MAIN_COLOR = '#2F8F4E';
   var MIN_ACC = [0, 3, 5, 10, 20];
   var DEFAULT_SETTINGS = { areaUnit: 'ha', minAcc: 10, csvStyle: 'es' };
@@ -59,6 +60,11 @@
   function loadMemory() { var m = read(KEY_MEM); return Array.isArray(m) ? m : []; }
   function saveMemory(arr) { return write(KEY_MEM, arr); }
 
-  return { loadState: loadState, saveState: saveState, loadMemory: loadMemory, saveMemory: saveMemory,
+  // Marcas pequeñas de este equipo (por ejemplo, cuándo se cerró un aviso). No entran en la copia de seguridad.
+  function flagBag() { var f = read(KEY_FLAGS); return f && typeof f === 'object' && !Array.isArray(f) ? f : {}; }
+  function loadFlag(name) { var f = flagBag(); return Object.prototype.hasOwnProperty.call(f, name) ? f[name] : null; }
+  function saveFlag(name, value) { var f = flagBag(); f[name] = value; return write(KEY_FLAGS, f); }
+
+  return { loadState: loadState, saveState: saveState, loadMemory: loadMemory, saveMemory: saveMemory, loadFlag: loadFlag, saveFlag: saveFlag,
            newProject: newProject, uid: uid, setBackend: setBackend, defaultState: defaultState, MAIN_COLOR: MAIN_COLOR, MIN_ACC: MIN_ACC };
 });

@@ -2,3 +2,4 @@ node_modules/
 android/
 dist/
 *.apk
+_sitio/

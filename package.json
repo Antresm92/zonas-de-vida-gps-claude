@@ -5,6 +5,7 @@
   "description": "App tipo GPS que calcula el área de un terreno y entrega un informe de zona de vida de Holdridge. Funciona sin conexión.",
   "scripts": {
     "test": "node --test \"tests/*.test.js\"",
+    "web:preparar": "node scripts/preparar-web.js --salida _sitio --etiqueta local",
     "android:add": "cap add android && node scripts/patch-android.js && cap sync android",
     "android:apk": "cd android && ./gradlew assembleDebug"
   },

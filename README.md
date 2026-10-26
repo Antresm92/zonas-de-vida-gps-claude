@@ -35,8 +35,32 @@ Cada APK nuevo usa **la misma clave de firma** (`scripts/debug.keystore`), así 
 ### Alternativa: compilar en tu computador
 Con Node 20+, JDK 21 y Android Studio: `npm install`, `npm run android:add`, `npm run android:apk`. El APK queda en `android/app/build/outputs/apk/debug/`.
 
-### Alternativa: web instalable (sin APK)
-Sube la carpeta `www/` a cualquier alojamiento web con HTTPS (por ejemplo GitHub Pages), ábrela en Chrome del teléfono y elige **Instalar app / Añadir a pantalla de inicio**. Después de la primera visita abre sin conexión. Si cambias archivos, sube el número de `CACHE` en `www/sw.js` para que los teléfonos se actualicen.
+### Versión web en línea (GitHub Pages)
+La misma app se publica como página web, para probarla desde el navegador del teléfono con un enlace, sin instalar el APK. **El APK se sigue generando exactamente igual**: la publicación web usa un archivo aparte (`.github/workflows/deploy-web.yml`) y no toca el del APK.
+
+- **Enlace:** `https://antresm92.github.io/zonas-de-vida-gps-claude/` (aparece activo cuando termines los pasos de abajo y GitHub publique por primera vez).
+- **Cómo se publica:** cada vez que llegan cambios a la rama `main`, GitHub prueba la app (`npm test`), prepara la carpeta `www/` con `scripts/preparar-web.js` y la publica. En la rama `version-web-online` solo prueba y prepara; **no publica**. También se puede lanzar a mano: pestaña **Actions › Publicar versión web › Run workflow**.
+- **Actualizaciones:** el script cambia por sí solo el nombre de la memoria offline (`CACHE` de `sw.js`) en cada publicación, así nadie se queda con la versión vieja. Después de una publicación nueva, abre la página y recárgala una vez.
+- **Instalarla como app:** en Chrome del teléfono abre el menú ⋮ › **Instalar app** (o **Añadir a la pantalla de inicio**). Después de la primera visita abre sin conexión.
+- **Visibilidad:** GitHub Pages gratis solo publica desde repositorios **públicos**, y la página publicada es visible en internet para quien tenga el enlace aunque el repositorio sea privado. Si pasas el repositorio a privado con un plan gratuito, la página deja de publicarse.
+
+**Pasos para activarla (una sola vez, con la página de GitHub):**
+1. Sube la rama `version-web-online` (GitHub Desktop › **Push origin**) y revisa en **Actions** que «Publicar versión web» termine en verde. En esa rama no publica, solo comprueba.
+2. En el repositorio: **Settings › Pages › Build and deployment › Source: GitHub Actions**.
+3. Une la rama a `main` (**Pull requests › New pull request › version-web-online › Create pull request › Merge**). Al llegar a `main` se publica.
+4. En **Actions** se verá «Publicar versión web» y, al terminar, el enlace aparece en el trabajo «publicar» y en **Settings › Pages**. Ábrelo en el teléfono.
+
+**Diferencias entre el APK y la versión web:**
+
+| | APK | Versión web |
+|---|---|---|
+| Dónde viven los proyectos | En el teléfono, dentro de la app | Solo en ese navegador de ese equipo. Si borras los datos del sitio o cambias de navegador, no están. La app lo avisa y pide una copia de seguridad |
+| GPS | Del teléfono | Del navegador: necesita HTTPS y permiso; la página debe estar abierta con la pantalla encendida |
+| Exportar | Menú de compartir de Android | Menú de compartir del navegador si lo tiene; si no, descarga el archivo |
+| Importar | Selector de archivos | Selector de archivos del navegador |
+| Sin conexión | Siempre | Después de la primera visita (memoria offline del navegador) |
+| NASA POWER y Open-Meteo | Funciona (comprobado en un teléfono real) | Debe funcionar igual; se comprueba una vez publicada la página |
+| Mapa | Todavía no existe en ninguna de las dos versiones | Igual |
 
 ---
 
@@ -98,8 +122,8 @@ La altitud del GPS puede venir medida desde el elipsoide y no desde el nivel del
 ## 3. Qué está verificado y qué no
 
 **Verificado aquí:**
-- **277 pruebas unitarias** (`npm test`, solo Node, sin instalar nada) que cubren la lógica: distancias y áreas en el elipsoide WGS84 contra una integración numérica independiente (hemisferio sur, 60° de latitud, meridiano 180°), geometría del diagrama de Holdridge y zonas de vida de ciudades colombianas, lectura y escritura de KML/KMZ/GeoJSON/GPX/CSV, copia de seguridad y restauración con archivos dañados o manipulados, diagrama de Walter-Lieth, lectura de las respuestas de NASA POWER (formato clásico y formato nuevo) y de Open-Meteo, y el aviso de precisión del GPS.
-- **63 pasos en un navegador (Chromium) con GPS e internet simulados** (`node tests/e2e/run.js`, necesita Playwright): la app completa recorrida como la usaría una persona, sin errores de JavaScript en la consola, incluido el funcionamiento sin red.
+- **305 pruebas unitarias** (`npm test`, solo Node, sin instalar nada) que cubren la lógica: distancias y áreas en el elipsoide WGS84 contra una integración numérica independiente (hemisferio sur, 60° de latitud, meridiano 180°), geometría del diagrama de Holdridge y zonas de vida de ciudades colombianas, lectura y escritura de KML/KMZ/GeoJSON/GPX/CSV, copia de seguridad y restauración con archivos dañados o manipulados, diagrama de Walter-Lieth, lectura de las respuestas de NASA POWER (formato clásico y formato nuevo) y de Open-Meteo, y el aviso de precisión del GPS.
+- **71 pasos en un navegador (Chromium) con GPS e internet simulados** (`node tests/e2e/run.js`, necesita Playwright): la app completa recorrida como la usaría una persona, sin errores de JavaScript en la consola, incluido el funcionamiento sin red y la publicación en una subcarpeta como la de GitHub Pages.
 - **Cobertura medida** (`node tools/cobertura.js`): las pruebas unitarias ejecutan el 99,7 % de las líneas de los módulos de lógica; sumando las pruebas en navegador, 99,9 % de todo `www/js`, con `app.js` (la interfaz) en 100 %. Las pocas líneas que faltan son ramas imposibles de provocar desde fuera.
 - **Prueba de fallos provocados**: se cambiaron a propósito 127 operadores del código (por ejemplo `<` por `<=` o `&&` por `||`, elegidos al azar) y se comprobó que alguna prueba fallara. Se detectan 117 (92 %). Los 10 restantes, revisados uno por uno, no cambian el resultado de la app (por ejemplo, un ciclo que lee una posición de más sin efecto). Es una muestra, no todos los cambios posibles.
 

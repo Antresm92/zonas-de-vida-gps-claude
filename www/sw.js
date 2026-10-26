@@ -1,7 +1,7 @@
 /* Service worker: guarda la app para que abra sin conexión (solo se usa en la versión web instalable). */
 const CACHE = 'zonas-de-vida-v3';
 const FILES = ['./', 'index.html', 'manifest.webmanifest', 'css/app.css', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png',
-  'js/geo.js', 'js/holdridge.js', 'js/climate.js', 'js/analysis.js', 'js/fmt.js', 'js/gps.js', 'js/store.js', 'js/xml.js', 'js/zip.js', 'js/gis.js', 'js/backup.js', 'js/walter-lieth.js', 'js/io.js', 'js/diagram.js', 'js/report.js', 'js/app.js'];
+  'js/geo.js', 'js/holdridge.js', 'js/climate.js', 'js/analysis.js', 'js/fmt.js', 'js/gps.js', 'js/store.js', 'js/xml.js', 'js/zip.js', 'js/gis.js', 'js/backup.js', 'js/walter-lieth.js', 'js/web.js', 'js/io.js', 'js/diagram.js', 'js/report.js', 'js/app.js'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', (e) => {
   e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim()));

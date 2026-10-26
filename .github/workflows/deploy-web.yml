@@ -1,0 +1,70 @@
+name: Publicar versión web (GitHub Pages)
+
+# Este archivo es independiente del que compila el APK (android.yml): no lo toca ni lo reemplaza.
+#
+# - En la rama `version-web-online` solo PRUEBA y PREPARA el sitio. No publica nada.
+# - Cuando los cambios llegan a `main`, además PUBLICA la página.
+# - También se puede lanzar a mano: pestaña Actions > "Publicar versión web" > Run workflow.
+#
+# Requisito (una sola vez): Settings > Pages > Build and deployment > Source = "GitHub Actions".
+
+on:
+  push:
+    branches: [main, version-web-online]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Una publicación a la vez; si llega otra, espera (no se cancela una que va a medias).
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  construir:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Pruebas unitarias
+        run: npm test
+
+      - name: Preparar el sitio (carpeta www + memoria offline propia de esta publicación)
+        run: node scripts/preparar-web.js --salida _sitio --etiqueta "${GITHUB_SHA::7}"
+
+      - name: Comprobar el sitio preparado
+        run: |
+          test -f _sitio/index.html
+          test -f _sitio/sw.js
+          test -f _sitio/manifest.webmanifest
+          test -f _sitio/js/app.js
+          test -f _sitio/js/web.js
+          grep -q "zonas-de-vida-web-${GITHUB_SHA::7}" _sitio/sw.js
+          # Rutas relativas: la página vive en una subcarpeta, así que nada puede empezar con «/»
+          if grep -Eq '(src|href)="/' _sitio/index.html; then echo 'index.html usa rutas que empiezan con /'; exit 1; fi
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _sitio
+
+  publicar:
+    # Solo desde main. En la rama de pruebas no se publica.
+    if: github.ref == 'refs/heads/main'
+    needs: construir
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

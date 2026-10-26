@@ -8,17 +8,22 @@ const PW = process.env.PW_PATH || '/opt/npm-tools/node_modules/playwright';
 const CHROMIUM = process.env.CHROMIUM || '/opt/pw-browsers/chromium';
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.webmanifest': 'application/manifest+json', '.json': 'application/json' };
 
-function serve() {
+// base: carpeta bajo la que se publica la app. Con '/' (por defecto) se sirve en la raíz; con '/zonas-de-vida-gps-claude/'
+// se imita GitHub Pages, y cualquier archivo pedido fuera de esa carpeta da 404 (así se detectan rutas absolutas).
+function serve(base) {
+  base = base || '/';
   return new Promise((resolve) => {
     const srv = http.createServer((req, res) => {
       let p = decodeURIComponent(req.url.split('?')[0]);
+      if (!p.startsWith(base)) { res.writeHead(404); res.end('fuera de ' + base); return; }
+      p = '/' + p.slice(base.length);
       if (p.endsWith('/')) p += 'index.html';
       const f = path.join(WWW, path.normalize(p).replace(/^(\.\.[/\\])+/, ''));
       if (!f.startsWith(WWW) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) { res.writeHead(404); res.end('no'); return; }
       res.writeHead(200, { 'Content-Type': MIME[path.extname(f)] || 'application/octet-stream', 'Cache-Control': 'no-cache' });
       fs.createReadStream(f).pipe(res);
     });
-    srv.listen(0, '127.0.0.1', () => resolve({ srv, url: 'http://127.0.0.1:' + srv.address().port + '/' }));
+    srv.listen(0, '127.0.0.1', () => resolve({ srv, url: 'http://127.0.0.1:' + srv.address().port + base }));
   });
 }
 

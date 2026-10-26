@@ -4,8 +4,11 @@
 
   var Geo = window.Geo, H = window.Holdridge, Climate = window.Climate, A = window.Analysis, Fmt = window.Fmt,
       Gps = window.Gps, Store = window.Store, Diagram = window.Diagram, Report = window.Report,
-      Gis = window.Gis, Backup = window.Backup, IO = window.IO, WL = window.WalterLieth;
+      Gis = window.Gis, Backup = window.Backup, IO = window.IO, WL = window.WalterLieth, Web = window.Web;
   var APP_VERSION = '2.0.1';
+  // true dentro del APK (Capacitor); false cuando se abre como página web en un navegador
+  var NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+  function webEnv() { return { native: NATIVE, secure: window.isSecureContext !== false, geolocation: !!navigator.geolocation, storage: navigator.storage }; }
 
   var S = Store.loadState();
   var MEM = new Climate.Memory();
@@ -199,8 +202,20 @@
     return '<span class="alt alt-' + (p.altSrc || 'manual') + '">' + Fmt.num(p.alt, 0) + ' m · ' + lab + '</span>';
   }
 
+  // Aviso de la versión web (solo en el navegador): los datos viven en este navegador, HTTPS, GPS
+  function webBanner() {
+    var b = Web.banner(webEnv(), Store.loadFlag('webNoteAt'), Date.now());
+    if (!b) return '';
+    var h = '<div class="webnote" role="note">';
+    b.notes.forEach(function (n) {
+      h += '<div class="' + (n.level === 'warn' ? 'tip' : 'okmsg') + '"><strong>' + esc(n.title) + '.</strong> ' + esc(n.text) + '</div>';
+    });
+    if (b.canDismiss) h += '<div class="btns"><button class="btn" data-act="dismissWebNote">Entendido, recuérdamelo en 7 días</button></div>';
+    return h + '</div>';
+  }
+
   function tabPuntos() {
-    var p = proj(), h = '';
+    var p = proj(), h = webBanner();
     var sampling = ui.sampling;
     h += '<div class="block"><h2>Posición actual</h2>';
     h += '<div class="readout"><div><span class="k">Latitud</span><span class="v" id="rLat">—</span></div><div><span class="k">Longitud</span><span class="v" id="rLon">—</span></div>' +
@@ -905,6 +920,7 @@
     h += '</ul><div class="btns"><button class="btn btn-primary" data-act="newProject">Nuevo proyecto</button><button class="btn" data-act="renameProject">Cambiar nombre</button>' + (S.projects.length > 1 ? '<button class="btn btn-danger" data-act="askDeleteProject">Eliminar este proyecto</button>' : '') + '</div>';
     h += '<h3 class="sub">Copia de seguridad</h3><p class="small muted">Guarda todos tus proyectos, puntos, capas, datos de clima y ajustes en un archivo, para no perderlos si cambias de teléfono o desinstalas la app.</p>';
     h += '<div class="btns"><button class="btn" data-act="backupExport">Exportar copia de seguridad</button><button class="btn" data-act="backupPick">Restaurar copia…</button></div>';
+    if (!NATIVE) h += '<p class="small muted" style="margin-top:10px">' + esc(Web.storageNote(ui.persisted)) + '</p>';
     h += '<p class="small muted" style="margin-top:14px">Zonas de Vida versión ' + APP_VERSION + '</p>';
     openSheet('Proyectos', h);
   }
@@ -983,6 +999,7 @@
   var ACTIONS = {
     tab: function (t) { showTab(t.getAttribute('data-tab')); },
     projects: openProjects,
+    dismissWebNote: function () { Store.saveFlag('webNoteAt', Date.now()); renderTab('puntos'); },
     gpsOn: gpsStart, gpsOff: gpsStop, mark: markPoint, cancelMark: cancelMark,
     addCoords: openAdd, addBulk: openBulk, saveBulk: saveBulk,
     saveNew: function (t) { saveNew(t.getAttribute('data-more') === '1'); },
@@ -1062,8 +1079,8 @@
 
   /* ---------- Inicio ---------- */
   renderAll();
-  var native = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform();
-  if (!native && 'serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+  if (!NATIVE) Web.requestPersist(webEnv()).then(function (r) { ui.persisted = r; });
+  if (!NATIVE && 'serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
     navigator.serviceWorker.register('sw.js').catch(function () { /* sin trabajo en segundo plano: la app sigue igual */ });
   }
   // Para pruebas automáticas
