@@ -1,0 +1,9 @@
+Leaflet 1.9.4 (https://leafletjs.com), licencia BSD-2-Clause (ver LICENSE).
+Archivos sin modificar. Se incluyen aquí, y no desde un CDN, para que la interfaz del mapa abra sin internet.
+Origen de esta copia: el repositorio público Antresm92/zonas-de-vida-gpsgpt (carpeta www/lib/leaflet), revisada así:
+ - solo dos direcciones dentro de leaflet.js (http://www.w3.org/2000/svg y https://leafletjs.com);
+ - sin eval, new Function, XMLHttpRequest, fetch, WebSocket ni sendBeacon;
+ - tamaños 147.552 bytes (leaflet.js) y 14.145 bytes (leaflet.css), que son los de la versión oficial 1.9.4.
+Pendiente: comparar con el paquete oficial de npm cuando haya acceso a npm.
+SHA-256: leaflet.js db49d009c841f5ca34a888c96511ae936fd9f5533e90d8b2c4d57596f4e5641a
+         leaflet.css 337bfca5cabd03b39815b2700febe2b3b7edf55921c59cd49f88ecb328212303

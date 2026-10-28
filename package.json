@@ -1,6 +1,6 @@
 {
   "name": "zonas-de-vida-gps",
-  "version": "2.0.1",
+  "version": "2.1.0",
   "private": true,
   "description": "App tipo GPS que calcula el área de un terreno y entrega un informe de zona de vida de Holdridge. Funciona sin conexión.",
   "scripts": {

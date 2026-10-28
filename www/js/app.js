@@ -4,14 +4,16 @@
 
   var Geo = window.Geo, H = window.Holdridge, Climate = window.Climate, A = window.Analysis, Fmt = window.Fmt,
       Gps = window.Gps, Store = window.Store, Diagram = window.Diagram, Report = window.Report,
-      Gis = window.Gis, Backup = window.Backup, IO = window.IO, WL = window.WalterLieth;
-  var APP_VERSION = '2.0.1';
+      Gis = window.Gis, Backup = window.Backup, IO = window.IO, WL = window.WalterLieth, Mapa = window.Mapa, MapView = window.MapView;
+  var APP_VERSION = '2.1.0';
 
   var S = Store.loadState();
   var MEM = new Climate.Memory();
   MEM.add(Store.loadMemory());
   var ui = { tab: 'puntos', gpsOn: false, fix: null, stopWatch: null, sampling: null, fetching: false, diagram: null, sheetOpen: false, undo: null, wasOn: false,
-             imp: null, restore: null, edit: null };
+             imp: null, restore: null, edit: null,
+             polyView: 'croquis', polyActive: true, mapBase: Mapa.baseId(Store.loadFlag('mapBase')), mapRef: Store.loadFlag('mapRef') === true,
+             map: null, mapFollow: false, mapFitKey: null, tileErrors: 0 };
 
   /* ---------- Utilidades ---------- */
   function $(s, r) { return (r || document).querySelector(s); }
@@ -111,7 +113,7 @@
   function gpsStart() {
     if (!Gps.available()) { toast('Este dispositivo no permite leer el GPS. Puedes escribir las coordenadas.', { err: true }); return; }
     ui.gpsOn = true; ui.fix = null; updateChips();
-    ui.stopWatch = Gps.watch(function (fix) { ui.fix = fix; updateReadout(); updateChips(); }, function (e) {
+    ui.stopWatch = Gps.watch(function (fix) { ui.fix = fix; updateReadout(); updateChips(); onMapFix(fix); }, function (e) {
       toast(Gps.explain(e), { err: true });
       if (e && e.code === 1) gpsStop();
     });
@@ -119,7 +121,8 @@
   }
   function gpsStop() {
     if (ui.stopWatch) ui.stopWatch();
-    ui.stopWatch = null; ui.gpsOn = false; ui.fix = null; updateChips();
+    ui.stopWatch = null; ui.gpsOn = false; ui.fix = null; ui.mapFollow = false; updateChips();
+    if (ui.map) ui.map.showFix(null);
     if (ui.tab === 'puntos') renderTab('puntos');
   }
   document.addEventListener('visibilitychange', function () {
@@ -136,6 +139,7 @@
     var st = { start: Date.now(), n: 0, acc: null, secs: secs, ac: ac, cancelled: false };
     ui.sampling = st;
     renderTab('puntos');
+    if (ui.tab === 'area') renderTab('area');
     var timer = setInterval(updateProgress, 200);
     Gps.sample({ seconds: secs, goodAcc: min > 0 ? Math.min(5, min) : 5, minSamples: 4, signal: ac ? ac.signal : undefined,
       onProgress: function (s, n) { st.n = n; st.acc = s.acc; } })
@@ -150,14 +154,17 @@
         }
       })
       .catch(function (e) { if (!st.cancelled) toast(Gps.explain(e), { err: true }); })
-      .then(function () { clearInterval(timer); ui.sampling = null; if (ui.tab === 'puntos') renderTab('puntos'); });
+      .then(function () { clearInterval(timer); ui.sampling = null; if (ui.tab === 'puntos' || ui.tab === 'area') renderTab(ui.tab); });
   }
   function updateProgress() {
     var st = ui.sampling; if (!st) return;
     var pct = Math.min(100, (Date.now() - st.start) / (st.secs * 1000) * 100);
-    var bar = $('#progBar'), txt = $('#progTxt');
-    if (bar) bar.style.width = pct + '%';
-    if (txt) txt.textContent = st.n ? 'Promediando lecturas: ' + st.n + (isNum(st.acc) ? ' · mejor precisión ±' + Math.round(st.acc) + ' m' : '') : 'Esperando la primera lectura del GPS…';
+    var msg = st.n ? 'Promediando lecturas: ' + st.n + (isNum(st.acc) ? ' · mejor precisión ±' + Math.round(st.acc) + ' m' : '') : 'Esperando la primera lectura del GPS…';
+    [['#progBar', '#progTxt'], ['#mapProgBar', '#mapProgTxt']].forEach(function (ids) {
+      var bar = $(ids[0]), txt = $(ids[1]);
+      if (bar) bar.style.width = pct + '%';
+      if (txt) txt.textContent = msg;
+    });
   }
   function cancelMark() {
     var st = ui.sampling; if (!st) return;
@@ -564,8 +571,15 @@
     closeSheet(); renderTab(ui.tab); toast(r.items.length + ' punto(s) agregados.');
   }
 
-  /* ---------- Área ---------- */
+  /* ---------- Polígono (Croquis y Mapa) ---------- */
   function tabArea() {
+    var h = '<h2 class="pagetitle">Polígono del terreno</h2><div class="seg" role="group" aria-label="Vista del polígono">';
+    [['croquis', 'Croquis'], ['mapa', 'Mapa']].forEach(function (v) {
+      h += '<button data-act="polyView" data-v="' + v[0] + '" aria-pressed="' + (ui.polyView === v[0]) + '">' + v[1] + '</button>';
+    });
+    return h + '</div>' + (ui.polyView === 'mapa' ? mapaHtml() : croquisHtml());
+  }
+  function croquisHtml() {
     var p = proj(), a = analysis(), h = '';
     var shown = p.layers.filter(function (l) { return l.visible !== false && l.points.length; });
     if (a.empty) {
@@ -617,6 +631,77 @@
     p.points = order.map(function (i) { return before[i]; });
     save(); renderTab('area');
     toast('Puntos reordenados.', { action: 'Deshacer', fn: function () { p.points = before; save(); renderTab('area'); } });
+  }
+
+  /* ---------- Polígono: vista Mapa ---------- */
+  // Calles o satélite, el polígono con sus puntos y cuatro herramientas. El dibujo lo hace mapview.js (Leaflet).
+  var ICONS = {
+    poly: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8.5 6.2-3.2 10H6.7L3.5 9.2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>',
+    last: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2.2" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+    mark: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="2" fill="currentColor"/></svg>',
+    loc: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3.4" fill="currentColor"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>'
+  };
+  function mapaHtml() {
+    var p = proj(), h = '';
+    h += '<div class="maprow"><span class="small muted">Capa base</span><div class="seg" role="group" aria-label="Capa base">';
+    ['calles', 'satelite'].forEach(function (id) {
+      h += '<button data-act="mapBase" data-b="' + id + '" aria-pressed="' + (ui.mapBase === id) + '">' + esc(Mapa.BASES[id].label) + '</button>';
+    });
+    h += '</div></div>';
+    if (ui.mapBase === 'satelite') h += '<button class="chipbtn" data-act="mapRef" aria-pressed="' + ui.mapRef + '">Calles y nombres sobre el satélite</button>';
+    h += '<div class="mapbox' + (ui.mapBase === 'satelite' ? ' with-chip' : '') + '"><div id="mapHost" class="maphost"></div>';
+    h += '<div id="mapNotice" class="mapnotice" role="status" hidden></div>';
+    if (ui.sampling) {
+      h += '<div class="mapprog" role="status"><div class="prog"><i id="mapProgBar"></i></div><p class="small" id="mapProgTxt">Esperando la primera lectura del GPS…</p><button class="btn btn-danger" data-act="cancelMark">Cancelar</button></div>';
+    }
+    h += '<div class="maptools" role="group" aria-label="Herramientas del mapa">' +
+      '<button class="maptool" data-act="mapPoly" aria-pressed="' + ui.polyActive + '">' + ICONS.poly + '<span>' + (ui.polyActive ? 'Polígono activo' : 'Polígono inactivo') + '</span></button>' +
+      '<button class="maptool" data-act="mapLast">' + ICONS.last + '<span>Último punto</span></button>' +
+      '<button class="maptool" data-act="mapMark"' + (ui.sampling ? ' disabled' : '') + '>' + ICONS.mark + '<span>Marcar punto</span></button></div>';
+    h += '<button class="maploc" data-act="mapMyPos" aria-label="Centrar el mapa en mi posición">' + ICONS.loc + '</button></div>';
+    if (!p.points.length && !Mapa.visibleLayers(p.layers).length) h += '<div class="tip">Todavía no hay puntos. Pulsa «Marcar punto» para guardar tu posición con el GPS, o agrégalos en la pestaña Puntos.</div>';
+    h += '<p class="small muted">«Marcar punto» guarda tu posición con el GPS, promediando lecturas, igual que en la pestaña Puntos. «Último punto» te lleva al último que marcaste. El botón de la derecha centra el mapa donde estás.</p>';
+    return h;
+  }
+  // Alto que tapan las herramientas de abajo (más su separación del borde): el encuadre deja ese espacio libre para que no cubran los puntos
+  function toolsInset() { var t = $('.maptools'); return t ? t.offsetHeight + 44 : 100; }
+  function mapKey() { var p = proj(); return p.id + ':' + (Mapa.extent(p.points, p.layers) ? 'con-datos' : 'vacio'); }
+  function mountMap() {
+    var host = $('#mapHost');
+    if (!host) return;
+    if (!window.L) { host.textContent = 'El mapa no se pudo cargar en este dispositivo.'; return; }
+    var p = proj(), a = analysis();
+    if (!ui.map) ui.map = MapView.create({ onStatus: onTileStatus });
+    ui.map.attach(host);
+    ui.map.setBase(ui.mapBase, ui.mapRef);
+    ui.map.draw(Mapa.shapes(p, { polyActive: ui.polyActive, bad: !!a.selfIntersects, fmt: function (n) { return Fmt.num(n, 0); } }));
+    var key = mapKey();
+    if (ui.mapFitKey !== key) { ui.map.fit(Mapa.extent(p.points, p.layers), { bottom: toolsInset() }); ui.mapFitKey = key; }   // solo al cambiar de proyecto o al llegar los primeros datos
+    ui.map.showFix(ui.gpsOn ? ui.fix : null);
+    updateMapNotice();
+  }
+  function onTileStatus(st) { ui.tileErrors = st.errors; updateMapNotice(); }
+  function updateMapNotice() {
+    var el = $('#mapNotice');
+    if (!el) return;
+    var t = Mapa.tileNotice({ online: navigator.onLine, errors: ui.tileErrors });
+    el.textContent = t; el.hidden = !t;
+  }
+  function onMapFix(fix) {
+    if (!ui.map) return;
+    ui.map.showFix(fix);
+    if (ui.mapFollow && ui.tab === 'area' && ui.polyView === 'mapa') { ui.mapFollow = false; ui.map.flyTo(fix.lat, fix.lon, 17); }
+  }
+  function goLastPoint() {
+    var pt = Mapa.lastPoint(proj().points);
+    if (!pt) { toast('Todavía no hay puntos marcados en este proyecto.'); return; }
+    if (ui.map) ui.map.flyTo(pt.lat, pt.lon, 18);
+    toast('Último punto: ' + (pt.name || 'sin nombre') + '.');
+  }
+  function goMyPosition() {
+    if (!ui.gpsOn) { gpsStart(); if (!ui.gpsOn) return; }
+    if (ui.fix) { if (ui.map) { ui.map.showFix(ui.fix); ui.map.flyTo(ui.fix.lat, ui.fix.lon, 17); } }
+    else { ui.mapFollow = true; toast('Buscando tu posición…'); }
   }
 
   /* ---------- Clima ---------- */
@@ -964,6 +1049,7 @@
     var sy = window.scrollY;
     el.innerHTML = TABS[t]();
     if (t === 'puntos') { updateReadout(); updateProgress(); }
+    if (t === 'area') { mountMap(); updateProgress(); }
     if (t === 'informe') mountDiagram();
     window.scrollTo(0, sy);
   }
@@ -983,6 +1069,13 @@
   var ACTIONS = {
     tab: function (t) { showTab(t.getAttribute('data-tab')); },
     projects: openProjects,
+    polyView: function (t) { ui.polyView = t.getAttribute('data-v') === 'mapa' ? 'mapa' : 'croquis'; renderTab('area'); },
+    mapBase: function (t) { ui.mapBase = Mapa.baseId(t.getAttribute('data-b')); Store.saveFlag('mapBase', ui.mapBase); renderTab('area'); },
+    mapRef: function () { ui.mapRef = !ui.mapRef; Store.saveFlag('mapRef', ui.mapRef); renderTab('area'); },
+    mapPoly: function () { ui.polyActive = !ui.polyActive; renderTab('area'); },
+    mapLast: goLastPoint,
+    mapMark: function () { if (!ui.gpsOn) gpsStart(); markPoint(); },
+    mapMyPos: goMyPosition,
     gpsOn: gpsStart, gpsOff: gpsStop, mark: markPoint, cancelMark: cancelMark,
     addCoords: openAdd, addBulk: openBulk, saveBulk: saveBulk,
     saveNew: function (t) { saveNew(t.getAttribute('data-more') === '1'); },
@@ -1057,8 +1150,8 @@
     if (f) restoreFile(f);
     e.target.value = '';
   });
-  window.addEventListener('online', function () { updateChips(); if (ui.tab === 'clima') renderTab('clima'); });
-  window.addEventListener('offline', function () { updateChips(); if (ui.tab === 'clima') renderTab('clima'); });
+  window.addEventListener('online', function () { updateChips(); updateMapNotice(); if (ui.tab === 'clima') renderTab('clima'); });
+  window.addEventListener('offline', function () { updateChips(); updateMapNotice(); if (ui.tab === 'clima') renderTab('clima'); });
 
   /* ---------- Inicio ---------- */
   renderAll();

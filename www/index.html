@@ -10,6 +10,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
   <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
@@ -38,7 +39,7 @@
     </button>
     <button id="nav-area" data-act="tab" data-tab="area">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 17l3-11 11 3-2 10z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="5" cy="17" r="1.6" fill="currentColor"/><circle cx="8" cy="6" r="1.6" fill="currentColor"/><circle cx="19" cy="9" r="1.6" fill="currentColor"/><circle cx="17" cy="19" r="1.6" fill="currentColor"/></svg>
-      <span>Área</span>
+      <span>Polígono</span>
     </button>
     <button id="nav-clima" data-act="tab" data-tab="clima">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 14.8V5a2 2 0 0 0-4 0v9.8a4 4 0 1 0 4 0z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="17.5" r="1.8" fill="currentColor"/></svg>
@@ -68,6 +69,9 @@
   <script src="js/gis.js"></script>
   <script src="js/backup.js"></script>
   <script src="js/walter-lieth.js"></script>
+  <script src="vendor/leaflet/leaflet.js"></script>
+  <script src="js/mapa.js"></script>
+  <script src="js/mapview.js"></script>
   <script src="js/io.js"></script>
   <script src="js/diagram.js"></script>
   <script src="js/report.js"></script>

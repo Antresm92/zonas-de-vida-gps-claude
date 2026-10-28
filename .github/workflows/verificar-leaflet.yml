@@ -1,0 +1,48 @@
+name: Verificar Leaflet
+
+# Se ejecuta solo a mano (Actions > "Verificar Leaflet" > Run workflow). No compila el APK.
+# Compara, byte por byte, la copia de Leaflet que va dentro de la app (www/vendor/leaflet)
+# con el paquete oficial leaflet@1.9.4 de npm.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  comparar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Bajar el paquete oficial leaflet@1.9.4 de npm
+        run: |
+          mkdir -p "$RUNNER_TEMP/oficial"
+          cd "$RUNNER_TEMP/oficial"
+          npm pack leaflet@1.9.4 --silent
+          tar xzf leaflet-1.9.4.tgz
+
+      - name: Comparar con la copia incluida en la app
+        run: |
+          set -u
+          OFICIAL="$RUNNER_TEMP/oficial/package"
+          fallos=0
+          comparar() {
+            a=$(sha256sum "$OFICIAL/$1" | cut -d' ' -f1)
+            b=$(sha256sum "www/vendor/leaflet/$2" | cut -d' ' -f1)
+            if [ "$a" = "$b" ]; then echo "IGUAL   $2  $b"; else echo "DISTINTO $2  oficial=$a copia=$b"; fallos=$((fallos+1)); fi
+          }
+          comparar dist/leaflet.js leaflet.js
+          comparar dist/leaflet.css leaflet.css
+          comparar LICENSE LICENSE
+          for f in www/vendor/leaflet/images/*; do comparar "dist/images/$(basename "$f")" "images/$(basename "$f")"; done
+          if [ "$fallos" -ne 0 ]; then
+            echo "::error::$fallos archivo(s) de www/vendor/leaflet no coinciden con leaflet@1.9.4 de npm"
+            exit 1
+          fi
+          echo "::notice::La copia de Leaflet de la app coincide byte por byte con leaflet@1.9.4 de npm"

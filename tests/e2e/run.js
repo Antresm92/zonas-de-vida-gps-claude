@@ -14,6 +14,7 @@ const arg = (n) => { const a = process.argv.find((x) => x.startsWith('--' + n + 
   fs.mkdirSync(shots, { recursive: true });
   const { srv, url } = await H.serve();
   const { browser, context, page, errors } = await H.launch();
+  const tiles = await H.mockTiles(context);
   const R = H.runner(shots); R.setPage(page);
   // Antes de cada paso se cierra cualquier ventana que haya quedado abierta por un paso anterior que falló
   const tidy = async () => {
@@ -65,13 +66,13 @@ const arg = (n) => { const a = process.argv.find((x) => x.startsWith('--' + n + 
   };
   const setFile = async (sel, name, data, mime) => page.setInputFiles(sel, { name, mimeType: mime || 'application/octet-stream', buffer: Buffer.isBuffer(data) ? data : Buffer.from(data) });
 
-  const ctx = { page, url, state, proj, toastText, act, sheetOpen, sheetTitle, waitSheetClosed, waitToast, tab, text, fresh, fill, gpsPush, shot, addPointManual, download, setFile, step, errors, context, browser, assert, fx, shots, H };
+  const ctx = { page, url, state, proj, toastText, act, sheetOpen, sheetTitle, waitSheetClosed, waitToast, tab, text, fresh, fill, gpsPush, shot, addPointManual, download, setFile, step, errors, context, browser, assert, fx, shots, H, tiles };
 
   console.log('Recorrido de la app en Chromium (' + url + ')');
   await page.goto(url);
   await page.waitForSelector('#tab-puntos');
   const only = (arg('parts') || '').split(',').filter(Boolean);
-  for (const part of ['part1-puntos', 'part2-area-importar', 'part3-clima', 'part4-informe-proyectos', 'part5-offline']) {
+  for (const part of ['part1-puntos', 'part2-area-importar', 'part3-clima', 'part4-informe-proyectos', 'part5-offline', 'part7-mapa']) {
     if (only.length && !only.some((o) => part.startsWith(o))) continue;
     const f = path.join(__dirname, part + '.js');
     if (fs.existsSync(f)) { console.log('\n' + part); await require(f)(ctx); }

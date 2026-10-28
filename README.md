@@ -5,6 +5,7 @@ App para Android (y web instalable) que:
 - toma puntos con el **GPS** del teléfono o con coordenadas escritas a mano,
 - calcula **área y perímetro** del terreno (hectáreas, m², km² y fanegadas),
 - entrega un **informe de zona de vida de Holdridge** con su diagrama, región latitudinal, piso altitudinal y provincia de humedad,
+- muestra el terreno en un **mapa** (calles o satélite) con los puntos, su nombre y su altitud, y en un **croquis** con las medidas,
 - **importa y exporta** polígonos de Google Earth y otros programas de mapas (KML, KMZ, GeoJSON, GPX; exporta también CSV para Excel),
 - dibuja el **diagrama climático de Walter-Lieth** (meses secos y húmedos) con datos mensuales de internet o escritos a mano,
 - guarda **copias de seguridad** de todos los proyectos y avisa cuando el GPS no alcanza la precisión que elegiste,
@@ -44,7 +45,9 @@ Sube la carpeta `www/` a cualquier alojamiento web con HTTPS (por ejemplo GitHub
 
 1. **Puntos**: pulsa *Activar GPS* y luego *Marcar punto aquí* en cada vértice del terreno. Quédate quieto unos 10 segundos: la app promedia las lecturas. También puedes *Escribir coordenadas* (decimales o grados-minutos-segundos), *Pegar varias* o *Importar archivo*.
    - **Precisión mínima para marcar puntos** (sin límite, ±3, ±5, ±10 o ±20 m): si el GPS está menos preciso que lo que elegiste, la app lo avisa **antes** de marcar («este punto no será el más preciso») y tú decides si marcas igual o esperas. No bloquea nada; el punto queda guardado con su precisión real y señalado en la lista.
-2. **Área**: con 3 o más puntos aparecen el área, el perímetro, los lados con su rumbo y un dibujo del polígono. Si los lados se cruzan, avisa y ofrece reordenar los puntos. Aquí está **Exportar** (KML, GeoJSON, GPX y CSV).
+2. **Polígono** (antes «Área»), con dos vistas:
+   - **Croquis**: con 3 o más puntos aparecen el área (en hectáreas, m², km² y fanegadas), el perímetro, los vértices, el centro, el rango de altitud, los lados con su rumbo y un dibujo del polígono. Si los lados se cruzan, avisa y ofrece reordenar los puntos. Aquí está **Exportar** (KML, GeoJSON, GPX y CSV).
+   - **Mapa**: capa base **Calles** (OpenStreetMap) o **Satélite** (Esri), y con el satélite el botón *Calles y nombres sobre el satélite*. Dibuja el polígono del proyecto, cada punto con su nombre y altitud (por ejemplo «P3 · 386 m», los nombres aparecen desde cierto zoom para no amontonarse) y las capas importadas con sus colores. Herramientas: *Polígono activo* (muestra u oculta la figura que une los puntos), *Último punto* (centra el mapa en el último que marcaste), *Marcar punto* (guarda tu posición con el GPS, promediando lecturas y con el mismo aviso de precisión que la pestaña Puntos) y, a la derecha, *Mi posición* (centra el mapa donde estás). La capa elegida se recuerda en el equipo. **El mapa de fondo necesita internet** (los puntos y el polígono se ven igual sin conexión, y la app avisa); un mapa de fondo sin conexión llegará en otra etapa.
 3. **Clima**: muestra la altitud, la temperatura y la precipitación que se usan, de dónde sale cada una y deja corregirlas. Con los 12 meses de temperatura y lluvia dibuja el **diagrama de Walter-Lieth** y se puede guardar como imagen (SVG).
 4. **Informe**: zona de vida, datos usados, zonas vecinas posibles según el margen de error, diagrama de Holdridge con tu punto, diagrama de Walter-Lieth y botón para compartir el informe (HTML) o copiar el resumen.
 5. **Proyectos** (toca el nombre arriba): cambiar de proyecto, crear, renombrar, eliminar y **copia de seguridad**.
@@ -55,10 +58,10 @@ Sube la carpeta `www/` a cualquier alojamiento web con HTTPS (por ejemplo GitHub
 - Si el proyecto está **vacío**, el polígono pasa a ser el polígono del proyecto y se calcula el área.
 - Si el proyecto **ya tiene puntos**, la app advierte y ofrece: *Agregar como capa nueva* (queda de otro color y **no cambia** tu área ni tu zona de vida), *Reemplazar mis puntos* o *Crear proyecto nuevo*. Todo se puede **deshacer** desde el aviso que aparece abajo.
 - Cada capa tiene color y nombre editables, se puede ocultar, eliminar, o *Usar como polígono del proyecto* (lo que tenías antes queda como capa). «Mis puntos» también cambia de color.
-- Las capas se dibujan en el plano de la pestaña Área y en el informe, con su leyenda.
+- Las capas se dibujan en el Croquis, en el Mapa y en el informe, con su leyenda.
 
 ### Exportar
-*Área → Exportar* guarda un archivo y abre el menú de compartir de Android (correo, Drive, WhatsApp o «Guardar en…»):
+*Polígono → Croquis → Exportar* guarda un archivo y abre el menú de compartir de Android (correo, Drive, WhatsApp o «Guardar en…»):
 
 | Formato | Para abrir en | Contenido |
 |---|---|---|
@@ -98,16 +101,19 @@ La altitud del GPS puede venir medida desde el elipsoide y no desde el nivel del
 ## 3. Qué está verificado y qué no
 
 **Verificado aquí:**
-- **277 pruebas unitarias** (`npm test`, solo Node, sin instalar nada) que cubren la lógica: distancias y áreas en el elipsoide WGS84 contra una integración numérica independiente (hemisferio sur, 60° de latitud, meridiano 180°), geometría del diagrama de Holdridge y zonas de vida de ciudades colombianas, lectura y escritura de KML/KMZ/GeoJSON/GPX/CSV, copia de seguridad y restauración con archivos dañados o manipulados, diagrama de Walter-Lieth, lectura de las respuestas de NASA POWER (formato clásico y formato nuevo) y de Open-Meteo, y el aviso de precisión del GPS.
-- **63 pasos en un navegador (Chromium) con GPS e internet simulados** (`node tests/e2e/run.js`, necesita Playwright): la app completa recorrida como la usaría una persona, sin errores de JavaScript en la consola, incluido el funcionamiento sin red.
-- **Cobertura medida** (`node tools/cobertura.js`): las pruebas unitarias ejecutan el 99,7 % de las líneas de los módulos de lógica; sumando las pruebas en navegador, 99,9 % de todo `www/js`, con `app.js` (la interfaz) en 100 %. Las pocas líneas que faltan son ramas imposibles de provocar desde fuera.
-- **Prueba de fallos provocados**: se cambiaron a propósito 127 operadores del código (por ejemplo `<` por `<=` o `&&` por `||`, elegidos al azar) y se comprobó que alguna prueba fallara. Se detectan 117 (92 %). Los 10 restantes, revisados uno por uno, no cambian el resultado de la app (por ejemplo, un ciclo que lee una posición de más sin efecto). Es una muestra, no todos los cambios posibles.
+- **300 pruebas unitarias** (`npm test`, solo Node, sin instalar nada) que cubren la lógica: distancias y áreas en el elipsoide WGS84 contra una integración numérica independiente (hemisferio sur, 60° de latitud, meridiano 180°), geometría del diagrama de Holdridge y zonas de vida de ciudades colombianas, lectura y escritura de KML/KMZ/GeoJSON/GPX/CSV, copia de seguridad y restauración con archivos dañados o manipulados, diagrama de Walter-Lieth, lectura de las respuestas de NASA POWER (formato clásico y formato nuevo) y de Open-Meteo, el aviso de precisión del GPS y la lógica del mapa (capas base, qué se dibuja, aviso de mosaicos).
+- **84 pasos en un navegador (Chromium) con GPS e internet simulados** (`node tests/e2e/run.js`, necesita Playwright): la app completa recorrida como la usaría una persona, sin errores de JavaScript en la consola, incluido el funcionamiento sin red y el mapa con **mosaicos simulados** (se comprueba qué pide la app y qué dibuja, que cabe en pantallas de 390 × 844 y 360 × 640 sin que las herramientas tapen los puntos, que las capas se recuerdan y que un nombre con código HTML se escribe como texto).
+- **Cobertura medida** (`node tools/cobertura.js`): las pruebas unitarias ejecutan el 99,7 % de las líneas de los módulos de lógica; sumando las pruebas en navegador, 99,9 % de todo `www/js`, con `app.js` (la interfaz) y `mapview.js` (el mapa) en 100 %. Las pocas líneas que faltan son ramas imposibles de provocar desde fuera.
+- **Prueba de fallos provocados**: se cambiaron a propósito 127 operadores del código (por ejemplo `<` por `<=` o `&&` por `||`, elegidos al azar) y se comprobó que alguna prueba fallara. Se detectan 117 (92 %). Los 10 restantes, revisados uno por uno, no cambian el resultado de la app (por ejemplo, un ciclo que lee una posición de más sin efecto). Es una muestra, no todos los cambios posibles. En el mapa se provocaron además 8 fallos a mano (no re-encuadrar, perseguir siempre al GPS, no guardar la capa, escribir el nombre como HTML…) y las pruebas en navegador detectaron los 8.
 
 **No verificado:**
 - **El APK no se compila en el entorno donde se programa** (bloquea los servidores de Android y npm). La versión 1 sí se compiló en GitHub y funcionó en un teléfono; esta versión no añade complementos nativos nuevos (usa los mismos de archivos y compartir), pero el APK nuevo sale del flujo de GitHub la primera vez.
 - **No se probó en un teléfono real:** permisos y precisión del GPS, el menú de compartir de Android al exportar y el selector de archivos al importar. En el navegador simulado funcionan; en el teléfono falta confirmarlo.
 - **Las consultas a internet no se ejecutaron contra los servicios reales** (NASA POWER y Open-Meteo): se probaron con respuestas de ejemplo. NASA POWER está cambiando el formato de su respuesta; la app entiende el clásico y el nuevo, y si ninguno funciona usa Open-Meteo y lo dice. Si ambos fallan, avisa y deja escribir los 12 meses a mano.
 - La estimación de temperatura se ajustó con valores aproximados de ciudades colombianas, no con una serie de estaciones; fuera del trópico es solo una referencia.
+- **Mapa (versión 2.1.0), pendiente de confirmar en el teléfono:** desde donde se programa no se llega a los servidores de mapas, así que los mosaicos reales de OpenStreetMap y de Esri **no se han visto cargar**; en las pruebas se usan mosaicos simulados. Las direcciones de la capa *Calles y nombres sobre el satélite* (Esri `Reference/…`) son las que se esperan pero **no se comprobaron**. Tampoco se probó en un teléfono real el GPS dentro del mapa ni los toques sobre él.
+- **Leaflet** (la librería del mapa, `www/vendor/leaflet`, licencia BSD-2-Clause) va incluida en la app para que abra sin internet. Se copió de un repositorio público de la misma cuenta y se revisó (sin `eval` ni llamadas de red, tamaños y huellas SHA-256 anotados en `LEEME.txt`), pero **todavía no se comparó con el paquete oficial de npm**.
+- Los mapas de OpenStreetMap y de Esri se usan para ver el mapa en pantalla; sus condiciones **no permiten descargarlos en bloque** para usarlos sin conexión, por eso el mapa sin conexión tendrá que venir de otra fuente.
 - Una cobertura alta mide qué código se ejecuta, no que las pruebas comprueben lo correcto; por eso además se provocaron fallos a propósito (punto anterior).
 
 El resultado es una **clasificación bioclimática orientativa**: no reemplaza un estudio de campo ni los datos de una estación meteorológica cercana.
@@ -117,7 +123,7 @@ El resultado es una **clasificación bioclimática orientativa**: no reemplaza u
 ## 4. Estructura
 
 ```
-www/                 la app (HTML, CSS y JavaScript sin dependencias)
+www/                 la app (HTML, CSS y JavaScript; el mapa usa Leaflet, incluido en vendor/)
   js/geo.js          coordenadas, distancias, área, centroide
   js/holdridge.js    biotemperatura, hexágonos, provincias de humedad, sensibilidad
   js/climate.js      altitud → temperatura, memoria offline, CSV, NASA POWER y Open-Meteo
@@ -128,6 +134,8 @@ www/                 la app (HTML, CSS y JavaScript sin dependencias)
   js/backup.js       copia de seguridad, validación y restauración
   js/walter-lieth.js diagrama ombrotérmico (cálculo y dibujo SVG)
   js/io.js           guardar, compartir y leer archivos (Android y navegador)
+  js/mapa.js         lógica del mapa: capas base, qué se dibuja, avisos
+  js/mapview.js      dibuja el mapa con Leaflet
   js/diagram.js      diagrama de Holdridge y plano del terreno con capas
   js/report.js       informe en texto y HTML
   js/store.js        datos guardados en el equipo
