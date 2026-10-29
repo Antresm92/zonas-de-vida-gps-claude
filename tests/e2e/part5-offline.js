@@ -12,7 +12,7 @@ module.exports = async function (c) {
       const reqs = await cache.keys();
       return { keys, files: reqs.map((r) => new URL(r.url).pathname) };
     });
-    assert.deepEqual(info.keys, ['zonas-de-vida-v5']);
+    assert.deepEqual(info.keys, ['zonas-de-vida-v6']);
     for (const f of ['/index.html', '/js/app.js', '/js/gis.js', '/js/zip.js', '/js/walter-lieth.js', '/js/backup.js', '/css/app.css', '/js/mapa.js', '/js/mapview.js', '/js/satelite.js', '/js/perfil.js', '/vendor/leaflet/leaflet.js', '/vendor/leaflet/leaflet.css']) {
       assert.ok(info.files.includes(f), 'falta en la memoria offline: ' + f);
     }
@@ -22,7 +22,7 @@ module.exports = async function (c) {
     await context.setOffline(true);
     await page.reload();
     await page.waitForSelector('#tab-puntos');
-    assert.equal(await page.evaluate(() => window.__app.version), '2.2.0');
+    assert.equal(await page.evaluate(() => window.__app.version), '2.3.0');
     assert.equal(await page.locator('#netChip:not([hidden])').count(), 1);
     for (const p of ['4.60, -74.08', '4.60, -74.07', '4.61, -74.075']) await addPointManual(p, 2600);
     await tab('area');

@@ -1,4 +1,5 @@
-/* satelite.js — croquis satelital para el informe: una imagen de Esri con el polígono, los nombres, las medidas de los lados, el norte y la escala.
+/* satelite.js — croquis con imagen de fondo para el informe: el satelital (imágenes de Esri) y el topográfico (OpenTopoMap), cada uno con el polígono,
+ * los nombres, las medidas de los lados, el norte y la escala. El nombre del archivo viene de la primera versión, que solo tenía el satelital.
  * La imagen se baja una vez (necesita internet), se arma en un lienzo y se guarda dentro del informe como imagen JPEG en base 64, igual que hace
  * la otra app: el informe se ve igual sin conexión. plan() y overlay() son cuentas y dibujo puros (se prueban en Node); render() baja los
  * mosaicos y solo funciona en el navegador (se le pueden pasar piezas de mentira para probarlo). */
@@ -18,6 +19,18 @@
   var ATTRIBUTION = 'Esri, Maxar, Earthstar Geographics y la comunidad de usuarios GIS';
   var CAPTION = 'Imagen satelital de Esri (fuentes: ' + ATTRIBUTION + '), guardada dentro de este informe para uso personal o interno. ' +
     'Puede tener meses o años de antigüedad y, en zonas rurales, menos detalle. Incluye norte y escala.';
+  var TOPO_ATTRIBUTION = 'OpenStreetMap contributors, SRTM y OpenTopoMap (CC-BY-SA)';
+  var TOPO_CAPTION = 'Mapa topográfico de OpenTopoMap (datos de OpenStreetMap contributors y SRTM; estilo de OpenTopoMap, licencia CC-BY-SA), ' +
+    'guardado dentro de este informe. Se puede compartir citando la fuente y con la misma licencia. ' +
+    'Las curvas de nivel salen de datos SRTM y son aproximadas: no son las altitudes de tus puntos GPS. Incluye norte y escala.';
+  // Las dos versiones: de qué capa del mapa salen los mosaicos, hasta qué nivel de zoom existen y qué texto lleva cada una
+  var KINDS = {
+    satelite: { id: 'satelite', base: 'satelite', maxZoom: 18, attribution: ATTRIBUTION, caption: CAPTION,
+      credit: '© Esri, Maxar, Earthstar Geographics', aria: 'Croquis satelital del polígono con sus puntos, medidas, norte y escala' },
+    topo: { id: 'topo', base: 'topo', maxZoom: 17, attribution: TOPO_ATTRIBUTION, caption: TOPO_CAPTION,
+      credit: '© OpenStreetMap contributors, SRTM | OpenTopoMap (CC-BY-SA)', aria: 'Croquis topográfico del polígono con sus puntos, medidas, norte y escala' }
+  };
+  function kindOf(k) { return Object.prototype.hasOwnProperty.call(KINDS, k) ? k : 'satelite'; }
 
   function isNum(x) { return typeof x === 'number' && isFinite(x); }
   function validLL(p) { return !!p && isNum(p.lat) && isNum(p.lon) && Math.abs(p.lat) <= 90 && Math.abs(p.lon) <= 180; }
@@ -38,10 +51,11 @@
     return best;
   }
 
-  // Qué mosaicos hacen falta y dónde cae cada punto en la imagen. opts.maxZoom: para pruebas.
+  // Qué mosaicos hacen falta y dónde cae cada punto en la imagen. opts.kind: 'satelite' (por defecto) o 'topo'. opts.maxZoom: para pruebas.
   function plan(points, layers, opts) {
     opts = opts || {};
-    var maxZ = opts.maxZoom || MAX_ZOOM;
+    var kind = kindOf(opts.kind), cfg = KINDS[kind];
+    var maxZ = opts.maxZoom || cfg.maxZoom;
     var ext = Mapa.extent(points, layers);
     if (!ext) return { ok: false, reason: 'no hay puntos para dibujar' };
     // Se busca el zoom más alto en que todo cabe dentro de la imagen, dejando margen
@@ -62,12 +76,12 @@
       for (var tx = Math.floor(left / TILE); tx <= Math.floor((left + WIDTH - 1) / TILE); tx++) {
         var x = ((tx % n) + n) % n;                          // el mapa da la vuelta al mundo
         tiles.push({ x: x, y: ty, z: z, dx: tx * TILE - left, dy: ty * TILE - top,
-          url: Mapa.BASES.satelite.url.replace('{z}', z).replace('{y}', ty).replace('{x}', x) });
+          url: Mapa.BASES[cfg.base].url.replace('{z}', z).replace('{y}', ty).replace('{x}', x) });
       }
     }
     var midLat = (ext.north + ext.south) / 2;
     return {
-      ok: true, z: z, width: WIDTH, height: HEIGHT, tiles: tiles,
+      ok: true, kind: kind, z: z, width: WIDTH, height: HEIGHT, tiles: tiles,
       mpp: RES0 * Math.cos(midLat * Math.PI / 180) / n,       // metros por píxel de la imagen
       project: function (lat, lon) { return { x: worldX(lon, z) - left, y: worldY(lat, z) - top }; }
     };
@@ -123,14 +137,14 @@
     var barM = niceLength(pl.width * 0.28 * pl.mpp), barPx = barM / pl.mpp;
     s += '<g transform="translate(18 ' + (pl.height - 30) + ')"><line x1="0" y1="0" x2="' + f(barPx) + '" y2="0" stroke="' + INK + '" stroke-width="7" stroke-linecap="round"/><line x1="0" y1="0" x2="' + f(barPx) + '" y2="0" stroke="#fff" stroke-width="3.2" stroke-linecap="round"/>' +
       '<text x="' + f(barPx / 2) + '" y="-10" font-size="13" font-weight="700" text-anchor="middle" fill="#fff" paint-order="stroke" stroke="' + INK + '" stroke-width="4">' + esc(barM >= 1000 ? (barM / 1000) + ' km' : barM + ' m') + '</text></g>';
-    s += '<text x="' + (pl.width - 8) + '" y="' + (pl.height - 8) + '" font-size="11" text-anchor="end" fill="#fff" paint-order="stroke" stroke="' + INK + '" stroke-width="3.2" stroke-linejoin="round">© Esri, Maxar, Earthstar Geographics</text>';
+    s += '<text x="' + (pl.width - 8) + '" y="' + (pl.height - 8) + '" font-size="11" text-anchor="end" fill="#fff" paint-order="stroke" stroke="' + INK + '" stroke-width="3.2" stroke-linejoin="round">' + esc(KINDS[kindOf(pl.kind)].credit) + '</text>';
     return s;
   }
 
   // Dibujo final: la imagen (JPEG en base 64) y encima lo dibujado. Si lo recibido no es una imagen JPEG en base 64, no dibuja nada.
   function svg(pl, dataUri, o) {
     if (!pl || !pl.ok || !/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(dataUri || '')) return '';
-    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + pl.width + ' ' + pl.height + '" width="100%" role="img" aria-label="Croquis satelital del polígono con sus puntos, medidas, norte y escala" font-family="system-ui, -apple-system, Roboto, sans-serif">' +
+    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + pl.width + ' ' + pl.height + '" width="100%" role="img" aria-label="' + esc(KINDS[kindOf(pl.kind)].aria) + '" font-family="system-ui, -apple-system, Roboto, sans-serif">' +
       '<image href="' + dataUri + '" x="0" y="0" width="' + pl.width + '" height="' + pl.height + '"/>' + overlay(pl, o) + '</svg>';
   }
 
@@ -177,5 +191,5 @@
   }
 
   return { plan: plan, overlay: overlay, svg: svg, render: render, signature: signature, niceLength: niceLength,
-           worldX: worldX, worldY: worldY, CAPTION: CAPTION, ATTRIBUTION: ATTRIBUTION, WIDTH: WIDTH, HEIGHT: HEIGHT, TILE: TILE, MAX_ZOOM: MAX_ZOOM, MIN_ZOOM: MIN_ZOOM };
+           worldX: worldX, worldY: worldY, KINDS: KINDS, kindOf: kindOf, CAPTION: CAPTION, ATTRIBUTION: ATTRIBUTION, WIDTH: WIDTH, HEIGHT: HEIGHT, TILE: TILE, MAX_ZOOM: MAX_ZOOM, MIN_ZOOM: MIN_ZOOM };
 });

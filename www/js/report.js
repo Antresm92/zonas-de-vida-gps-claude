@@ -99,12 +99,12 @@
       '<text x="46" y="60" text-anchor="middle" font-size="26" font-weight="700" fill="#14301F" font-family="system-ui,sans-serif">' + esc(sym) + '</text></svg>';
   }
 
-  // Croquis satelital: o.satellite = { svg, caption } si se pudo preparar, { unavailable: 'motivo' } si no, o nada si no se pidió
-  function satelliteHtml(sat) {
-    if (!sat) return '';
-    var h = '<h2>Croquis satelital</h2>';
-    if (sat.svg) return h + '<div style="max-width:760px">' + sat.svg + '</div><p class="small">' + esc(sat.caption || '') + '</p>';
-    return h + '<div class="note">No se pudo preparar el croquis satelital' + (sat.unavailable ? ': ' + esc(sat.unavailable) : '.') + '</div>';
+  // Croquis con imagen de fondo (satelital o topográfico). d = { svg, caption } si se pudo preparar, { unavailable: 'motivo' } si no, o nada si no se pidió
+  function sketchHtml(title, noun, d) {
+    if (!d) return '';
+    var h = '<h2>' + title + '</h2>';
+    if (d.svg) return h + '<div style="max-width:760px">' + d.svg + '</div><p class="small">' + esc(d.caption || '') + '</p>';
+    return h + '<div class="note">No se pudo preparar el ' + noun + (d.unavailable ? ': ' + esc(d.unavailable) : '.') + '</div>';
   }
 
   // Perfil del relieve con lo que está guardado en el proyecto (no consulta internet)
@@ -147,7 +147,7 @@
       });
       h += '</table>';
       if (a.n >= 2) h += '<div style="max-width:560px;margin-top:12px">' + Diagram.polygonSVG(project.points, { width: 560, height: 380, center: a.center, bad: a.selfIntersects, layers: project.layers, color: project.mainColor }) + Diagram.legendHTML(project.layers, project.mainColor, 'Mis puntos', true) + '</div>';
-      if (a.n >= 2) h += satelliteHtml(o.satellite) + profileHtml(project);
+      if (a.n >= 2) h += sketchHtml('Croquis satelital', 'croquis satelital', o.satellite) + sketchHtml('Croquis topográfico', 'croquis topográfico', o.topo) + profileHtml(project);
     }
     if (a.vertexZones && a.vertexZones.length && a.distinctZones && a.distinctZones.length > 1) {
       h += '<h2>Zonas según la altitud de cada punto</h2><table>';

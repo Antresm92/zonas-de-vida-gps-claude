@@ -60,19 +60,20 @@ async function saveCoverage(page, file) {
 
 // Mosaicos de mapa de mentira: responde a OpenStreetMap, Esri y OpenTopoMap con una imagen lisa y cuenta lo que se pidió.
 // Así la prueba no toca los servidores reales (que desde aquí tampoco se alcanzan) ni gasta su cuota.
-//   tiles.urls: todo lo pedido · tiles.count(/regex/) · tiles.fail(true|false): hace fallar los mosaicos · tiles.reset()
+//   tiles.urls: todo lo pedido · tiles.count(/regex/) · tiles.fail(true|false|/regex/): hace fallar todos los mosaicos o solo los que cumplen la expresión · tiles.reset()
 async function mockTiles(context) {
   const { solidPng } = require('../helpers/png.js');
   const png = solidPng(196, 214, 190, 255, 256);
   const tiles = {
     urls: [], failing: false,
     count(re) { return tiles.urls.filter((u) => re.test(u)).length; },
-    fail(v) { tiles.failing = !!v; },
+    fail(v) { tiles.failing = v instanceof RegExp ? v : !!v; },
     reset() { tiles.urls.length = 0; }
   };
   await context.route(/^https:\/\/(tile\.openstreetmap\.org|server\.arcgisonline\.com|tile\.opentopomap\.org)\//, (route) => {
-    tiles.urls.push(route.request().url());
-    if (tiles.failing) return route.abort('failed');
+    const url = route.request().url();
+    tiles.urls.push(url);
+    if (tiles.failing === true || (tiles.failing instanceof RegExp && tiles.failing.test(url))) return route.abort('failed');
     return route.fulfill({ status: 200, contentType: 'image/png', body: png, headers: { 'Access-Control-Allow-Origin': '*' } });
   });
   return tiles;

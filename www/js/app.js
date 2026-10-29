@@ -5,7 +5,7 @@
   var Geo = window.Geo, H = window.Holdridge, Climate = window.Climate, A = window.Analysis, Fmt = window.Fmt,
       Gps = window.Gps, Store = window.Store, Diagram = window.Diagram, Report = window.Report,
       Gis = window.Gis, Backup = window.Backup, IO = window.IO, WL = window.WalterLieth, Mapa = window.Mapa, MapView = window.MapView, Satelite = window.Satelite, Perfil = window.Perfil;
-  var APP_VERSION = '2.2.0';
+  var APP_VERSION = '2.3.0';
 
   var S = Store.loadState();
   var MEM = new Climate.Memory();
@@ -14,7 +14,7 @@
              imp: null, restore: null, edit: null,
              polyView: 'croquis', polyActive: true, mapBase: Mapa.baseId(Store.loadFlag('mapBase')), mapRef: Store.loadFlag('mapRef') === true,
              map: null, mapFollow: false, mapFitKey: null, tileErrors: 0,
-             sat: null, satBusy: false, satError: null, sharing: false };
+             croq: { satelite: { img: null, busy: false, error: null }, topo: { img: null, busy: false, error: null } }, sharing: false };
 
   /* ---------- Utilidades ---------- */
   function $(s, r) { return (r || document).querySelector(s); }
@@ -942,7 +942,10 @@
       h += '</dl><p class="small muted">Misma precipitación en todos los puntos; la temperatura cambia con la altitud.</p></div>';
     }
 
-    if (p.points.length >= 2) h += perfilBlock() + '<div class="block" id="satBlock">' + satelliteBlock() + '</div>';
+    if (p.points.length >= 2) {
+      h += perfilBlock();
+      CROQ_KINDS.forEach(function (k) { h += '<div class="block" id="' + CROQ[k].block + '">' + croqBlock(k) + '</div>'; });
+    }
 
     h += '<div class="block"><h2>Diagrama de Holdridge</h2><div class="diagram-wrap"><div id="diag" style="width:100%;height:100%"></div></div>' +
       '<div class="diagram-tools"><button data-act="dZoomOut" aria-label="Alejar">−</button><button data-act="dZoomIn" aria-label="Acercar">+</button><button class="txt" data-act="dCenter" aria-label="Centrar en el punto">Mi punto</button><button class="txt" data-act="dFit" aria-label="Ver todo el diagrama">Ver todo</button></div>' +
@@ -952,7 +955,7 @@
       '<p class="small muted" style="margin-top:12px">' + esc(Report.DISCLAIMER) + '</p></div>';
     return h + exportBlock();
   }
-  /* ---------- Informe: perfil del relieve y croquis satelital ---------- */
+  /* ---------- Informe: perfil del relieve y croquis con imagen de fondo ---------- */
   function perfilBlock() {
     var p = proj(), m = Perfil.build(p.points), h = '<div class="block"><h2>Perfil del relieve</h2>';
     if (!m.ok) return h + '<p class="small muted">' + esc(m.reason) + '</p></div>';
@@ -962,36 +965,44 @@
     m.notes.forEach(function (n) { h += '<div class="tip">' + esc(n) + '</div>'; });
     return h + '<p class="small muted">Altitud de cada punto contra la distancia acumulada entre ellos, en el orden de la lista y sin volver al primero. Usa las altitudes guardadas; no consulta internet.</p></div>';
   }
-  // El croquis ya preparado solo sirve mientras no cambien los puntos ni las capas visibles
-  function satCurrent() { return ui.sat && ui.sat.sig === Satelite.signature(proj()) ? ui.sat : null; }
-  function satelliteBlock() {
-    var s = satCurrent(), err = ui.satError && ui.satError.sig === Satelite.signature(proj()) ? ui.satError.msg : '';
-    var h = '<h2>Croquis satelital</h2>';
-    if (ui.satBusy) h += '<p class="small" role="status">Descargando la imagen satelital…</p>';
-    else if (s) h += '<div class="plot">' + s.svg + '</div><p class="small muted">' + esc(Satelite.CAPTION) + '</p>';
-    else if (err) h += '<div class="warn">No se pudo preparar el croquis satelital: ' + esc(err) + '.</div>';
-    h += '<div class="btns"><button class="btn" data-act="satPrepare"' + (ui.satBusy ? ' disabled' : '') + '>' + (s ? 'Volver a preparar' : 'Preparar croquis satelital') + '</button></div>';
-    return h + '<p class="small muted">Se baja una sola vez, con internet, y queda guardado dentro del informe que compartes (imagen de Esri, para uso personal o interno). Sin internet, el informe sale sin esta sección.</p>';
+  // Hay dos croquis con imagen de fondo: el satelital (Esri) y el topográfico (OpenTopoMap). Cada uno guarda su imagen, su aviso de error y si está bajando.
+  // El croquis ya preparado solo sirve mientras no cambien los puntos ni las capas visibles.
+  var CROQ_KINDS = ['satelite', 'topo'];
+  var CROQ = {
+    satelite: { block: 'satBlock', act: 'satPrepare', title: 'Croquis satelital', noun: 'satelital', busy: 'Descargando la imagen satelital…',
+      note: 'Se baja una sola vez, con internet, y queda guardado dentro del informe que compartes (imagen de Esri, para uso personal o interno). Sin internet, el informe sale sin esta sección.' },
+    topo: { block: 'topoBlock', act: 'topoPrepare', title: 'Croquis topográfico', noun: 'topográfico', busy: 'Descargando la imagen topográfica…',
+      note: 'Se baja una sola vez, con internet, y queda guardado dentro del informe que compartes (mapa de OpenTopoMap con datos de OpenStreetMap y SRTM, licencia CC-BY-SA). Las curvas de nivel son aproximadas. Sin internet, el informe sale sin esta sección.' }
+  };
+  function croqCurrent(kind) { var c = ui.croq[kind]; return c.img && c.img.sig === Satelite.signature(proj()) ? c.img : null; }
+  function croqBlock(kind) {
+    var cfg = CROQ[kind], c = ui.croq[kind], s = croqCurrent(kind), err = c.error && c.error.sig === Satelite.signature(proj()) ? c.error.msg : '';
+    var h = '<h2>' + cfg.title + '</h2>';
+    if (c.busy) h += '<p class="small" role="status">' + cfg.busy + '</p>';
+    else if (s) h += '<div class="plot">' + s.svg + '</div><p class="small muted">' + esc(Satelite.KINDS[kind].caption) + '</p>';
+    else if (err) h += '<div class="warn">No se pudo preparar el croquis ' + cfg.noun + ': ' + esc(err) + '.</div>';
+    h += '<div class="btns"><button class="btn" data-act="' + cfg.act + '"' + (c.busy ? ' disabled' : '') + '>' + (s ? 'Volver a preparar' : 'Preparar croquis ' + cfg.noun) + '</button></div>';
+    return h + '<p class="small muted">' + cfg.note + '</p>';
   }
-  function refreshSatBlock() { var el = $('#satBlock'); if (el) el.innerHTML = satelliteBlock(); }
+  function refreshCroqBlock(kind) { var el = $('#' + CROQ[kind].block); if (el) el.innerHTML = croqBlock(kind); }
   // Resuelve siempre con { svg, caption } o { unavailable: motivo }; nunca rechaza. force: volver a bajar aunque ya esté preparado.
-  function prepareSatellite(force) {
-    var p = proj(), a = analysis(), sig = Satelite.signature(p), cur = satCurrent();
-    if (cur && !force) return Promise.resolve({ svg: cur.svg, caption: Satelite.CAPTION });
-    function fail(msg) { ui.satError = { sig: sig, msg: msg }; ui.satBusy = false; refreshSatBlock(); return { unavailable: msg }; }
+  function prepareCroquis(kind, force) {
+    var p = proj(), a = analysis(), sig = Satelite.signature(p), cur = croqCurrent(kind), c = ui.croq[kind], caption = Satelite.KINDS[kind].caption;
+    if (cur && !force) return Promise.resolve({ svg: cur.svg, caption: caption });
+    function fail(msg) { c.error = { sig: sig, msg: msg }; c.busy = false; refreshCroqBlock(kind); return { unavailable: msg }; }
     if (navigator.onLine === false) return Promise.resolve(fail('no hay conexión a internet en este momento'));
-    var pl = Satelite.plan(p.points, p.layers);
+    var pl = Satelite.plan(p.points, p.layers, { kind: kind });
     if (!pl.ok) return Promise.resolve(fail(pl.reason));
-    ui.satBusy = true; ui.satError = null; refreshSatBlock();
+    c.busy = true; c.error = null; refreshCroqBlock(kind);
     return Satelite.render(pl).then(function (uri) {
       var svg = Satelite.svg(pl, uri, { points: p.points, layers: p.layers, center: a.center, bad: !!a.selfIntersects });
       if (!svg) return fail('la imagen recibida no es válida');
-      ui.sat = { sig: sig, svg: svg }; ui.satBusy = false; refreshSatBlock();
-      return { svg: svg, caption: Satelite.CAPTION };
+      c.img = { sig: sig, svg: svg }; c.busy = false; refreshCroqBlock(kind);
+      return { svg: svg, caption: caption };
     }, function (e) { return fail(e && e.message || 'error desconocido'); });
   }
-  function satPrepareClick() {
-    prepareSatellite(true).then(function (r) { toast(r.svg ? 'Croquis satelital listo.' : 'No se pudo preparar el croquis satelital.', { err: !r.svg }); });
+  function croqPrepareClick(kind) {
+    prepareCroquis(kind, true).then(function (r) { toast(r.svg ? 'Croquis ' + CROQ[kind].noun + ' listo.' : 'No se pudo preparar el croquis ' + CROQ[kind].noun + '.', { err: !r.svg }); });
   }
 
   function mountDiagram() {
@@ -1012,9 +1023,11 @@
     if (ui.sharing) return;
     var p = proj(), a = analysis(), name = IO.slug('informe zona de vida ' + p.name, 'html');
     ui.sharing = true;
-    if (a.n >= 2 && !satCurrent() && navigator.onLine !== false) toast('Preparando el croquis satelital para el informe…');
-    (a.n >= 2 ? prepareSatellite(false) : Promise.resolve(null)).then(function (sat) {
-      var o = reportOpts(a); o.satellite = sat;
+    var kinds = a.n >= 2 ? CROQ_KINDS : [];
+    var need = kinds.filter(function (k) { return !croqCurrent(k); });
+    if (need.length && navigator.onLine !== false) toast(need.length > 1 ? 'Preparando los croquis satelital y topográfico para el informe…' : 'Preparando el croquis ' + CROQ[need[0]].noun + ' para el informe…');
+    Promise.all(kinds.map(function (k) { return prepareCroquis(k, false); })).then(function (res) {
+      var o = reportOpts(a); o.satellite = res[0] || null; o.topo = res[1] || null;
       return IO.saveText(name, 'text/html', Report.html(p, a, o), { title: 'Informe de zona de vida', text: Report.text(p, a, o), dialogTitle: 'Compartir informe' });
     }).then(function (r) {
       ui.sharing = false;
@@ -1144,7 +1157,8 @@
     importCsv: function () { $('#csvFile').click(); },
     askClearMem: function () { openSheet('¿Borrar los datos guardados?', '<p>Se borran los ' + MEM.count + ' registros de clima de este equipo. Tus puntos y proyectos no cambian.</p><div class="btns"><button class="btn btn-danger" data-act="doClearMem">Borrar</button><button class="btn" data-act="closeSheet">Conservar</button></div>'); },
     doClearMem: function () { MEM.clear(); saveMemory(); closeSheet(); renderTab(ui.tab); toast('Datos borrados.'); },
-    share: shareReport, copy: copySummary, satPrepare: satPrepareClick,
+    share: shareReport, copy: copySummary,
+    satPrepare: function () { croqPrepareClick('satelite'); }, topoPrepare: function () { croqPrepareClick('topo'); },
     dZoomIn: function () { ui.diagram && ui.diagram.zoomIn(); }, dZoomOut: function () { ui.diagram && ui.diagram.zoomOut(); },
     dCenter: function () { ui.diagram && ui.diagram.focusPoint(); }, dFit: function () { ui.diagram && ui.diagram.fit(); },
     pickProject: function (t) { S.currentId = t.getAttribute('data-id'); save(); closeSheet(); renderAll(); },

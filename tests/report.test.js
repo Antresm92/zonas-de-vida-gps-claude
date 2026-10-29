@@ -192,6 +192,36 @@ test('html: si el croquis satelital no se pudo preparar, el informe lo dice con 
   assert.doesNotMatch(h3, /undefined/);
 });
 
+test('html: croquis topográfico justo después del satelital y antes del perfil, con su atribución', () => {
+  const { project, a } = build();
+  const sat = { svg: '<svg id="sat-demo"></svg>', caption: 'Satelital.' };
+  const topo = { svg: '<svg id="topo-demo"></svg>', caption: 'Mapa topográfico de OpenTopoMap <CC-BY-SA>.' };
+  const h = Report.html(project, a, { date: DATE, satellite: sat, topo });
+  const iCroquis = h.indexOf('aria-label="Plano del polígono"'), iSat = h.indexOf('<h2>Croquis satelital</h2>');
+  const iTopo = h.indexOf('<h2>Croquis topográfico</h2>'), iPerfil = h.indexOf('<h2>Perfil del relieve</h2>');
+  assert.ok(iCroquis > 0 && iSat > iCroquis && iTopo > iSat && iPerfil > iTopo, 'orden: croquis, satelital, topográfico, perfil');
+  assert.match(h, /<svg id="topo-demo"><\/svg><\/div><p class="small">Mapa topográfico de OpenTopoMap &lt;CC-BY-SA&gt;\.<\/p>/);
+});
+
+test('html: el croquis topográfico puede aparecer solo, o fallar sin afectar al satelital ni al perfil', () => {
+  const { project, a } = build();
+  const solo = Report.html(project, a, { date: DATE, topo: { svg: '<svg id="t"></svg>', caption: 'x' } });
+  assert.match(solo, /<h2>Croquis topográfico<\/h2>/); assert.doesNotMatch(solo, /Croquis satelital/);
+  const mixto = Report.html(project, a, { date: DATE, satellite: { svg: '<svg id="s"></svg>', caption: 'x' }, topo: { unavailable: 'el servicio de imágenes no permite guardarlas dentro del informe' } });
+  assert.match(mixto, /<svg id="s"><\/svg>/);
+  assert.match(mixto, /<h2>Croquis topográfico<\/h2><div class="note">No se pudo preparar el croquis topográfico: el servicio de imágenes no permite guardarlas dentro del informe<\/div>/);
+  assert.match(mixto, /<h2>Perfil del relieve<\/h2>/);
+  assert.match(Report.html(project, a, { date: DATE, topo: {} }), /No se pudo preparar el croquis topográfico\.<\/div>/);
+  assert.doesNotMatch(Report.html(project, a, { date: DATE, topo: { svg: '<svg></svg>' } }), /undefined/);
+});
+
+test('html: un solo punto no trae croquis topográfico, y si no se pidió no aparece la sección', () => {
+  const uno = build({ points: [{ name: 'P1', lat: 4.6, lon: -74.1, alt: 2000 }], climate: { pManual: 900 } });
+  assert.doesNotMatch(Report.html(uno.project, uno.a, { date: DATE, topo: { svg: '<svg></svg>', caption: 'x' } }), /Croquis topográfico/);
+  const { project, a } = build();
+  assert.doesNotMatch(Report.html(project, a, { date: DATE }), /Croquis topográfico/);
+});
+
 test('html: si no se pidió el croquis satelital, no aparece la sección', () => {
   const { project, a } = build();
   assert.doesNotMatch(Report.html(project, a, { date: DATE }), /Croquis satelital/);

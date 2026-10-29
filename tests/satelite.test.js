@@ -288,3 +288,72 @@ test('el pie del informe nombra a Esri, sus fuentes y el uso personal o interno'
   assert.match(Satelite.CAPTION, /uso personal o interno/);
   assert.match(Satelite.CAPTION, /norte y escala/);
 });
+
+
+/* ---------- croquis topográfico (OpenTopoMap): mismo módulo, otra fuente de imagen ---------- */
+test('kinds: dos fuentes — satelital (Esri, hasta el nivel 18) y topográfica (OpenTopoMap, hasta el 17)', () => {
+  assert.deepEqual(Object.keys(Satelite.KINDS).sort(), ['satelite', 'topo']);
+  assert.equal(Satelite.KINDS.satelite.maxZoom, Satelite.MAX_ZOOM);
+  assert.equal(Satelite.KINDS.topo.maxZoom, 17);
+  assert.equal(Satelite.KINDS.satelite.caption, Satelite.CAPTION);
+  assert.match(Satelite.KINDS.topo.caption, /OpenTopoMap/); assert.match(Satelite.KINDS.topo.caption, /OpenStreetMap contributors/);
+  assert.match(Satelite.KINDS.topo.caption, /SRTM/); assert.match(Satelite.KINDS.topo.caption, /CC-BY-SA/);
+  assert.match(Satelite.KINDS.topo.caption, /aproximadas/, 'dice que las curvas no son las altitudes de los puntos');
+  assert.doesNotMatch(Satelite.KINDS.topo.caption, /uso personal o interno/, 'esa condición es de Esri, no de OpenTopoMap');
+});
+
+test('kindOf: solo acepta las fuentes conocidas; lo demás vuelve a «satelite»', () => {
+  assert.equal(Satelite.kindOf('topo'), 'topo');
+  assert.equal(Satelite.kindOf('satelite'), 'satelite');
+  for (const mala of ['', 'toString', '__proto__', 'calles', null, undefined, 5, {}]) assert.equal(Satelite.kindOf(mala), 'satelite', String(mala));
+});
+
+const PLAN_TOPO = Satelite.plan(FINCA, [], { kind: 'topo' });
+
+test('plan topo: mosaicos de OpenTopoMap en orden z/x/y, sin pasar del nivel 17, y la misma geometría que el satelital si cabe en ese nivel', () => {
+  assert.equal(PLAN_TOPO.ok, true); assert.equal(PLAN_TOPO.kind, 'topo');
+  PLAN_TOPO.tiles.forEach((t) => assert.equal(t.url, 'https://tile.opentopomap.org/' + t.z + '/' + t.x + '/' + t.y + '.png'));
+  assert.equal(new Set(PLAN_TOPO.tiles.map((t) => t.url)).size, PLAN_TOPO.tiles.length);
+  assert.ok(PLAN_TOPO.z <= 17);
+  assert.ok(PLAN_TOPO.tiles.length >= 1 && PLAN_TOPO.tiles.length <= 12);
+  // un terreno diminuto, que en el satelital llegaría al nivel 18, en el topográfico se queda en 17
+  const diminuto = [P('A', 4.6, -74.1), P('B', 4.6, -74.1)];
+  assert.equal(Satelite.plan(diminuto, [], { kind: 'satelite' }).z, 18);
+  assert.equal(Satelite.plan(diminuto, [], { kind: 'topo' }).z, 17);
+  assert.equal(Satelite.plan(diminuto, []).kind, 'satelite', 'sin decir cuál, es el satelital');
+  assert.equal(Satelite.plan(diminuto, [], { kind: 'nada' }).kind, 'satelite');
+  // si todo cabe en un nivel ≤ 17, ambos eligen el mismo nivel y colocan los puntos en el mismo sitio de la imagen
+  const medio = [P('A', 4.6, -74.1), P('B', 4.62, -74.08)];
+  const s = Satelite.plan(medio, [], { kind: 'satelite' }), t = Satelite.plan(medio, [], { kind: 'topo' });
+  assert.equal(s.z, t.z); assert.deepEqual(s.project(4.61, -74.09), t.project(4.61, -74.09));
+});
+
+test('plan topo: el nivel de zoom nunca pasa de 17 aunque se pida más (opts.maxZoom es solo para bajar)', () => {
+  assert.equal(Satelite.plan([P('A', 4.6, -74.1), P('B', 4.6, -74.1)], [], { kind: 'topo', maxZoom: 15 }).z, 15);
+});
+
+test('overlay y svg topo: la atribución y la descripción son las de OpenTopoMap, no las de Esri', () => {
+  const s = Satelite.overlay(PLAN_TOPO, { points: FINCA, layers: [] });
+  assert.match(s, /© OpenStreetMap contributors, SRTM \| OpenTopoMap \(CC-BY-SA\)/);
+  assert.doesNotMatch(s, /Esri/);
+  const v = Satelite.svg(PLAN_TOPO, JPEG, { points: FINCA });
+  assert.match(v, /aria-label="Croquis topográfico del polígono/);
+  assert.doesNotMatch(v, /Croquis satelital/);
+  assert.match(v, /<image href="data:image\/jpeg;base64,/);
+  // el satelital sigue igual
+  assert.match(Satelite.svg(PLAN, JPEG, { points: FINCA }), /aria-label="Croquis satelital del polígono/);
+  assert.match(Satelite.overlay(PLAN, { points: FINCA }), /© Esri, Maxar, Earthstar Geographics/);
+});
+
+test('render topo: baja las direcciones de OpenTopoMap y arma la imagen igual que el satelital', async () => {
+  const L = falsoLienzo(), pedidos = [];
+  const uri = await Satelite.render(PLAN_TOPO, { makeCanvas: L.make, loadTile: (u) => { pedidos.push(u); return Promise.resolve({ u }); } });
+  assert.equal(uri, JPEG);
+  assert.deepEqual(pedidos.sort(), PLAN_TOPO.tiles.map((t) => t.url).sort());
+  pedidos.forEach((u) => assert.match(u, /^https:\/\/tile\.opentopomap\.org\//));
+});
+
+test('signature: es la misma para los dos croquis (si cambian los puntos, se invalidan los dos)', () => {
+  const base = { id: 'p1', points: FINCA, layers: [] };
+  assert.equal(Satelite.signature(base), Satelite.signature(JSON.parse(JSON.stringify(base))));
+});
