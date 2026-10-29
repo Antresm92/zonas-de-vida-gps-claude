@@ -92,13 +92,16 @@ module.exports = async function (c) {
       const tools = [...document.querySelectorAll('.maptool, .maploc')].map(r);
       const nav = document.querySelector('nav').getBoundingClientRect().top;
       const marks = [...document.querySelectorAll('.mk-dot, .mk-lab')].map(r);
-      return { box, tools, nav, marks, h: box.b - box.t };
+      const base = [...document.querySelectorAll('.maprow .seg button')].map((b) => ({ text: b.textContent, clipped: b.scrollWidth > b.clientWidth + 1, right: b.getBoundingClientRect().right }));
+      return { box, tools, nav, marks, base, vw: document.documentElement.clientWidth, h: box.b - box.t };
     });
     const inside = (a, b) => a.l >= b.l - 1 && a.r <= b.r + 1 && a.t >= b.t - 1 && a.b <= b.b + 1;
     const overlap = (a, b) => a.l < b.r && a.r > b.l && a.t < b.b && a.b > b.t;
     const check = async (label) => {
       const g = await geometry();
       assert.ok(g.h >= 296, label + ': el mapa mide ' + g.h);   // 300 px menos el borde
+      assert.deepEqual(g.base.map((b) => b.text), ['Calles', 'Satélite', 'Topográfico']);
+      for (const b of g.base) { assert.equal(b.clipped, false, label + ': el texto de «' + b.text + '» no cabe en su botón'); assert.ok(b.right <= g.vw, label + ': «' + b.text + '» se sale de la pantalla'); }
       for (const t of g.tools) assert.ok(t.b <= g.nav, label + ': una herramienta queda detrás de la barra de abajo');
       assert.equal(g.marks.length, 6);
       for (const m of g.marks) {
@@ -165,6 +168,33 @@ module.exports = async function (c) {
     assert.deepEqual(await flags(), { mapBase: 'satelite', mapRef: false });
     const backup = await page.evaluate(() => { try { return JSON.stringify(window.Backup && window.Backup.build ? window.Backup.build(window.__app.S, window.__app.MEM) : ''); } catch (e) { return ''; } });
     assert.doesNotMatch(backup, /mapBase|satelite/, 'la capa elegida no entra en la copia de seguridad');
+  });
+
+  await step('Topográfico (OpenTopoMap): pide solo sus mosaicos, no pasa del nivel 17 de mosaicos y se acuerda de la elección', async () => {
+    tiles.reset();
+    await page.click('[data-act="mapBase"][data-b="topo"]');
+    let i = await waitInfo((x) => x.base === 'topo' && x.loaded > 0, 5000, 'topográfico');
+    assert.equal(i.reference, false);
+    assert.equal(await pressed('[data-act="mapBase"][data-b="topo"]'), 'true');
+    assert.equal(await page.locator('[data-act="mapRef"]').count(), 0, 'las calles sobre el satélite no aplican al topográfico');
+    assert.ok(tiles.count(/^https:\/\/tile\.opentopomap\.org\/\d+\/\d+\/\d+\.png$/) > 0, 'pide mosaicos de OpenTopoMap');
+    assert.equal(tiles.count(/tile\.openstreetmap\.org/), 0, 'no toca el servidor de OpenStreetMap');
+    assert.match(i.attribution, /OpenStreetMap/); assert.match(i.attribution, /SRTM/); assert.match(i.attribution, /OpenTopoMap/); assert.match(i.attribution, /CC-BY-SA/);
+    const rels = await page.$$eval('.leaflet-control-attribution a', (as) => as.map((a) => a.getAttribute('rel')));
+    assert.ok(rels.length >= 3 && rels.every((r) => r === 'noopener noreferrer'), 'enlaces sin sacar a la persona de la app: ' + JSON.stringify(rels));
+    assert.deepEqual(await flags(), { mapBase: 'topo', mapRef: false });
+    assert.equal(i.markers.length, 3, 'los puntos y el polígono siguen encima');
+    assert.ok(await painted() > 1000, 'el polígono se pinta sobre el relieve');
+    await shot('72b-mapa-topografico');
+    // con más zoom que el último nivel que tiene OpenTopoMap se amplía el mosaico: no se piden niveles que no existen
+    const z0 = i.zoom;
+    await zoomBy('in', 19 - z0);
+    i = await info();
+    assert.equal(i.zoom, 19);
+    await page.waitForTimeout(200);
+    const niveles = tiles.urls.filter((u) => /opentopomap/.test(u)).map((u) => Number(/\/(\d+)\/\d+\/\d+\.png$/.exec(u)[1]));
+    assert.ok(niveles.length > 0 && Math.max(...niveles) === 17, 'el nivel más alto pedido es 17, no ' + Math.max(...niveles));
+    await zoomBy('out', 19 - z0);
   });
 
   await step('«Polígono activo»: oculta y vuelve a mostrar la figura sin quitar los puntos', async () => {

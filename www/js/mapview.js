@@ -30,7 +30,9 @@
       return layer;
     }
     function tileLayer(def) {
-      return watchTiles(L.tileLayer(def.url, { maxZoom: def.maxZoom, attribution: def.attribution || '', crossOrigin: false }));
+      var opts = { maxZoom: def.maxZoom, attribution: def.attribution || '', crossOrigin: false };
+      if (def.maxNativeZoom) opts.maxNativeZoom = def.maxNativeZoom;
+      return watchTiles(L.tileLayer(def.url, opts));
     }
 
     function setBase(id, reference) {

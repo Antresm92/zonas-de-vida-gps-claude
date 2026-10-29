@@ -129,3 +129,77 @@ test('html: zona única sin alternativas ni zonas por punto, y avisos propios', 
   assert.match(h, /Con el margen de error de los datos|también podría caer en/);
   assert.match(h, /Con datos ingresados por el usuario/);
 });
+
+/* ---------- Perfil del relieve y croquis satelital en el informe ---------- */
+test('html: el perfil del relieve va justo después del croquis, con tabla y avisos del GPS', () => {
+  const pts = PUNTOS.map((p) => Object.assign({}, p, { altSrc: 'gps' }));
+  const { project, a } = build({ points: pts });
+  const h = Report.html(project, a, { date: DATE });
+  const iCroquis = h.indexOf('aria-label="Plano del polígono"');
+  const iPerfil = h.indexOf('<h2>Perfil del relieve</h2>');
+  const iZonas = h.indexOf('<h2>Zonas según la altitud de cada punto</h2>');
+  assert.ok(iCroquis > 0 && iPerfil > iCroquis && iZonas > iPerfil, 'orden: croquis, perfil, zonas');
+  assert.match(h, /aria-label="Perfil del relieve: altitud de los puntos contra la distancia acumulada"/);
+  assert.match(h, /<th>Punto más alto<\/th><td>P3 · 3000 m<\/td>/);
+  assert.match(h, /<th>Punto más bajo<\/th><td>P1 · 1800 m<\/td>/);
+  assert.match(h, /<th>Desnivel entre ambos<\/th><td>1200 m<\/td>/);
+  assert.match(h, /4 altitudes fueron tomadas con el GPS del teléfono/);
+  assert.match(h, /no se consultó internet/);
+  assert.match(h, /id="perfil-informe-fill"/);
+});
+
+test('html: el perfil usa el color del proyecto y no mete nombres como código', () => {
+  const pts = [{ name: '<b>x</b>', lat: 4.6, lon: -74.1, alt: 100 }, { name: 'Y', lat: 4.7, lon: -74.1, alt: 300 }];
+  const { project, a } = build({ points: pts, mainColor: '#8E44AD' });
+  const h = Report.html(project, a, { date: DATE });
+  assert.match(h, /stroke="#8E44AD" stroke-width="2.6"/);
+  assert.doesNotMatch(h, /<b>x<\/b>/);
+  assert.match(h, /&lt;b&gt;x&lt;\/b&gt; · 100 m/);
+});
+
+test('html: con puntos pero sin altitudes el perfil explica qué falta en vez de desaparecer', () => {
+  const { project, a } = build({ points: [{ name: 'P1', lat: 4.6, lon: -74.1 }, { name: 'P2', lat: 4.7, lon: -74.1 }], climate: {} });
+  const h = Report.html(project, a, { date: DATE });
+  assert.match(h, /<h2>Perfil del relieve<\/h2><div class="note">Se necesitan al menos 2 puntos con altitud/);
+});
+
+test('html: un solo punto no trae croquis, ni perfil, ni croquis satelital', () => {
+  const { project, a } = build({ points: [{ name: 'P1', lat: 4.6, lon: -74.1, alt: 2000 }], climate: { pManual: 900 } });
+  const h = Report.html(project, a, { date: DATE, satellite: { svg: '<svg></svg>', caption: 'x' } });
+  assert.doesNotMatch(h, /Perfil del relieve|Croquis satelital/);
+});
+
+test('html: croquis satelital entre el croquis y el perfil, con su atribución', () => {
+  const { project, a } = build();
+  const sat = { svg: '<svg id="sat-demo"></svg>', caption: 'Imagen satelital: Esri <y> Maxar.' };
+  const h = Report.html(project, a, { date: DATE, satellite: sat });
+  const iCroquis = h.indexOf('aria-label="Plano del polígono"');
+  const iSat = h.indexOf('<h2>Croquis satelital</h2>');
+  const iPerfil = h.indexOf('<h2>Perfil del relieve</h2>');
+  assert.ok(iCroquis > 0 && iSat > iCroquis && iPerfil > iSat, 'orden: croquis, satelital, perfil');
+  assert.match(h, /<svg id="sat-demo"><\/svg><\/div><p class="small">Imagen satelital: Esri &lt;y&gt; Maxar\.<\/p>/);
+});
+
+test('html: si el croquis satelital no se pudo preparar, el informe lo dice con el motivo y sigue', () => {
+  const { project, a } = build();
+  const h1 = Report.html(project, a, { date: DATE, satellite: { unavailable: 'no hay conexión a internet <ahora>' } });
+  assert.match(h1, /<h2>Croquis satelital<\/h2><div class="note">No se pudo preparar el croquis satelital: no hay conexión a internet &lt;ahora&gt;<\/div>/);
+  assert.match(h1, /<h2>Perfil del relieve<\/h2>/);
+  const h2 = Report.html(project, a, { date: DATE, satellite: {} });
+  assert.match(h2, /No se pudo preparar el croquis satelital\.<\/div>/);
+  const h3 = Report.html(project, a, { date: DATE, satellite: { svg: '<svg></svg>' } });
+  assert.match(h3, /<p class="small"><\/p>/);                         // sin pie de imagen no escribe «undefined»
+  assert.doesNotMatch(h3, /undefined/);
+});
+
+test('html: si no se pidió el croquis satelital, no aparece la sección', () => {
+  const { project, a } = build();
+  assert.doesNotMatch(Report.html(project, a, { date: DATE }), /Croquis satelital/);
+});
+
+test('text: el resumen incluye el desnivel entre puntos solo si hay al menos 2 altitudes', () => {
+  const { project, a } = build();
+  assert.match(Report.text(project, a, { date: DATE }), /Desnivel entre puntos: 1200 m \(más alto P3, 3000 m; más bajo P1, 1800 m\)/);
+  const una = build({ points: [{ name: 'P1', lat: 4.6, lon: -74.1, alt: 2000 }, { name: 'P2', lat: 4.7, lon: -74.1 }] });
+  assert.doesNotMatch(Report.text(una.project, una.a, { date: DATE }), /Desnivel/);
+});

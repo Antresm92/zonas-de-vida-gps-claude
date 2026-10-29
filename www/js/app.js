@@ -4,8 +4,8 @@
 
   var Geo = window.Geo, H = window.Holdridge, Climate = window.Climate, A = window.Analysis, Fmt = window.Fmt,
       Gps = window.Gps, Store = window.Store, Diagram = window.Diagram, Report = window.Report,
-      Gis = window.Gis, Backup = window.Backup, IO = window.IO, WL = window.WalterLieth, Mapa = window.Mapa, MapView = window.MapView;
-  var APP_VERSION = '2.1.0';
+      Gis = window.Gis, Backup = window.Backup, IO = window.IO, WL = window.WalterLieth, Mapa = window.Mapa, MapView = window.MapView, Satelite = window.Satelite, Perfil = window.Perfil;
+  var APP_VERSION = '2.2.0';
 
   var S = Store.loadState();
   var MEM = new Climate.Memory();
@@ -13,7 +13,8 @@
   var ui = { tab: 'puntos', gpsOn: false, fix: null, stopWatch: null, sampling: null, fetching: false, diagram: null, sheetOpen: false, undo: null, wasOn: false,
              imp: null, restore: null, edit: null,
              polyView: 'croquis', polyActive: true, mapBase: Mapa.baseId(Store.loadFlag('mapBase')), mapRef: Store.loadFlag('mapRef') === true,
-             map: null, mapFollow: false, mapFitKey: null, tileErrors: 0 };
+             map: null, mapFollow: false, mapFitKey: null, tileErrors: 0,
+             sat: null, satBusy: false, satError: null, sharing: false };
 
   /* ---------- Utilidades ---------- */
   function $(s, r) { return (r || document).querySelector(s); }
@@ -644,7 +645,7 @@
   function mapaHtml() {
     var p = proj(), h = '';
     h += '<div class="maprow"><span class="small muted">Capa base</span><div class="seg" role="group" aria-label="Capa base">';
-    ['calles', 'satelite'].forEach(function (id) {
+    ['calles', 'satelite', 'topo'].forEach(function (id) {
       h += '<button data-act="mapBase" data-b="' + id + '" aria-pressed="' + (ui.mapBase === id) + '">' + esc(Mapa.BASES[id].label) + '</button>';
     });
     h += '</div></div>';
@@ -941,6 +942,8 @@
       h += '</dl><p class="small muted">Misma precipitación en todos los puntos; la temperatura cambia con la altitud.</p></div>';
     }
 
+    if (p.points.length >= 2) h += perfilBlock() + '<div class="block" id="satBlock">' + satelliteBlock() + '</div>';
+
     h += '<div class="block"><h2>Diagrama de Holdridge</h2><div class="diagram-wrap"><div id="diag" style="width:100%;height:100%"></div></div>' +
       '<div class="diagram-tools"><button data-act="dZoomOut" aria-label="Alejar">−</button><button data-act="dZoomIn" aria-label="Acercar">+</button><button class="txt" data-act="dCenter" aria-label="Centrar en el punto">Mi punto</button><button class="txt" data-act="dFit" aria-label="Ver todo el diagrama">Ver todo</button></div>' +
       '<p class="small muted">Arrastra para moverte y pellizca para acercar. El anillo rojo es el punto analizado y el hexágono verde, su zona de vida.</p></div>';
@@ -949,6 +952,48 @@
       '<p class="small muted" style="margin-top:12px">' + esc(Report.DISCLAIMER) + '</p></div>';
     return h + exportBlock();
   }
+  /* ---------- Informe: perfil del relieve y croquis satelital ---------- */
+  function perfilBlock() {
+    var p = proj(), m = Perfil.build(p.points), h = '<div class="block"><h2>Perfil del relieve</h2>';
+    if (!m.ok) return h + '<p class="small muted">' + esc(m.reason) + '</p></div>';
+    h += '<div class="plot">' + Perfil.svg(m, { color: p.mainColor, id: 'perfil-app' }) + '</div><dl class="kv" style="margin-top:12px">';
+    Perfil.rows(m).forEach(function (x) { h += '<div><dt>' + esc(x[0]) + '</dt><dd>' + esc(x[1]) + '</dd></div>'; });
+    h += '</dl>';
+    m.notes.forEach(function (n) { h += '<div class="tip">' + esc(n) + '</div>'; });
+    return h + '<p class="small muted">Altitud de cada punto contra la distancia acumulada entre ellos, en el orden de la lista y sin volver al primero. Usa las altitudes guardadas; no consulta internet.</p></div>';
+  }
+  // El croquis ya preparado solo sirve mientras no cambien los puntos ni las capas visibles
+  function satCurrent() { return ui.sat && ui.sat.sig === Satelite.signature(proj()) ? ui.sat : null; }
+  function satelliteBlock() {
+    var s = satCurrent(), err = ui.satError && ui.satError.sig === Satelite.signature(proj()) ? ui.satError.msg : '';
+    var h = '<h2>Croquis satelital</h2>';
+    if (ui.satBusy) h += '<p class="small" role="status">Descargando la imagen satelital…</p>';
+    else if (s) h += '<div class="plot">' + s.svg + '</div><p class="small muted">' + esc(Satelite.CAPTION) + '</p>';
+    else if (err) h += '<div class="warn">No se pudo preparar el croquis satelital: ' + esc(err) + '.</div>';
+    h += '<div class="btns"><button class="btn" data-act="satPrepare"' + (ui.satBusy ? ' disabled' : '') + '>' + (s ? 'Volver a preparar' : 'Preparar croquis satelital') + '</button></div>';
+    return h + '<p class="small muted">Se baja una sola vez, con internet, y queda guardado dentro del informe que compartes (imagen de Esri, para uso personal o interno). Sin internet, el informe sale sin esta sección.</p>';
+  }
+  function refreshSatBlock() { var el = $('#satBlock'); if (el) el.innerHTML = satelliteBlock(); }
+  // Resuelve siempre con { svg, caption } o { unavailable: motivo }; nunca rechaza. force: volver a bajar aunque ya esté preparado.
+  function prepareSatellite(force) {
+    var p = proj(), a = analysis(), sig = Satelite.signature(p), cur = satCurrent();
+    if (cur && !force) return Promise.resolve({ svg: cur.svg, caption: Satelite.CAPTION });
+    function fail(msg) { ui.satError = { sig: sig, msg: msg }; ui.satBusy = false; refreshSatBlock(); return { unavailable: msg }; }
+    if (navigator.onLine === false) return Promise.resolve(fail('no hay conexión a internet en este momento'));
+    var pl = Satelite.plan(p.points, p.layers);
+    if (!pl.ok) return Promise.resolve(fail(pl.reason));
+    ui.satBusy = true; ui.satError = null; refreshSatBlock();
+    return Satelite.render(pl).then(function (uri) {
+      var svg = Satelite.svg(pl, uri, { points: p.points, layers: p.layers, center: a.center, bad: !!a.selfIntersects });
+      if (!svg) return fail('la imagen recibida no es válida');
+      ui.sat = { sig: sig, svg: svg }; ui.satBusy = false; refreshSatBlock();
+      return { svg: svg, caption: Satelite.CAPTION };
+    }, function (e) { return fail(e && e.message || 'error desconocido'); });
+  }
+  function satPrepareClick() {
+    prepareSatellite(true).then(function (r) { toast(r.svg ? 'Croquis satelital listo.' : 'No se pudo preparar el croquis satelital.', { err: !r.svg }); });
+  }
+
   function mountDiagram() {
     var el = $('#diag');
     if (!el) { ui.diagram = null; return; }
@@ -964,11 +1009,17 @@
     return { walter: w ? { svg: w.svg, lines: w.lines, source: w.source } : null };
   }
   function shareReport() {
-    var p = proj(), a = analysis(), o = reportOpts(a);
-    var name = IO.slug('informe zona de vida ' + p.name, 'html');
-    IO.saveText(name, 'text/html', Report.html(p, a, o), { title: 'Informe de zona de vida', text: Report.text(p, a, o), dialogTitle: 'Compartir informe' }).then(function (r) {
+    if (ui.sharing) return;
+    var p = proj(), a = analysis(), name = IO.slug('informe zona de vida ' + p.name, 'html');
+    ui.sharing = true;
+    if (a.n >= 2 && !satCurrent() && navigator.onLine !== false) toast('Preparando el croquis satelital para el informe…');
+    (a.n >= 2 ? prepareSatellite(false) : Promise.resolve(null)).then(function (sat) {
+      var o = reportOpts(a); o.satellite = sat;
+      return IO.saveText(name, 'text/html', Report.html(p, a, o), { title: 'Informe de zona de vida', text: Report.text(p, a, o), dialogTitle: 'Compartir informe' });
+    }).then(function (r) {
+      ui.sharing = false;
       if (r.how === 'download') toast('Informe descargado: ' + name);
-    }).catch(function (e) { toast('No se pudo compartir: ' + (e && e.message || e), { err: true }); });
+    }).catch(function (e) { ui.sharing = false; toast('No se pudo compartir: ' + (e && e.message || e), { err: true }); });
   }
   function copySummary() {
     var a = analysis(), t = Report.text(proj(), a, reportOpts(a));
@@ -1093,7 +1144,7 @@
     importCsv: function () { $('#csvFile').click(); },
     askClearMem: function () { openSheet('¿Borrar los datos guardados?', '<p>Se borran los ' + MEM.count + ' registros de clima de este equipo. Tus puntos y proyectos no cambian.</p><div class="btns"><button class="btn btn-danger" data-act="doClearMem">Borrar</button><button class="btn" data-act="closeSheet">Conservar</button></div>'); },
     doClearMem: function () { MEM.clear(); saveMemory(); closeSheet(); renderTab(ui.tab); toast('Datos borrados.'); },
-    share: shareReport, copy: copySummary,
+    share: shareReport, copy: copySummary, satPrepare: satPrepareClick,
     dZoomIn: function () { ui.diagram && ui.diagram.zoomIn(); }, dZoomOut: function () { ui.diagram && ui.diagram.zoomOut(); },
     dCenter: function () { ui.diagram && ui.diagram.focusPoint(); }, dFit: function () { ui.diagram && ui.diagram.fit(); },
     pickProject: function (t) { S.currentId = t.getAttribute('data-id'); save(); closeSheet(); renderAll(); },

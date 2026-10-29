@@ -1,8 +1,8 @@
 /* report.js — informe de zona de vida: texto plano y página HTML autocontenida (con el diagrama). */
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory(require('./fmt.js'), require('./geo.js'), require('./diagram.js'));
-  else root.Report = factory(root.Fmt, root.Geo, root.Diagram);
-})(typeof self !== 'undefined' ? self : this, function (Fmt, Geo, Diagram) {
+  if (typeof module === 'object' && module.exports) module.exports = factory(require('./fmt.js'), require('./geo.js'), require('./diagram.js'), require('./perfil.js'));
+  else root.Report = factory(root.Fmt, root.Geo, root.Diagram, root.Perfil);
+})(typeof self !== 'undefined' ? self : this, function (Fmt, Geo, Diagram, Perfil) {
   'use strict';
 
   function esc(s) { return String(s === null || s === undefined ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
@@ -54,6 +54,8 @@
     if (a.area) { L.push('Área: ' + Fmt.area(a.area, 'ha') + ' = ' + Fmt.area(a.area, 'm2') + ' = ' + Fmt.area(a.area, 'fanegadas')); }
     if (a.n >= 2) L.push('Perímetro: ' + Fmt.dist(a.perimeter));
     if (a.center) L.push('Centro: ' + Fmt.latlon(a.center.lat, a.center.lon));
+    var pf = Perfil.build(project.points);
+    if (pf.ok) L.push('Desnivel entre puntos: ' + Fmt.num(pf.relief, 0) + ' m (más alto ' + pf.high.name + ', ' + Fmt.num(pf.high.alt, 0) + ' m; más bajo ' + pf.low.name + ', ' + Fmt.num(pf.low.alt, 0) + ' m)');
     if (a.alternatives && a.alternatives.length) {
       L.push('');
       L.push('Con el margen de error de los datos también podría ser: ' + a.alternatives.map(function (z) { return z.name + ' (' + z.symbol + ')'; }).join('; '));
@@ -97,6 +99,26 @@
       '<text x="46" y="60" text-anchor="middle" font-size="26" font-weight="700" fill="#14301F" font-family="system-ui,sans-serif">' + esc(sym) + '</text></svg>';
   }
 
+  // Croquis satelital: o.satellite = { svg, caption } si se pudo preparar, { unavailable: 'motivo' } si no, o nada si no se pidió
+  function satelliteHtml(sat) {
+    if (!sat) return '';
+    var h = '<h2>Croquis satelital</h2>';
+    if (sat.svg) return h + '<div style="max-width:760px">' + sat.svg + '</div><p class="small">' + esc(sat.caption || '') + '</p>';
+    return h + '<div class="note">No se pudo preparar el croquis satelital' + (sat.unavailable ? ': ' + esc(sat.unavailable) : '.') + '</div>';
+  }
+
+  // Perfil del relieve con lo que está guardado en el proyecto (no consulta internet)
+  function profileHtml(project) {
+    var m = Perfil.build(project.points);
+    var h = '<h2>Perfil del relieve</h2>';
+    if (!m.ok) return h + '<div class="note">' + esc(m.reason) + '</div>';
+    h += '<div style="max-width:700px">' + Perfil.svg(m, { color: project.mainColor, id: 'perfil-informe' }) + '</div><table>';
+    Perfil.rows(m).forEach(function (x) { h += '<tr><th>' + esc(x[0]) + '</th><td>' + esc(x[1]) + '</td></tr>'; });
+    h += '</table>';
+    m.notes.forEach(function (n) { h += '<div class="note">' + esc(n) + '</div>'; });
+    return h + '<p class="small">Altitud de cada punto contra la distancia acumulada entre ellos, en el orden de la lista y sin volver al primero. Se usaron las altitudes guardadas; no se consultó internet.</p>';
+  }
+
   function html(project, a, o) {
     o = o || {};
     var r = a.result;
@@ -125,6 +147,7 @@
       });
       h += '</table>';
       if (a.n >= 2) h += '<div style="max-width:560px;margin-top:12px">' + Diagram.polygonSVG(project.points, { width: 560, height: 380, center: a.center, bad: a.selfIntersects, layers: project.layers, color: project.mainColor }) + Diagram.legendHTML(project.layers, project.mainColor, 'Mis puntos', true) + '</div>';
+      if (a.n >= 2) h += satelliteHtml(o.satellite) + profileHtml(project);
     }
     if (a.vertexZones && a.vertexZones.length && a.distinctZones && a.distinctZones.length > 1) {
       h += '<h2>Zonas según la altitud de cada punto</h2><table>';

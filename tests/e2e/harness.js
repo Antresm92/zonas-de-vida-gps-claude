@@ -58,7 +58,7 @@ async function saveCoverage(page, file) {
   fs.writeFileSync(file, JSON.stringify(cov.map((e) => ({ url: e.url, functions: e.functions }))));
 }
 
-// Mosaicos de mapa de mentira: responde a OpenStreetMap y a Esri con una imagen lisa y cuenta lo que se pidió.
+// Mosaicos de mapa de mentira: responde a OpenStreetMap, Esri y OpenTopoMap con una imagen lisa y cuenta lo que se pidió.
 // Así la prueba no toca los servidores reales (que desde aquí tampoco se alcanzan) ni gasta su cuota.
 //   tiles.urls: todo lo pedido · tiles.count(/regex/) · tiles.fail(true|false): hace fallar los mosaicos · tiles.reset()
 async function mockTiles(context) {
@@ -70,10 +70,10 @@ async function mockTiles(context) {
     fail(v) { tiles.failing = !!v; },
     reset() { tiles.urls.length = 0; }
   };
-  await context.route(/^https:\/\/(tile\.openstreetmap\.org|server\.arcgisonline\.com)\//, (route) => {
+  await context.route(/^https:\/\/(tile\.openstreetmap\.org|server\.arcgisonline\.com|tile\.opentopomap\.org)\//, (route) => {
     tiles.urls.push(route.request().url());
     if (tiles.failing) return route.abort('failed');
-    return route.fulfill({ status: 200, contentType: 'image/png', body: png });
+    return route.fulfill({ status: 200, contentType: 'image/png', body: png, headers: { 'Access-Control-Allow-Origin': '*' } });
   });
   return tiles;
 }

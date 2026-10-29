@@ -21,6 +21,13 @@
       attribution: 'Tiles &copy; Esri — Sources: Esri, Maxar, Earthstar Geographics, and the GIS User Community'
     }
   };
+  // Capa topográfica de OpenTopoMap: curvas de nivel y relieve sombreado (datos SRTM y OpenStreetMap). Sus mosaicos llegan hasta el nivel 17;
+  // con más zoom se amplían (maxNativeZoom) en vez de quedar en blanco.
+  BASES.topo = {
+    id: 'topo', label: 'Topográfico',
+    url: 'https://tile.opentopomap.org/{z}/{x}/{y}.png', maxZoom: 19, maxNativeZoom: 17,
+    attribution: 'Datos: &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors, SRTM | Estilo: &copy; <a href="https://opentopomap.org" target="_blank" rel="noopener noreferrer">OpenTopoMap</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/" target="_blank" rel="noopener noreferrer">CC-BY-SA</a>)'
+  };
   // Calles y nombres que se pueden poner encima del satélite (vista híbrida)
   var REFERENCE = [
     { id: 'transporte', url: ESRI + 'Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', maxZoom: 19 },

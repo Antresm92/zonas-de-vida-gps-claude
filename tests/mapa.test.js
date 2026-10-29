@@ -6,14 +6,23 @@ const Mapa = require('../www/js/mapa.js');
 
 const P = (name, lat, lon, extra) => Object.assign({ id: 'id-' + name, name, lat, lon }, extra || {});
 
-test('capas base: calles (OpenStreetMap) y satélite (Esri), cada una con su atribución', () => {
-  assert.deepEqual(Object.keys(Mapa.BASES).sort(), ['calles', 'satelite']);
+test('capas base: calles (OpenStreetMap), satélite (Esri) y topográfico (OpenTopoMap), cada una con su atribución', () => {
+  assert.deepEqual(Object.keys(Mapa.BASES).sort(), ['calles', 'satelite', 'topo']);
   assert.match(Mapa.BASES.calles.url, /^https:\/\/tile\.openstreetmap\.org\/\{z\}\/\{x\}\/\{y\}\.png$/);
   assert.match(Mapa.BASES.satelite.url, /^https:\/\/server\.arcgisonline\.com\/.*World_Imagery.*\/\{z\}\/\{y\}\/\{x\}$/);
+  assert.match(Mapa.BASES.topo.url, /^https:\/\/tile\.opentopomap\.org\/\{z\}\/\{x\}\/\{y\}\.png$/);
   assert.match(Mapa.BASES.calles.attribution, /OpenStreetMap/);
   assert.match(Mapa.BASES.satelite.attribution, /Esri/);
-  assert.ok(Mapa.BASES.calles.attribution.includes('rel="noopener noreferrer"'), 'los enlaces no deben abrirse dentro de la app');
-  Object.values(Mapa.BASES).forEach((b) => assert.ok(b.maxZoom >= 18));
+  assert.match(Mapa.BASES.topo.attribution, /OpenStreetMap.*SRTM.*OpenTopoMap.*CC-BY-SA/);
+  Object.values(Mapa.BASES).forEach((b) => {
+    assert.equal(b.label.length > 0, true);
+    assert.equal(b.id, Object.keys(Mapa.BASES).find((k) => Mapa.BASES[k] === b));
+    for (const a of b.attribution.match(/<a [^>]*>/g) || []) assert.ok(a.includes('rel="noopener noreferrer"') && a.includes('target="_blank"'), 'los enlaces no deben abrirse dentro de la app: ' + a);
+    assert.ok(b.maxZoom >= 18);
+  });
+  // OpenTopoMap solo tiene mosaicos hasta el nivel 17: con más zoom se amplía el último en vez de pedir mosaicos que no existen
+  assert.equal(Mapa.BASES.topo.maxNativeZoom, 17);
+  assert.ok(Mapa.BASES.topo.maxZoom > Mapa.BASES.topo.maxNativeZoom);
 });
 
 test('capas de referencia: calles y nombres para ponerlos sobre el satélite', () => {
@@ -23,6 +32,7 @@ test('capas de referencia: calles y nombres para ponerlos sobre el satélite', (
 
 test('baseId: solo acepta capas conocidas; lo demás vuelve a «calles»', () => {
   assert.equal(Mapa.baseId('satelite'), 'satelite');
+  assert.equal(Mapa.baseId('topo'), 'topo');
   assert.equal(Mapa.baseId('calles'), 'calles');
   for (const mala of ['', 'toString', '__proto__', 'hibrido', null, undefined, 5, {}]) assert.equal(Mapa.baseId(mala), 'calles', String(mala));
 });
