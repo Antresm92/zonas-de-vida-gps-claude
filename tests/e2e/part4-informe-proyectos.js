@@ -1,5 +1,5 @@
 'use strict';
-/* Recorrido 4 — Informe (diagrama de Holdridge, HTML con Walter-Lieth y capas), proyectos y copia de seguridad. */
+/* Recorrido 4 — Reporte (diagrama de Holdridge, HTML con Walter-Lieth y capas), proyectos y copia de seguridad. */
 const Backup = require('../../www/js/backup.js');
 
 module.exports = async function (c) {
@@ -9,7 +9,30 @@ module.exports = async function (c) {
   const importFile = async (name, data, mime) => { await setFile('#gisFile', name, data, mime); await page.waitForSelector('#sheet:not([hidden])'); };
   const projectNames = async () => (await state()).projects.map((p) => p.name);
 
-  await step('Informe: zona de vida, datos usados, diagrama de Holdridge y zonas por altitud de cada punto', async () => {
+  await step('Menú inferior: se lee Puntos, Polígono, Información y Reporte, y cada botón abre su sección', async () => {
+    await fresh();
+    const etiquetas = await page.$$eval('nav.tabs button span', (els) => els.map((e) => e.textContent.trim()));
+    assert.deepEqual(etiquetas, ['Puntos', 'Polígono', 'Información', 'Reporte']);
+    await addPointManual('4.6000, -74.0800', 1300, 'Abajo');
+    await tab('clima');
+    assert.equal(await page.getAttribute('#nav-clima', 'aria-current'), 'page');
+    assert.equal(await page.isVisible('#tab-clima'), true);
+    assert.match(await page.innerText('#nav-clima'), /^Información$/);
+    await field('pManual', '1200');
+    await tab('informe');
+    assert.equal(await page.getAttribute('#nav-informe', 'aria-current'), 'page');
+    assert.equal(await page.isVisible('#tab-informe'), true);
+    assert.match(await page.innerText('#nav-informe'), /^Reporte$/);
+    assert.match(await text('#tab-informe .block .btn-primary[data-act="share"]'), /^Compartir reporte$/);
+    // en el teléfono más angosto (320 px) ninguna etiqueta se corta
+    await page.setViewportSize({ width: 320, height: 640 });
+    const cortadas = await page.$$eval('nav.tabs button span', (els) => els.filter((e) => e.scrollWidth > e.parentElement.clientWidth).map((e) => e.textContent));
+    assert.deepEqual(cortadas, [], 'etiquetas que no caben: ' + cortadas.join(', '));
+    await shot('29-menu-nombres');
+    await page.setViewportSize({ width: 390, height: 780 });
+  });
+
+  await step('Reporte: zona de vida, datos usados, diagrama de Holdridge y zonas por altitud de cada punto', async () => {
     await fresh();
     await addPointManual('4.6000, -74.0800', 1300, 'Abajo');
     await addPointManual('4.6000, -74.0700', 2640, 'Medio');
@@ -28,7 +51,7 @@ module.exports = async function (c) {
     await shot('30-informe');
   });
 
-  await step('Informe sin precipitación: dice qué falta y lleva a Clima', async () => {
+  await step('Reporte sin precipitación: dice qué falta y lleva a Información', async () => {
     await tab('clima');
     await page.click('[data-act="clearField"][data-field="pManual"]');
     await tab('informe');
@@ -38,7 +61,7 @@ module.exports = async function (c) {
     await field('pManual', '1200');
   });
 
-  await step('Compartir el informe: HTML completo con diagrama de Holdridge, Walter-Lieth y capas de colores', async () => {
+  await step('Compartir el reporte: HTML completo con diagrama de Holdridge, Walter-Lieth y capas de colores', async () => {
     // 12 meses a mano
     await act('monthly');
     const T = fx.T, P = [10, 12, 30, 60, 80, 20, 10, 8, 40, 120, 70, 20];
@@ -49,14 +72,14 @@ module.exports = async function (c) {
     await act('importLayer'); await waitSheetClosed();
     await tab('informe');
     const f = await download(() => page.click('[data-act="share"]'));
-    assert.match(f.name, /^informe-zona-de-vida-mi-primer-proyecto\.html$/);
+    assert.match(f.name, /^reporte-zona-de-vida-mi-primer-proyecto\.html$/);
     assert.match(f.text, /^<!doctype html>/);
     assert.match(f.text, /Diagrama de Walter-Lieth/);
     assert.match(f.text, /Período seco/);
     assert.match(f.text, /Diagrama de Holdridge/);
     assert.match(f.text, /Lote vecino/);
     assert.match(f.text, /Zonas según la altitud de cada punto/);
-    assert.ok(!/<script/i.test(f.text), 'el informe no lleva scripts');
+    assert.ok(!/<script/i.test(f.text), 'el reporte no lleva scripts');
     // abrirlo como lo vería otra persona
     const p2 = await context.newPage();
     const errs = [];
@@ -73,7 +96,7 @@ module.exports = async function (c) {
     await act('copy');
     await waitToast(/Resumen copiado/);
     const t = await page.evaluate(() => navigator.clipboard.readText());
-    assert.match(t, /INFORME DE ZONA DE VIDA/);
+    assert.match(t, /REPORTE DE ZONA DE VIDA/);
     assert.match(t, /Diagrama de Walter-Lieth \(datos mensuales\)/);
     assert.match(t, /Capas importadas/);
     assert.match(t, /Puntos:/);
@@ -110,7 +133,7 @@ module.exports = async function (c) {
     assert.deepEqual(await projectNames(), ['Mi primer proyecto']);
     await act('projects');
     assert.equal(await page.locator('[data-act="askDeleteProject"]').count(), 0, 'no se puede eliminar el único proyecto');
-    assert.match(await text('#sheet'), /versión 2\.3\.0/);
+    assert.match(await text('#sheet'), /versión 2\.4\.0/);
     await act('closeSheet'); await waitSheetClosed();
     // nombre vacío al crear → nombre por defecto
     await act('projects'); await act('newProject'); await fill('#pName', '   '); await act('saveNewProject'); await waitSheetClosed();

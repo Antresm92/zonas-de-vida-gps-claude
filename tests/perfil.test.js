@@ -105,7 +105,7 @@ test('build: fuente desconocida o ausente se llama «a mano»; archivo e interne
   assert.equal(m.items[0].src, 'manual'); assert.equal(m.items[0].srcLabel, 'a mano');
 });
 
-test('rows: datos para la tabla del informe', () => {
+test('rows: datos para la tabla del reporte', () => {
   const rows = Perfil.rows(Perfil.build(P));
   assert.deepEqual(rows.map((r) => r[0]), ['Punto más alto', 'Punto más bajo', 'Desnivel entre ambos', 'Ascenso acumulado', 'Descenso acumulado', 'Longitud del recorrido', 'Tramo más inclinado']);
   assert.equal(rows[0][1], 'P2 · 420 m');

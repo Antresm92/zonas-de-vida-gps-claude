@@ -67,7 +67,7 @@ module.exports = async function (c) {
 
   await step('Editar un punto, cambiar su altitud y eliminarlo con «Deshacer»', async () => {
     await page.locator('[data-act="editPoint"]').nth(1).click();
-    assert.match(await sheetTitle(), /Editar P2/);
+    assert.match(await sheetTitle(), /Ficha de P2/);
     await fill('#fName', 'Esquina 2');
     await fill('#fAlt', '2650');
     await page.click('[data-act="saveEdit"]');

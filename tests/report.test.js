@@ -39,12 +39,12 @@ test('rows: sin altitud ni clima no inventa filas', () => {
   assert.deepEqual(Report.rows(project, a), []);
 });
 
-test('text: informe completo con zona, datos, áreas, alternativas, zonas por punto y capas', () => {
+test('text: reporte completo con zona, datos, áreas, alternativas, zonas por punto y capas', () => {
   const layers = [{ id: 'l1', name: 'Lote vecino', kind: 'polygon', color: '#E67E22', visible: true, points: [{ lat: 4.62, lon: -74.1 }, { lat: 4.62, lon: -74.09 }, { lat: 4.63, lon: -74.09 }], file: 'vecino.kml' },
     { id: 'l2', name: 'Pozo', kind: 'points', color: '#8E44AD', visible: true, points: [{ lat: 4.6, lon: -74.1 }] }];
   const { project, a } = build({ layers });
   const t = Report.text(project, a, { date: DATE, walter: walter() });
-  assert.match(t, /^INFORME DE ZONA DE VIDA \(HOLDRIDGE\)\nFinca La Esperanza · 15 de junio de 2026/);
+  assert.match(t, /^REPORTE DE ZONA DE VIDA \(HOLDRIDGE\)\nFinca La Esperanza · 15 de junio de 2026/);
   assert.match(t, /Zona de vida: Bosque húmedo montano bajo \(bh-MB\)/);
   assert.match(t, /Región latitudinal: /); assert.match(t, /Piso altitudinal: /); assert.match(t, /Provincia de humedad: /);
   assert.match(t, /Precipitación anual: 1100 mm/);
@@ -93,7 +93,7 @@ test('html: página completa con zona, tablas, diagramas y capas', () => {
   assert.doesNotMatch(h, /<script>alert/);                              // el nombre se escapa
   assert.match(h, /Finca &lt;script&gt;alert\(1\)&lt;\/script&gt; &amp; Cía/);
   assert.match(h, /Lote &lt;vecino&gt;/);
-  assert.match(h, /<title>Informe de zona de vida · /);
+  assert.match(h, /<title>Reporte de zona de vida · /);
   assert.match(h, /class="zn">Bosque húmedo montano bajo</);
   assert.match(h, />bh-MB</);                                           // símbolo en el hexágono
   assert.match(h, /<h2>Datos del clima<\/h2><table>.*Precipitación anual/s);
@@ -130,7 +130,7 @@ test('html: zona única sin alternativas ni zonas por punto, y avisos propios', 
   assert.match(h, /Con datos ingresados por el usuario/);
 });
 
-/* ---------- Perfil del relieve y croquis satelital en el informe ---------- */
+/* ---------- Perfil del relieve y croquis satelital en el reporte ---------- */
 test('html: el perfil del relieve va justo después del croquis, con tabla y avisos del GPS', () => {
   const pts = PUNTOS.map((p) => Object.assign({}, p, { altSrc: 'gps' }));
   const { project, a } = build({ points: pts });
@@ -145,7 +145,7 @@ test('html: el perfil del relieve va justo después del croquis, con tabla y avi
   assert.match(h, /<th>Desnivel entre ambos<\/th><td>1200 m<\/td>/);
   assert.match(h, /4 altitudes fueron tomadas con el GPS del teléfono/);
   assert.match(h, /no se consultó internet/);
-  assert.match(h, /id="perfil-informe-fill"/);
+  assert.match(h, /id="perfil-reporte-fill"/);
 });
 
 test('html: el perfil usa el color del proyecto y no mete nombres como código', () => {
@@ -169,6 +169,21 @@ test('html: un solo punto no trae croquis, ni perfil, ni croquis satelital', () 
   assert.doesNotMatch(h, /Perfil del relieve|Croquis satelital/);
 });
 
+test('html: el croquis normal lleva su título «Croquis», después de la tabla de puntos y antes de los croquis de imagen', () => {
+  const { project, a } = build();
+  const h = Report.html(project, a, { date: DATE, satellite: { svg: '<svg></svg>', caption: 'x' }, topo: { svg: '<svg></svg>', caption: 'y' } });
+  const iPuntos = h.indexOf('<h2>Puntos</h2>'), iTitulo = h.indexOf('<h2>Croquis</h2>'), iPlano = h.indexOf('aria-label="Plano del polígono"');
+  const iSat = h.indexOf('<h2>Croquis satelital</h2>'), iTopo = h.indexOf('<h2>Croquis topográfico</h2>');
+  assert.ok(iPuntos > 0 && iTitulo > iPuntos && iPlano > iTitulo && iSat > iPlano && iTopo > iSat, 'orden: puntos, «Croquis», plano, satelital, topográfico');
+  assert.equal(h.split('<h2>Croquis</h2>').length - 1, 1, 'un solo título «Croquis»');
+  assert.ok(iPlano - iTitulo < 250, 'el título está pegado al plano: ' + (iPlano - iTitulo));
+});
+
+test('html: con un solo punto no hay croquis ni título «Croquis»', () => {
+  const { project, a } = build({ points: [{ name: 'P1', lat: 4.6, lon: -74.1, alt: 2000 }], climate: { pManual: 900 } });
+  assert.doesNotMatch(Report.html(project, a, { date: DATE }), /<h2>Croquis<\/h2>/);
+});
+
 test('html: croquis satelital entre el croquis y el perfil, con su atribución', () => {
   const { project, a } = build();
   const sat = { svg: '<svg id="sat-demo"></svg>', caption: 'Imagen satelital: Esri <y> Maxar.' };
@@ -180,7 +195,7 @@ test('html: croquis satelital entre el croquis y el perfil, con su atribución',
   assert.match(h, /<svg id="sat-demo"><\/svg><\/div><p class="small">Imagen satelital: Esri &lt;y&gt; Maxar\.<\/p>/);
 });
 
-test('html: si el croquis satelital no se pudo preparar, el informe lo dice con el motivo y sigue', () => {
+test('html: si el croquis satelital no se pudo preparar, el reporte lo dice con el motivo y sigue', () => {
   const { project, a } = build();
   const h1 = Report.html(project, a, { date: DATE, satellite: { unavailable: 'no hay conexión a internet <ahora>' } });
   assert.match(h1, /<h2>Croquis satelital<\/h2><div class="note">No se pudo preparar el croquis satelital: no hay conexión a internet &lt;ahora&gt;<\/div>/);
@@ -207,9 +222,9 @@ test('html: el croquis topográfico puede aparecer solo, o fallar sin afectar al
   const { project, a } = build();
   const solo = Report.html(project, a, { date: DATE, topo: { svg: '<svg id="t"></svg>', caption: 'x' } });
   assert.match(solo, /<h2>Croquis topográfico<\/h2>/); assert.doesNotMatch(solo, /Croquis satelital/);
-  const mixto = Report.html(project, a, { date: DATE, satellite: { svg: '<svg id="s"></svg>', caption: 'x' }, topo: { unavailable: 'el servicio de imágenes no permite guardarlas dentro del informe' } });
+  const mixto = Report.html(project, a, { date: DATE, satellite: { svg: '<svg id="s"></svg>', caption: 'x' }, topo: { unavailable: 'el servicio de imágenes no permite guardarlas dentro del reporte' } });
   assert.match(mixto, /<svg id="s"><\/svg>/);
-  assert.match(mixto, /<h2>Croquis topográfico<\/h2><div class="note">No se pudo preparar el croquis topográfico: el servicio de imágenes no permite guardarlas dentro del informe<\/div>/);
+  assert.match(mixto, /<h2>Croquis topográfico<\/h2><div class="note">No se pudo preparar el croquis topográfico: el servicio de imágenes no permite guardarlas dentro del reporte<\/div>/);
   assert.match(mixto, /<h2>Perfil del relieve<\/h2>/);
   assert.match(Report.html(project, a, { date: DATE, topo: {} }), /No se pudo preparar el croquis topográfico\.<\/div>/);
   assert.doesNotMatch(Report.html(project, a, { date: DATE, topo: { svg: '<svg></svg>' } }), /undefined/);

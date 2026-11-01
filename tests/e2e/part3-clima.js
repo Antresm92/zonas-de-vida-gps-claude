@@ -1,5 +1,5 @@
 'use strict';
-/* Recorrido 3 — pestaña Clima: datos escritos a mano, 12 meses, diagrama de Walter-Lieth y datos de internet (simulados). */
+/* Recorrido 3 — pestaña Información: datos escritos a mano, 12 meses, diagrama de Walter-Lieth y datos de internet (simulados). */
 module.exports = async function (c) {
   const { page, context, assert, step, fresh, act, fill, tab, text, proj, state, toastText, waitToast, sheetOpen, sheetTitle, waitSheetClosed, addPointManual, download, setFile, fx, errors, shot } = c;
   const near = (a, b, tol, msg) => assert.ok(Math.abs(a - b) <= tol, (msg || '') + ' esperado ' + b + ' y fue ' + a);

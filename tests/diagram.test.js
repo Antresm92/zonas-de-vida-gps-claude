@@ -208,3 +208,13 @@ test('mount: "Ver todo" deja el diagrama entero dentro de la pantalla y lo más 
   assert.ok(ancho > 200, 'quedó demasiado pequeño: ' + ancho);
   assert.ok(view.state.tx > -1e-6 && view.state.tx + 0 < 400);
 });
+
+test('polygonSVG: un punto con color propio se dibuja con él y los demás con el de los puntos del proyecto', () => {
+  const pts = SQUARE.map((p, i) => Object.assign({}, p, i === 1 ? { color: '#C0392B' } : i === 3 ? { color: 'mal' } : {}));
+  const s = Diagram.polygonSVG(pts, { color: '#2F8F4E' });
+  assert.equal(count(s, /<circle[^>]*r="5"[^>]*stroke="#C0392B"/g), 1, 'el punto B lleva su color');
+  assert.equal(count(s, /<circle[^>]*r="5"[^>]*stroke="#2F8F4E"/g), 3, 'los otros tres, el del proyecto (también el que traía un color inválido)');
+  // el primer vértice va relleno con su color; los demás, con relleno blanco
+  const first = Diagram.polygonSVG([Object.assign({}, SQUARE[0], { color: '#8E44AD' })].concat(SQUARE.slice(1)), { color: '#2F8F4E' });
+  assert.equal(count(first, /<circle[^>]*r="5"[^>]*fill="#8E44AD"[^>]*stroke="#8E44AD"/g), 1);
+});

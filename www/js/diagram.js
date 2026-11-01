@@ -175,7 +175,7 @@
     return out + '</g>';
   }
 
-  /* ---------- Versión estática completa (informe) ---------- */
+  /* ---------- Versión estática completa (reporte) ---------- */
   function staticSVG(o) {
     o = o || {};
     var x0 = px(X_MIN - 0.2), x1 = px(X_MAX + 0.2);
@@ -350,7 +350,7 @@
     var n = parseInt(m[1], 16);
     return 'rgba(' + (n >> 16) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
   }
-  // Leyenda de colores (HTML) para las capas: se usa debajo del plano en la app y en el informe
+  // Leyenda de colores (HTML) para las capas: se usa debajo del plano en la app y en el reporte
   function legendHTML(layers, mainColor, mainName, hasMain) {
     var items = [];
     if (hasMain) items.push([mainColor || COL.hex, mainName || 'Mis puntos']);
@@ -419,7 +419,8 @@
     var showNames = n <= 40;
     xy.forEach(function (p, i) {
       var label = pts[i].name || ('P' + (i + 1));
-      out += '<circle cx="' + f(X(p.x)) + '" cy="' + f(Y(p.y)) + '" r="5" fill="' + (i === 0 ? esc(mainCol) : '#fff') + '" stroke="' + esc(mainCol) + '" stroke-width="2"/>';
+      var pc = /^#[0-9a-fA-F]{6}$/.test(pts[i].color || '') ? pts[i].color : mainCol;     // color propio del punto (su ficha) o el de los puntos del proyecto
+      out += '<circle cx="' + f(X(p.x)) + '" cy="' + f(Y(p.y)) + '" r="5" fill="' + (i === 0 ? esc(pc) : '#fff') + '" stroke="' + esc(pc) + '" stroke-width="2"/>';
       if (showNames) out += '<text x="' + f(X(p.x) + 8) + '" y="' + f(Y(p.y) - 8) + '" font-size="12" font-weight="600" fill="' + COL.ink + '" paint-order="stroke" stroke="#F2F5EF" stroke-width="3">' + esc(label) + '</text>';
     });
     // centro

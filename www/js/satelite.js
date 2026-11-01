@@ -1,7 +1,7 @@
-/* satelite.js — croquis con imagen de fondo para el informe: el satelital (imágenes de Esri) y el topográfico (OpenTopoMap), cada uno con el polígono,
+/* satelite.js — croquis con imagen de fondo para el reporte: el satelital (imágenes de Esri) y el topográfico (OpenTopoMap), cada uno con el polígono,
  * los nombres, las medidas de los lados, el norte y la escala. El nombre del archivo viene de la primera versión, que solo tenía el satelital.
- * La imagen se baja una vez (necesita internet), se arma en un lienzo y se guarda dentro del informe como imagen JPEG en base 64, igual que hace
- * la otra app: el informe se ve igual sin conexión. plan() y overlay() son cuentas y dibujo puros (se prueban en Node); render() baja los
+ * La imagen se baja una vez (necesita internet), se arma en un lienzo y se guarda dentro del reporte como imagen JPEG en base 64, igual que hace
+ * la otra app: el reporte se ve igual sin conexión. plan() y overlay() son cuentas y dibujo puros (se prueban en Node); render() baja los
  * mosaicos y solo funciona en el navegador (se le pueden pasar piezas de mentira para probarlo). */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory(require('./geo.js'), require('./fmt.js'), require('./mapa.js'));
@@ -17,11 +17,11 @@
   var STEPS = [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 5000, 10000, 20000, 50000];
   var YELLOW = '#FFD60A', ORANGE = '#F57C00', RED = '#E53935', INK = '#0E2418';
   var ATTRIBUTION = 'Esri, Maxar, Earthstar Geographics y la comunidad de usuarios GIS';
-  var CAPTION = 'Imagen satelital de Esri (fuentes: ' + ATTRIBUTION + '), guardada dentro de este informe para uso personal o interno. ' +
+  var CAPTION = 'Imagen satelital de Esri (fuentes: ' + ATTRIBUTION + '), guardada dentro de este reporte para uso personal o interno. ' +
     'Puede tener meses o años de antigüedad y, en zonas rurales, menos detalle. Incluye norte y escala.';
   var TOPO_ATTRIBUTION = 'OpenStreetMap contributors, SRTM y OpenTopoMap (CC-BY-SA)';
   var TOPO_CAPTION = 'Mapa topográfico de OpenTopoMap (datos de OpenStreetMap contributors y SRTM; estilo de OpenTopoMap, licencia CC-BY-SA), ' +
-    'guardado dentro de este informe. Se puede compartir citando la fuente y con la misma licencia. ' +
+    'guardado dentro de este reporte. Se puede compartir citando la fuente y con la misma licencia. ' +
     'Las curvas de nivel salen de datos SRTM y son aproximadas: no son las altitudes de tus puntos GPS. Incluye norte y escala.';
   // Las dos versiones: de qué capa del mapa salen los mosaicos, hasta qué nivel de zoom existen y qué texto lleva cada una
   var KINDS = {
@@ -181,10 +181,10 @@
         load(t.url).then(function (img) { ctx.drawImage(img, Math.round(t.dx), Math.round(t.dy), TILE, TILE); }, function () { failed++; }).then(function () {
           if (++done < total || over) return;
           over = true; clearTimeout(timer);
-          if (failed === total) return reject(new Error('no se pudieron descargar las imágenes: revisa la conexión a internet; si la tienes, el servicio de imágenes puede estar caído o no permitir guardarlas en el informe'));
+          if (failed === total) return reject(new Error('no se pudieron descargar las imágenes: revisa la conexión a internet; si la tienes, el servicio de imágenes puede estar caído o no permitir guardarlas en el reporte'));
           if (failed) return reject(new Error('no se pudieron descargar ' + failed + ' de ' + total + ' imágenes'));
           try { resolve(canvas.toDataURL('image/jpeg', 0.82)); }
-          catch (e) { reject(new Error('el servicio de imágenes no permite guardarlas dentro del informe')); }
+          catch (e) { reject(new Error('el servicio de imágenes no permite guardarlas dentro del reporte')); }
         });
       });
     });

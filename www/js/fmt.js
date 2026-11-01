@@ -1,4 +1,4 @@
-/* fmt.js — formato de números y coordenadas para pantalla e informes (es-CO). */
+/* fmt.js — formato de números y coordenadas para pantalla e reportes (es-CO). */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory(require('./geo.js'));
   else root.Fmt = factory(root.Geo);
@@ -50,5 +50,12 @@
     try { return d.toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' }); } catch (e) { return ''; }
   }
 
-  return { num: num, grouped: grouped, coord: coord, latlon: latlon, dms: dms, dist: dist, area: area, date: date, UNITS: UNITS };
+  // Fecha y hora cortas para la ficha de un punto («15 jun 2026, 14:05»)
+  function dateTime(ts) {
+    var d = new Date(ts);
+    if (!isFinite(d.getTime())) return '';
+    try { return d.toLocaleString('es-CO', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }); } catch (e) { return ''; }
+  }
+
+  return { num: num, grouped: grouped, coord: coord, latlon: latlon, dms: dms, dist: dist, area: area, date: date, dateTime: dateTime, UNITS: UNITS };
 });

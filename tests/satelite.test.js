@@ -1,5 +1,5 @@
 'use strict';
-/* satelite.js: croquis satelital del informe. Las cuentas (plan), el dibujo (overlay, svg), la huella (signature)
+/* satelite.js: croquis satelital del reporte. Las cuentas (plan), el dibujo (overlay, svg), la huella (signature)
  * y la descarga con piezas de mentira (render) se prueban aquí; la descarga real en el navegador, en tests/e2e. */
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -264,7 +264,7 @@ test('render: si el servicio no deja leer los píxeles (lienzo «contaminado») 
   const L = falsoLienzo();
   L.canvas.toDataURL = () => { throw new Error('SecurityError'); };
   await assert.rejects(Satelite.render(PLAN, { makeCanvas: L.make, loadTile: () => Promise.resolve({}) }),
-    (e) => /el servicio de imágenes no permite guardarlas dentro del informe/.test(e.message));
+    (e) => /el servicio de imágenes no permite guardarlas dentro del reporte/.test(e.message));
 });
 
 test('render: si tarda demasiado se rinde, y lo que llegue después no hace nada', async () => {
@@ -282,7 +282,7 @@ test('render: el límite de tiempo no corta una descarga que termina a tiempo', 
   assert.equal(uri, JPEG);
 });
 
-test('el pie del informe nombra a Esri, sus fuentes y el uso personal o interno', () => {
+test('el pie del reporte nombra a Esri, sus fuentes y el uso personal o interno', () => {
   assert.match(Satelite.CAPTION, /Esri/);
   assert.ok(Satelite.CAPTION.includes(Satelite.ATTRIBUTION));
   assert.match(Satelite.CAPTION, /uso personal o interno/);

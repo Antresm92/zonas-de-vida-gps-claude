@@ -11,7 +11,8 @@
   var KEY_FLAGS = 'zvg.v1.flags';
   var MAIN_COLOR = '#2F8F4E';
   var MIN_ACC = [0, 3, 5, 10, 20];
-  var DEFAULT_SETTINGS = { areaUnit: 'ha', minAcc: 10, csvStyle: 'es' };
+  var HOLD_MS = [1000, 1500, 2000];     // cuánto se mantiene pulsado un punto del mapa para moverlo (Posición manual)
+  var DEFAULT_SETTINGS = { areaUnit: 'ha', minAcc: 10, csvStyle: 'es', holdMs: 1000 };
   var mem = {};          // respaldo si localStorage falla
   var storage = null;
   try { storage = typeof localStorage !== 'undefined' ? localStorage : null; } catch (e) { storage = null; }
@@ -54,6 +55,7 @@
     s.settings = Object.assign({}, DEFAULT_SETTINGS, s.settings || {});
     if (MIN_ACC.indexOf(s.settings.minAcc) < 0) s.settings.minAcc = DEFAULT_SETTINGS.minAcc;
     if (s.settings.csvStyle !== 'es' && s.settings.csvStyle !== 'std') s.settings.csvStyle = 'es';
+    if (HOLD_MS.indexOf(s.settings.holdMs) < 0) s.settings.holdMs = DEFAULT_SETTINGS.holdMs;
     return s;
   }
   function saveState(s) { return write(KEY_STATE, s); }
@@ -66,5 +68,5 @@
   function saveFlag(name, value) { var f = flagBag(); f[name] = value; return write(KEY_FLAGS, f); }
 
   return { loadState: loadState, saveState: saveState, loadMemory: loadMemory, saveMemory: saveMemory, loadFlag: loadFlag, saveFlag: saveFlag,
-           newProject: newProject, uid: uid, setBackend: setBackend, defaultState: defaultState, MAIN_COLOR: MAIN_COLOR, MIN_ACC: MIN_ACC };
+           newProject: newProject, uid: uid, setBackend: setBackend, defaultState: defaultState, MAIN_COLOR: MAIN_COLOR, MIN_ACC: MIN_ACC, HOLD_MS: HOLD_MS };
 });

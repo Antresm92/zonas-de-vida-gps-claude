@@ -38,7 +38,15 @@
   var COLOMBIA = { lat: 4.57, lon: -74.3, zoom: 5 };   // vista inicial cuando todavía no hay nada que mostrar
   var TILE_ERRORS_BEFORE_NOTICE = 3;
 
+  // Gestos del mapa (menú ⋮). Mantener pulsado un punto HOLD_MS (sin moverse más de HOLD_SLOP_PX) lo «levanta» para arrastrarlo;
+  // dos toques cortos seguidos (≤ DOUBLE_TAP_MS y a ≤ DOUBLE_TAP_SLOP_PX uno del otro) abren su ficha.
+  var MODES = ['add', 'move'];                // add: «Ingresar puntos» · move: «Posición manual»
+  var HOLD_CHOICES = [1000, 1500, 2000];      // tiempos posibles para mantener pulsado, en milisegundos
+  var HOLD_MS = HOLD_CHOICES[0], HOLD_SLOP_PX = 10, DOUBLE_TAP_MS = 350, DOUBLE_TAP_SLOP_PX = 24, TAP_SLOP_PX = 8;
+
   function isNum(x) { return typeof x === 'number' && isFinite(x); }
+  // El color propio de un punto (el que se elige en su ficha); si no tiene uno válido, el de los puntos del proyecto
+  function pointColor(q, dflt) { return q && typeof q.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(q.color) ? q.color : dflt; }
   function validLL(p) { return !!p && isNum(p.lat) && isNum(p.lon) && Math.abs(p.lat) <= 90 && Math.abs(p.lon) <= 180; }
 
   function baseId(id) { return Object.prototype.hasOwnProperty.call(BASES, id) ? id : 'calles'; }
@@ -94,7 +102,7 @@
       out.polygon = { latlngs: ring(pts), closed: pts.length >= 3, bad: !!opts.bad };
     }
     out.points = pts.map(function (q, i) {
-      return { id: q.id, name: q.name || ('P' + (i + 1)), label: pointLabel(q, opts.fmt) || ('P' + (i + 1)), lat: q.lat, lon: q.lon, color: color };
+      return { id: q.id, name: q.name || ('P' + (i + 1)), label: pointLabel(q, opts.fmt) || ('P' + (i + 1)), lat: q.lat, lon: q.lon, color: pointColor(q, color) };
     });
     out.layers = visibleLayers(p.layers).map(function (l) {
       var kind = l.kind === 'polygon' || l.kind === 'line' ? l.kind : 'points';
@@ -121,7 +129,68 @@
     return { lat: fix.lat, lon: fix.lon, acc: isNum(fix.acc) && fix.acc > 0 ? fix.acc : null };
   }
 
+  /* ---------- Modos del mapa y gestos ---------- */
+  function modeId(m) { return MODES.indexOf(m) >= 0 ? m : ''; }
+  // Solo una casilla a la vez: tocar la que ya está activa la apaga; tocar la otra pasa a esa.
+  function toggleMode(current, wanted) { var w = modeId(wanted); return !w || w === modeId(current) ? '' : w; }
+  function holdMs(v) { return HOLD_CHOICES.indexOf(v) >= 0 ? v : HOLD_MS; }
+  function holdLabel(ms) { var s = holdMs(ms) / 1000; return String(s).replace('.', ',') + (s === 1 ? ' segundo' : ' segundos'); }
+  // Aviso corto del modo activo: va sobre el mapa y no debe tapar mucho (los puntos de debajo se siguen pudiendo tocar)
+  function modeText(mode, ms) {
+    if (mode === 'add') return 'Ingresar puntos: toca el mapa.';
+    if (mode === 'move') return 'Posición manual: mantén pulsado un punto ' + String(holdMs(ms) / 1000).replace('.', ',') + ' s.';
+    return '';
+  }
+
+  function pxDist(a, b) { var dx = a.x - b.x, dy = a.y - b.y; return Math.sqrt(dx * dx + dy * dy); }
+  // ¿Este toque repite al anterior (muy seguido y casi en el mismo sitio)? a y b: { x, y, t } con t en milisegundos.
+  function isRepeatTap(a, b) { return !!a && !!b && b.t - a.t <= DOUBLE_TAP_MS && pxDist(a, b) <= DOUBLE_TAP_SLOP_PX; }
+
+  // Los mismos puntos, con las coordenadas del que tiene ese id cambiadas (para ver el área y el perímetro mientras se arrastra).
+  function withMoved(points, id, lat, lon) {
+    return (points || []).map(function (p) { return p && p.id === id ? Object.assign({}, p, { lat: lat, lon: lon }) : p; });
+  }
+
+  // Gestos sobre un punto con «Posición manual». Es una máquina de estados sin pantalla ni reloj propios: el tiempo llega por
+  // o.setTimer(fn, ms) / o.clearTimer(id) / o.now() (así se prueba en Node) y los avisos salen por o.onHold, o.onMove, o.onDrop, o.onAbort y o.onDouble.
+  //  · mantener pulsado o.holdMs sin moverse más de HOLD_SLOP_PX → el punto queda «levantado» (onHold); desde ahí cada movimiento llega a onMove y al soltar, a onDrop;
+  //  · moverse más de HOLD_SLOP_PX antes de que pase el tiempo → se abandona (el dedo estaba arrastrando el mapa);
+  //  · dos toques cortos seguidos sobre el mismo punto → onDouble.
+  function pointGesture(o) {
+    var cur = null, last = null, timer = null;
+    function stopTimer() { if (timer !== null) { o.clearTimer(timer); timer = null; } }
+    return {
+      down: function (id, x, y) {
+        if (cur) return;
+        cur = { id: id, x: x, y: y, px: x, py: y, lifted: false, moved: false };
+        timer = o.setTimer(function () { timer = null; cur.lifted = true; o.onHold(cur.id, cur.px, cur.py); }, holdMs(o.holdMs));
+      },
+      move: function (x, y) {
+        if (!cur) return;
+        cur.px = x; cur.py = y;
+        if (cur.lifted) { cur.moved = true; o.onMove(cur.id, x, y); return; }
+        if (pxDist({ x: x, y: y }, cur) > HOLD_SLOP_PX) { stopTimer(); cur = null; last = null; }
+      },
+      up: function (x, y) {
+        if (!cur) return;
+        var c = cur; cur = null; stopTimer();
+        if (c.lifted) { last = null; o.onDrop(c.id, x, y, c.moved); return; }
+        var tap = { id: c.id, x: x, y: y, t: o.now() };
+        if (last && last.id === c.id && isRepeatTap(last, tap)) { last = null; o.onDouble(c.id); }
+        else last = tap;
+      },
+      cancel: function () {
+        stopTimer();
+        var c = cur; cur = null; last = null;
+        if (c && c.lifted) o.onAbort(c.id);
+      },
+      state: function () { return !cur ? '' : cur.lifted ? 'lifted' : 'press'; }
+    };
+  }
+
   return {
+    MODES: MODES, HOLD_CHOICES: HOLD_CHOICES, HOLD_MS: HOLD_MS, HOLD_SLOP_PX: HOLD_SLOP_PX, TAP_SLOP_PX: TAP_SLOP_PX, DOUBLE_TAP_MS: DOUBLE_TAP_MS, DOUBLE_TAP_SLOP_PX: DOUBLE_TAP_SLOP_PX,
+    pointColor: pointColor, modeId: modeId, toggleMode: toggleMode, holdMs: holdMs, holdLabel: holdLabel, modeText: modeText, isRepeatTap: isRepeatTap, withMoved: withMoved, pointGesture: pointGesture,
     BASES: BASES, REFERENCE: REFERENCE, LABEL_MIN_ZOOM: LABEL_MIN_ZOOM, COLOMBIA: COLOMBIA, TILE_ERRORS_BEFORE_NOTICE: TILE_ERRORS_BEFORE_NOTICE,
     baseId: baseId, pointLabel: pointLabel, lastPoint: lastPoint, visibleLayers: visibleLayers, extent: extent, shapes: shapes,
     labelsVisible: labelsVisible, tileNotice: tileNotice, fixShape: fixShape

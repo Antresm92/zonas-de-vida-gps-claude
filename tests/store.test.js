@@ -16,7 +16,7 @@ test('defaultState: un proyecto vacío con los ajustes por defecto', () => {
   assert.deepEqual(s.projects[0].points, []);
   assert.deepEqual(s.projects[0].layers, []);
   assert.equal(s.projects[0].mainColor, Store.MAIN_COLOR);
-  assert.deepEqual(s.settings, { areaUnit: 'ha', minAcc: 10, csvStyle: 'es' });
+  assert.deepEqual(s.settings, { areaUnit: 'ha', minAcc: 10, csvStyle: 'es', holdMs: 1000 });
 });
 
 test('newProject: nombre por defecto y ids distintos', () => {
@@ -48,7 +48,7 @@ test('loadState: completa y corrige proyectos guardados con versiones anteriores
         layers: [null, { name: 'sin puntos' }, { id: 'l1', points: [{ lat: 1, lon: 1 }] }], mainColor: 'verde' },
       { id: 'c', name: 'Color bueno', mainColor: '#AABBCC' }
     ],
-    settings: { areaUnit: 'm2', minAcc: 7, csvStyle: 'raro' }
+    settings: { areaUnit: 'm2', minAcc: 7, csvStyle: 'raro', holdMs: 999 }
   };
   Store.setBackend(fakeStorage({ 'zvg.v1.state': JSON.stringify(raw) }));
   const s = Store.loadState();
@@ -59,13 +59,13 @@ test('loadState: completa y corrige proyectos guardados con versiones anteriores
   assert.equal(b.layers.length, 1); assert.equal(b.layers[0].id, 'l1');
   assert.equal(b.mainColor, Store.MAIN_COLOR);
   assert.equal(c.mainColor, '#AABBCC');
-  assert.deepEqual(s.settings, { areaUnit: 'm2', minAcc: 10, csvStyle: 'es' });       // minAcc y csvStyle no válidos vuelven al valor por defecto
+  assert.deepEqual(s.settings, { areaUnit: 'm2', minAcc: 10, csvStyle: 'es', holdMs: 1000 });       // minAcc, csvStyle y holdMs no válidos vuelven al valor por defecto
 });
 
 test('loadState: conserva ajustes válidos', () => {
-  const raw = { projects: [{ id: 'a', name: 'X', points: [] }], currentId: 'a', settings: { areaUnit: 'fanegadas', minAcc: 3, csvStyle: 'std' } };
+  const raw = { projects: [{ id: 'a', name: 'X', points: [] }], currentId: 'a', settings: { areaUnit: 'fanegadas', minAcc: 3, csvStyle: 'std', holdMs: 2000 } };
   Store.setBackend(fakeStorage({ 'zvg.v1.state': JSON.stringify(raw) }));
-  assert.deepEqual(Store.loadState().settings, { areaUnit: 'fanegadas', minAcc: 3, csvStyle: 'std' });
+  assert.deepEqual(Store.loadState().settings, { areaUnit: 'fanegadas', minAcc: 3, csvStyle: 'std', holdMs: 2000 });
 });
 
 test('saveState / loadState: ida y vuelta', () => {

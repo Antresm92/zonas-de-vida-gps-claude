@@ -277,7 +277,7 @@ module.exports = async function (c) {
     await page.click('[data-act="csvStyle"][data-s="es"]');
   });
 
-  await step('Exportar también desde la pestaña Informe', async () => {
+  await step('Exportar también desde la pestaña Reporte', async () => {
     await page.evaluate(() => { const p = window.__app.S.projects.find((x) => x.id === window.__app.S.currentId); p.climate.pManual = 1200; p.climate.altOverride = 2600; });
     await tab('informe');
     assert.ok(await page.locator('#tab-informe [data-act="export"]').count() >= 4);

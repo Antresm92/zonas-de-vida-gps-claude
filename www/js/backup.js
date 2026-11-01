@@ -11,12 +11,13 @@
   'use strict';
 
   var APP = 'zonas-de-vida-gps', FORMAT = 1;
-  var LIM = { projects: 500, points: 20000, layers: 500, layerPoints: 150000, memory: 100000 };
+  var LIM = { projects: 500, points: 20000, layers: 500, layerPoints: 150000, memory: 100000, note: 300 };
   var ALT_SRC = ['gps', 'manual', 'internet', 'archivo'];
   var PT_SRC = ['gps', 'manual', 'archivo'];
   var KINDS = ['polygon', 'line', 'points'];
   var UNITS = ['ha', 'm2', 'km2', 'fanegadas'];
   var MIN_ACC = [0, 3, 5, 10, 20];
+  var HOLD_MS = [1000, 1500, 2000];
   var MAIN_COLOR = '#2F8F4E', LAYER_COLOR = '#E67E22';
 
   function uidDefault() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
@@ -26,6 +27,12 @@
     if (typeof v !== 'string' && typeof v !== 'number') return dflt;
     var s = String(v).replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
     return s || dflt;
+  }
+  // Texto largo (la leyenda de un punto): conserva los saltos de línea, quita el resto de caracteres de control y no deja más de una línea en blanco seguida
+  function note(v, max) {
+    if (typeof v !== 'string') return null;
+    var s = v.replace(/\r\n?/g, '\n').replace(/[\u0000-\u0009\u000b-\u001f\u007f]/g, ' ').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim().slice(0, max).trim();
+    return s || null;
   }
   function hex(v, dflt) { return typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v) ? v : dflt; }
   function oneOf(v, list, dflt) { return list.indexOf(v) >= 0 ? v : dflt; }
@@ -57,6 +64,9 @@
       acc: num(p.acc, 0, 100000), altAcc: num(p.altAcc, 0, 100000), src: oneOf(p.src, PT_SRC, 'manual'), ts: num(p.ts, 0, 8.64e15) || this.now
     };
     if (p.lowAcc === true) out.lowAcc = true;
+    var color = hex(p.color, null), leyenda = note(p.note, LIM.note);
+    if (color) out.color = color;
+    if (leyenda) out.note = leyenda;
     return out;
   };
 
@@ -127,7 +137,7 @@
 
   function cleanSettings(s) {
     s = obj(s) || {};
-    return { areaUnit: oneOf(s.areaUnit, UNITS, 'ha'), minAcc: oneOf(s.minAcc, MIN_ACC, 10), csvStyle: oneOf(s.csvStyle, ['es', 'std'], 'es') };
+    return { areaUnit: oneOf(s.areaUnit, UNITS, 'ha'), minAcc: oneOf(s.minAcc, MIN_ACC, 10), csvStyle: oneOf(s.csvStyle, ['es', 'std'], 'es'), holdMs: oneOf(s.holdMs, HOLD_MS, 1000) };
   }
 
   function cleanMemory(arr, drop) {

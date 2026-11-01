@@ -10,11 +10,11 @@ const NOW = Date.UTC(2026, 9, 22, 15, 0, 0);
 function sampleState() {
   return {
     v: 1, currentId: 'p2',
-    settings: { areaUnit: 'fanegadas', minAcc: 5, csvStyle: 'std' },
+    settings: { areaUnit: 'fanegadas', minAcc: 5, csvStyle: 'std', holdMs: 1500 },
     projects: [
       { id: 'p1', name: 'Finca Ejemplo', created: 1000, nextPoint: 4, mainColor: '#2F8F4E',
         points: [
-          { id: 'a1', name: 'P1', lat: 4.93, lon: -74.45, alt: 1310.4, altGps: 1310.4, altSrc: 'gps', acc: 4.2, altAcc: 9, src: 'gps', ts: 5 },
+          { id: 'a1', name: 'P1', lat: 4.93, lon: -74.45, alt: 1310.4, altGps: 1310.4, altSrc: 'gps', acc: 4.2, altAcc: 9, src: 'gps', ts: 5, color: '#C0392B', note: 'Esquina junto al roble\nCon vista al río' },
           { id: 'a2', name: 'P2', lat: 4.931, lon: -74.45, alt: null, altGps: null, altSrc: null, acc: null, altAcc: null, src: 'manual', ts: 6, lowAcc: true },
           { id: 'a3', name: 'P3', lat: 4.931, lon: -74.449, alt: 1300, altGps: null, altSrc: 'internet', acc: null, altAcc: null, src: 'manual', ts: 7 }
         ],
@@ -40,7 +40,7 @@ test('copia: crear → texto → leer → validar devuelve lo mismo', () => {
   assert.deepEqual(res.warnings, []);
   assert.deepEqual(res.data.projects, sampleState().projects);
   assert.equal(res.data.currentId, 'p2');
-  assert.deepEqual(res.data.settings, { areaUnit: 'fanegadas', minAcc: 5, csvStyle: 'std' });
+  assert.deepEqual(res.data.settings, { areaUnit: 'fanegadas', minAcc: 5, csvStyle: 'std', holdMs: 1500 });
   assert.equal(res.data.memory.length, 2);
   assert.equal(res.data.memory[0].name, 'Bogotá');
   assert.deepEqual(res.summary, { projects: 2, points: 3, layers: 1, memory: 2 });
@@ -85,7 +85,7 @@ test('validar: descarta lo dañado, corrige lo corregible y avisa', () => {
   p.climate.online.monthlyT = [1, 2, 3];
   b.memory.push({ lat: 4, lon: 200, T: 5 }, { lat: 4, lon: 5 }, null);
   b.state.currentId = 'no-existe';
-  b.state.settings = { areaUnit: 'acres', minAcc: 7, csvStyle: 'x' };
+  b.state.settings = { areaUnit: 'acres', minAcc: 7, csvStyle: 'x', holdMs: 999 };
   const r = Backup.validate(b, { uid, now: NOW });
   assert.equal(r.ok, true);
   const q = r.data.projects[0];
@@ -101,7 +101,7 @@ test('validar: descarta lo dañado, corrige lo corregible y avisa', () => {
   assert.equal(q.climate.online.monthlyT, null);
   assert.equal(q.climate.online.monthlyP.length, 12);
   assert.equal(r.data.currentId, 'p1');                                       // el actual no existía: el primero
-  assert.deepEqual(r.data.settings, { areaUnit: 'ha', minAcc: 10, csvStyle: 'es' });
+  assert.deepEqual(r.data.settings, { areaUnit: 'ha', minAcc: 10, csvStyle: 'es', holdMs: 1000 });
   assert.equal(r.data.memory.length, 2);
   assert.ok(r.warnings.some((w) => /punto\(s\) con coordenadas no válidas/.test(w)));
   assert.ok(r.warnings.some((w) => /capa\(s\)/.test(w)));
@@ -152,7 +152,7 @@ test('restaurar sumando: conserva lo actual, evita duplicados exactos y renombra
   const mine = sampleState();
   mine.projects[1].name = 'Mi versión distinta';        // mismo id p2, contenido distinto
   mine.currentId = 'p1';
-  mine.settings = { areaUnit: 'ha', minAcc: 10, csvStyle: 'es' };
+  mine.settings = { areaUnit: 'ha', minAcc: 10, csvStyle: 'es', holdMs: 1000 };
   const current = { state: mine, memory: [MEMORY[0]] };
   const out = Backup.apply(current, v.data, 'merge', { uid });
   assert.equal(out.skipped, 1);                          // p1 idéntico: ya estaba
@@ -167,4 +167,33 @@ test('restaurar sumando: conserva lo actual, evita duplicados exactos y renombra
   assert.equal(out.state.settings.minAcc, 10);           // al sumar no se tocan los ajustes
   assert.equal(out.memory.length, 2);                    // el dato repetido no se duplica
   assert.equal(current.state.projects.length, 2, 'no modifica el estado de entrada');
+});
+
+test('validar: el color propio y la leyenda de un punto se conservan y lo que no sirve se descarta', () => {
+  const lleno = (q) => ({ app: 'zonas-de-vida-gps', format: 1, created: '2026-10-22T15:00:00.000Z', state: { currentId: 'p', settings: {},
+    projects: [{ id: 'p', name: 'X', points: [Object.assign({ id: 'a', name: 'P1', lat: 1, lon: 2 }, q)] }] }, memory: [] });
+  const punto = (q) => Backup.validate(lleno(q), { uid, now: NOW }).data.projects[0].points[0];
+  const buen = punto({ color: '#1abc9c', note: '  Junto al roble  ' });
+  assert.equal(buen.color, '#1abc9c');
+  assert.equal(buen.note, 'Junto al roble');
+  // color que no es #RRGGBB: no se guarda; sin leyenda o con una que no es texto: tampoco
+  for (const color of ['rojo', '#FFF', '#12345G', 7, null, '#1abc9c; x']) assert.equal('color' in punto({ color }), false, 'color ' + color);
+  for (const note of [undefined, null, 42, {}, '', '   \n  ']) assert.equal('note' in punto({ note }), false, 'leyenda ' + JSON.stringify(note));
+  // la leyenda conserva los saltos de línea, pero quita los caracteres de control, los espacios al final de cada línea y las líneas en blanco de más
+  assert.equal(punto({ note: 'uno\r\ndos\u0000\u0007 x   \n\n\n\ntres\t' }).note, 'uno\ndos   x\n\ntres');
+  // y no pasa del largo permitido
+  const larga = punto({ note: 'a'.repeat(500) }).note;
+  assert.equal(larga.length, Backup.LIMITS.note);
+  assert.equal(Backup.LIMITS.note, 300);
+  // el largo se cuenta ya limpio: un texto que termina en espacios no deja la leyenda terminando en espacio
+  assert.equal(punto({ note: 'a'.repeat(299) + ' bbbb' }).note, 'a'.repeat(299));
+});
+
+test('copia: la leyenda con saltos de línea viaja completa de ida y vuelta', () => {
+  const st = sampleState();
+  const b = JSON.parse(Backup.stringify(Backup.create(st, [], { now: NOW })));
+  assert.equal(b.state.projects[0].points[0].note, 'Esquina junto al roble\nCon vista al río');
+  assert.equal(b.state.projects[0].points[0].color, '#C0392B');
+  const r = Backup.validate(b, { uid, now: NOW });
+  assert.equal(r.data.projects[0].points[0].note, 'Esquina junto al roble\nCon vista al río');
 });

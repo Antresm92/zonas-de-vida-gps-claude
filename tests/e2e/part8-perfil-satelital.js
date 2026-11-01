@@ -1,5 +1,5 @@
 'use strict';
-/* Recorrido 8 — Informe: perfil del relieve (sin internet) y croquis satelital y topográfico (se bajan una vez y quedan dentro del informe).
+/* Recorrido 8 — Reporte: perfil del relieve (sin internet) y croquis satelital y topográfico (se bajan una vez y quedan dentro del reporte).
  * Los mosaicos de Esri y de OpenTopoMap son de mentira (harness.mockTiles): se comprueba qué pide la app y qué guarda, no el aspecto de las imágenes reales. */
 module.exports = async function (c) {
   const { page, context, assert, step, fresh, act, fill, tab, text, proj, toastText, waitToast, addPointManual, download, errors, shot, tiles } = c;
@@ -30,11 +30,11 @@ module.exports = async function (c) {
     if (name) await p2.screenshot({ path: c.shots + '/' + name + '.png', fullPage: true });
     await p2.close();
     assert.deepEqual(errs, []);
-    assert.deepEqual(reqs, [], 'el informe no pide nada a internet al abrirse');
+    assert.deepEqual(reqs, [], 'el reporte no pide nada a internet al abrirse');
   };
   const iPos = (h, s) => h.indexOf(s);
 
-  await step('Informe: el perfil del relieve y el croquis satelital aparecen con ≥ 2 puntos; con 1 solo no', async () => {
+  await step('Reporte: el perfil del relieve y el croquis satelital aparecen con ≥ 2 puntos; con 1 solo no', async () => {
     await fresh();
     await addPointManual('4.6000, -74.0800', 1300, 'Abajo');
     await tab('clima'); await field('pManual', '1200');
@@ -76,7 +76,7 @@ module.exports = async function (c) {
     await tab('informe');
     assert.match(await text('#tab-informe'), /1 punto sin altitud no aparece en el perfil/);
     assert.equal(await page.locator('svg[aria-label^="Perfil del relieve"] circle').count(), 3, 'solo se dibujan los 3 puntos con altitud');
-    // dos puntos sin altitud propia: la altitud la da el usuario en Clima y el perfil dice qué le falta
+    // dos puntos sin altitud propia: la altitud la da el usuario en Información y el perfil dice qué le falta
     await fresh();
     await addPointManual('4.6000, -74.0800'); await addPointManual('4.6000, -74.0700');
     await tab('clima'); await field('pManual', '1200'); await field('altOverride', '2640');
@@ -85,7 +85,7 @@ module.exports = async function (c) {
     assert.equal(await page.locator('svg[aria-label^="Perfil del relieve"]').count(), 0);
   });
 
-  await step('Croquis satelital: se baja una vez, queda dentro del informe y muestra su atribución', async () => {
+  await step('Croquis satelital: se baja una vez, queda dentro del reporte y muestra su atribución', async () => {
     await fresh();
     await addPointManual('4.6000, -74.0800', 1300, 'Abajo');
     await addPointManual('4.6000, -74.0700', 2640, 'Medio');
@@ -116,7 +116,7 @@ module.exports = async function (c) {
     await shot('81-informe-satelital');
   });
 
-  await step('Croquis topográfico: se baja de OpenTopoMap una vez (sin pasar del nivel 17), queda dentro del informe y muestra su atribución', async () => {
+  await step('Croquis topográfico: se baja de OpenTopoMap una vez (sin pasar del nivel 17), queda dentro del reporte y muestra su atribución', async () => {
     tiles.reset();
     await act('topoPrepare');
     await topoReady();
@@ -145,13 +145,13 @@ module.exports = async function (c) {
     await shot('84-informe-topografico');
   });
 
-  await step('Compartir con los dos croquis ya preparados: no vuelve a bajar nada y el informe trae croquis, satelital, topográfico y perfil en ese orden', async () => {
+  await step('Compartir con los dos croquis ya preparados: no vuelve a bajar nada y el reporte trae croquis, satelital, topográfico y perfil en ese orden', async () => {
     tiles.reset();
     const f = await download(() => page.click('[data-act="share"]'));
     assert.equal(tiles.urls.length, 0, 'usa la imagen ya guardada');
     const h = f.text;
-    const iCroquis = iPos(h, 'aria-label="Plano del polígono"'), iSat = iPos(h, '<h2>Croquis satelital</h2>'), iTopo = iPos(h, '<h2>Croquis topográfico</h2>'), iPerfil = iPos(h, '<h2>Perfil del relieve</h2>');
-    assert.ok(iCroquis > 0 && iSat > iCroquis && iTopo > iSat && iPerfil > iTopo, 'orden: croquis, satelital, topográfico, perfil');
+    const iTituloCroquis = iPos(h, '<h2>Croquis</h2>'), iCroquis = iPos(h, 'aria-label="Plano del polígono"'), iSat = iPos(h, '<h2>Croquis satelital</h2>'), iTopo = iPos(h, '<h2>Croquis topográfico</h2>'), iPerfil = iPos(h, '<h2>Perfil del relieve</h2>');
+    assert.ok(iTituloCroquis > 0 && iCroquis > iTituloCroquis && iSat > iCroquis && iTopo > iSat && iPerfil > iTopo, 'orden: «Croquis», plano, satelital, topográfico, perfil');
     assert.equal(nImages(h), 2, 'las dos imágenes van dentro del archivo');
     assert.match(h, /Imagen satelital de Esri/);
     assert.match(h, /Mapa topográfico de OpenTopoMap/);
@@ -161,7 +161,7 @@ module.exports = async function (c) {
     await openReport(h, '82-informe-html-satelital-topografico-perfil');
   });
 
-  await step('Si cambia un punto, el croquis preparado deja de servir; al compartir se prepara solo, y dos toques seguidos a «Compartir» generan un solo informe', async () => {
+  await step('Si cambia un punto, el croquis preparado deja de servir; al compartir se prepara solo, y dos toques seguidos a «Compartir» generan un solo reporte', async () => {
     await tab('puntos');
     await page.locator('[data-act="editPoint"]').first().click();
     await fill('#fName', 'Mojón');
@@ -177,11 +177,11 @@ module.exports = async function (c) {
     const count = () => { descargas++; };
     page.on('download', count);
     const [dl] = await Promise.all([page.waitForEvent('download'), page.evaluate(() => { const b = document.querySelector('[data-act="share"]'); b.click(); b.click(); })]);
-    assert.ok((await seenToasts()).some((t) => /^Preparando los croquis satelital y topográfico para el informe…$/.test(t)), 'avisa que prepara los dos: ' + JSON.stringify(await seenToasts()));
+    assert.ok((await seenToasts()).some((t) => /^Preparando los croquis satelital y topográfico para el reporte…$/.test(t)), 'avisa que prepara los dos: ' + JSON.stringify(await seenToasts()));
     const html = require('fs').readFileSync(await dl.path(), 'utf8');
     await page.waitForTimeout(400);
     page.off('download', count);
-    assert.equal(descargas, 1, 'un solo informe');
+    assert.equal(descargas, 1, 'un solo reporte');
     assert.ok(tiles.count(ESRI) >= 6, 'se bajó la imagen satelital nueva');
     assert.ok(tiles.count(TOPO) >= 4, 'y la topográfica nueva');
     const iS = iPos(html, '<h2>Croquis satelital</h2>'), iT = iPos(html, '<h2>Croquis topográfico</h2>'), iP = iPos(html, '<h2>Perfil del relieve</h2>');
@@ -193,7 +193,7 @@ module.exports = async function (c) {
     assert.equal(await page.locator('#topoBlock svg image').count(), 1);
   });
 
-  await step('Si el servicio de imágenes falla: los bloques lo explican y el informe se comparte igual, sin los croquis; al recuperarse se quitan los avisos', async () => {
+  await step('Si el servicio de imágenes falla: los bloques lo explican y el reporte se comparte igual, sin los croquis; al recuperarse se quitan los avisos', async () => {
     // Otro lugar: el navegador guarda en memoria las imágenes ya bajadas con el mismo enlace y no volvería a pedirlas
     await fresh();
     await addPointManual('6.2000, -75.5800', 1500, 'Abajo');
@@ -250,16 +250,16 @@ module.exports = async function (c) {
     tiles.fail(false); tiles.reset();
     await watchToasts();
     const g = await download(() => page.click('[data-act="share"]'));
-    assert.ok((await seenToasts()).some((t) => /^Preparando el croquis topográfico para el informe…$/.test(t)), 'avisa que prepara solo el topográfico: ' + JSON.stringify(await seenToasts()));
+    assert.ok((await seenToasts()).some((t) => /^Preparando el croquis topográfico para el reporte…$/.test(t)), 'avisa que prepara solo el topográfico: ' + JSON.stringify(await seenToasts()));
     assert.equal(tiles.count(ESRI), 0, 'no volvió a bajar el satelital');
     assert.ok(tiles.count(TOPO) >= 4);
-    assert.equal(nImages(g.text), 2, 'ahora el informe trae las dos imágenes');
+    assert.equal(nImages(g.text), 2, 'ahora el reporte trae las dos imágenes');
     await topoReady();
     assert.equal(await page.locator('#topoBlock .warn').count(), 0);
     errors.length = 0;
   });
 
-  await step('Sin internet: no intenta descargar, lo dice, y el informe sale con el perfil y la razón', async () => {
+  await step('Sin internet: no intenta descargar, lo dice, y el reporte sale con el perfil y la razón', async () => {
     await act('satPrepare');                                                  // deja preparados los croquis para comprobar que «sin internet» no los borra
     await satReady();
     await act('topoPrepare');

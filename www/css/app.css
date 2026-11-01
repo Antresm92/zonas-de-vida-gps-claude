@@ -130,7 +130,29 @@ main { padding: calc(var(--top-h) + env(safe-area-inset-top) + 14px) 14px calc(v
 /* El mapa ocupa lo que queda de la pantalla, para que «Marcar punto» y el botón de posición se vean sin bajar la página */
 .mapbox { position: relative; height: clamp(300px, calc(100vh - 350px), 580px); height: clamp(300px, calc(100dvh - 350px), 580px); margin: 0 0 12px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--line); }
 .mapbox.with-chip { height: clamp(300px, calc(100vh - 400px), 580px); height: clamp(300px, calc(100dvh - 400px), 580px); }
-.mapnotice { position: absolute; top: 10px; left: 64px; right: 10px; z-index: 4; padding: 6px 10px; border-left: 4px solid var(--amber); border-radius: 0 8px 8px 0; background: var(--amber-soft); color: var(--ink); font-size: 13.5px; line-height: 1.35; box-shadow: var(--shadow); }
+/* Franja de avisos arriba del mapa: entre el menú ⋮ (izquierda) y los botones + y − (derecha) */
+.maptop { position: absolute; top: 10px; left: 66px; right: 66px; z-index: 4; display: flex; flex-direction: column; gap: 6px; pointer-events: none; }
+.maptop > * { pointer-events: auto; }
+.mapnotice { padding: 6px 10px; border-left: 4px solid var(--amber); border-radius: 0 8px 8px 0; background: var(--amber-soft); color: var(--ink); font-size: 13.5px; line-height: 1.35; box-shadow: var(--shadow); }
+.mapmode { display: flex; align-items: center; gap: 8px; padding: 5px 5px 5px 10px; border-left: 4px solid var(--blue); border-radius: 0 8px 8px 0; background: var(--surface); color: var(--ink); font-size: 13.5px; line-height: 1.35; box-shadow: var(--shadow); }
+.mapmode span { flex: 1; }
+.mapmode button { flex: none; min-height: 36px; padding: 0 12px; border: 1px solid var(--line); border-radius: 18px; background: transparent; color: var(--blue); font-weight: 700; font-size: 13.5px; }
+.maplive { position: absolute; left: 66px; right: 66px; top: 10px; z-index: 8; pointer-events: none; padding: 5px 10px; border-radius: 8px; background: rgba(20, 48, 31, .92); color: #FFFFFF; font-size: 13.5px; font-weight: 650; line-height: 1.35; box-shadow: var(--shadow); }
+.maplive.low { top: auto; bottom: 36px; }
+.maplive.bad { background: #8E1F25; }
+/* Los avisos van sobre el mapa pero dejan pasar el toque: un punto que queda debajo se puede agarrar igual (solo el botón «Salir» recibe toques) */
+.maptop > .mapmode { pointer-events: none; }
+.maptop > .mapmode button { pointer-events: auto; }
+/* Menú ⋮: tres puntos flotando en vertical; al tocarlo se abre una lista con dos casillas (solo una activa a la vez) */
+.mapmenu { position: absolute; left: 10px; top: 10px; z-index: 7; }
+.mapkebab { display: flex; align-items: center; justify-content: center; width: 48px; height: 48px; padding: 0; border: 1px solid var(--line); border-radius: 50%; background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
+.mapkebab svg { width: 24px; height: 24px; }
+.mapkebab.on { border-color: var(--blue); background: var(--blue); color: var(--on-blue); }
+.mapmenu-panel { position: absolute; left: 0; top: 56px; width: min(300px, calc(100vw - 52px)); padding: 6px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); box-shadow: var(--shadow); }
+.mapopt { display: flex; align-items: flex-start; gap: 12px; min-height: 52px; padding: 10px; border-radius: 8px; }
+.mapopt input { flex: none; width: 24px; height: 24px; margin: 1px 0 0; accent-color: var(--blue); }
+.mapopt b { display: block; font-size: 16px; }
+.mapopt small { display: block; margin-top: 2px; color: var(--ink-soft); font-size: 13.5px; line-height: 1.3; }
 .maphost { position: absolute; inset: 0; z-index: 0; isolation: isolate; }
 .mapa-leaflet { width: 100%; height: 100%; font-family: inherit; }
 .maptools { position: absolute; left: 10px; bottom: 30px; z-index: 5; display: flex; flex-direction: column; gap: 8px; }
@@ -154,6 +176,18 @@ main { padding: calc(var(--top-h) + env(safe-area-inset-top) + 14px) 14px calc(v
 .mk-dot { position: absolute; left: -8px; top: -8px; width: 16px; height: 16px; border-radius: 50%; border: 3px solid #FFFFFF; box-shadow: 0 0 0 1px rgba(0, 0, 0, .4); }
 .mk-lab { position: absolute; left: 10px; top: -30px; padding: 2px 7px; border-radius: 6px; background: rgba(255, 255, 255, .96); color: #14301F; font-weight: 650; font-size: 13px; white-space: nowrap; box-shadow: 0 1px 4px rgba(0, 0, 0, .35); }
 .labels-off .mk-lab { display: none; }
+/* Con «Posición manual» cada punto tiene una zona de toque de 44 px; el dedo no se confunde con un arrastre del mapa ni abre el menú del sistema */
+.mk-dot, .mk-lab { pointer-events: none; }
+.mk-hit { position: absolute; left: -22px; top: -22px; width: 44px; height: 44px; border-radius: 50%; cursor: grab; touch-action: none; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.mode-move .mk-dot { box-shadow: 0 0 0 1px rgba(0, 0, 0, .4), 0 0 0 5px rgba(255, 255, 255, .6); }
+/* Mientras se mantiene pulsado: un anillo crece alrededor del punto durante el tiempo de espera (--hold lo pone mapview.js) */
+.mk-press .mk-dot::after { content: ''; position: absolute; left: -12px; top: -12px; width: 30px; height: 30px; border-radius: 50%; border: 3px solid var(--blue); box-sizing: border-box; animation: mk-hold var(--hold, 1s) linear forwards; }
+@keyframes mk-hold { from { transform: scale(.35); opacity: .25; } to { transform: scale(1); opacity: 1; } }
+.mk-lifted { z-index: 10000 !important; }
+.mk-lifted .mk-dot { transform: scale(1.7); box-shadow: 0 0 0 1px rgba(0, 0, 0, .5), 0 5px 12px rgba(0, 0, 0, .5); }
+.mapa-leaflet.mode-add { cursor: crosshair; }
+.mapa-leaflet.mode-move, .mapa-leaflet.mode-move .mk-hit { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.mapa-leaflet.dragging, .mapa-leaflet.dragging .mk-hit { cursor: grabbing; }
 
 .big { display: block; font-size: 40px; font-weight: 800; letter-spacing: -.02em; line-height: 1.1; }
 .big small { font-size: 20px; font-weight: 600; color: var(--ink-soft); }

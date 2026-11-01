@@ -1,5 +1,5 @@
 'use strict';
-/* Casos límite de geo, copia de seguridad, informe e io: entradas raras que no deben romper nada. */
+/* Casos límite de geo, copia de seguridad, reporte e io: entradas raras que no deben romper nada. */
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Geo = require('../www/js/geo.js');
@@ -108,10 +108,10 @@ test('copia: validar sin opciones, con proyectos de más y con identificadores r
   assert.match(Backup.validate(largo).errors[0], /demasiados proyectos/);
 });
 
-/* ---------- informe ---------- */
+/* ---------- reporte ---------- */
 const PUNTOS = [{ lat: 4.6, lon: -74.1, alt: 2500 }, { lat: 4.61, lon: -74.1 }, { lat: 4.61, lon: -74.09, alt: 2600, name: 'Esquina' }];
 
-test('informe: orígenes desconocidos, sin avisos, sin notas, sin zonas por vértice y sin provincia de humedad', () => {
+test('reporte: orígenes desconocidos, sin avisos, sin notas, sin zonas por vértice y sin provincia de humedad', () => {
   const project = { name: 'X', points: PUNTOS, climate: { pManual: 1100 } };
   const a = A.analyze(project, { memory: new Climate.Memory() });
   a.climate.TSrc = 'rara'; a.climate.PSrc = 'otra';

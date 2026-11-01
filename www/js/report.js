@@ -1,4 +1,4 @@
-/* report.js — informe de zona de vida: texto plano y página HTML autocontenida (con el diagrama). */
+/* report.js — reporte de zona de vida: texto plano y página HTML autocontenida (con el diagrama). */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory(require('./fmt.js'), require('./geo.js'), require('./diagram.js'), require('./perfil.js'));
   else root.Report = factory(root.Fmt, root.Geo, root.Diagram, root.Perfil);
@@ -34,7 +34,7 @@
   function text(project, a, o) {
     o = o || {};
     var L = [];
-    L.push('INFORME DE ZONA DE VIDA (HOLDRIDGE)');
+    L.push('REPORTE DE ZONA DE VIDA (HOLDRIDGE)');
     L.push(project.name + ' · ' + Fmt.date(o.date || Date.now()));
     L.push('');
     var r = a.result;
@@ -112,7 +112,7 @@
     var m = Perfil.build(project.points);
     var h = '<h2>Perfil del relieve</h2>';
     if (!m.ok) return h + '<div class="note">' + esc(m.reason) + '</div>';
-    h += '<div style="max-width:700px">' + Perfil.svg(m, { color: project.mainColor, id: 'perfil-informe' }) + '</div><table>';
+    h += '<div style="max-width:700px">' + Perfil.svg(m, { color: project.mainColor, id: 'perfil-reporte' }) + '</div><table>';
     Perfil.rows(m).forEach(function (x) { h += '<tr><th>' + esc(x[0]) + '</th><td>' + esc(x[1]) + '</td></tr>'; });
     h += '</table>';
     m.notes.forEach(function (n) { h += '<div class="note">' + esc(n) + '</div>'; });
@@ -122,8 +122,8 @@
   function html(project, a, o) {
     o = o || {};
     var r = a.result;
-    var h = '<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Informe de zona de vida · ' + esc(project.name) + '</title><style>' + CSS + '</style></head><body>';
-    h += '<h1>Informe de zona de vida</h1><p class="sub">' + esc(project.name) + ' · ' + esc(Fmt.date(o.date || Date.now())) + '</p>';
+    var h = '<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Reporte de zona de vida · ' + esc(project.name) + '</title><style>' + CSS + '</style></head><body>';
+    h += '<h1>Reporte de zona de vida</h1><p class="sub">' + esc(project.name) + ' · ' + esc(Fmt.date(o.date || Date.now())) + '</p>';
     if (r && r.ok) {
       h += '<div class="zone">' + hexBadge(r.zone.symbol) + '<div><div class="zn">' + esc(r.zone.name) + '</div><div class="zs">Región latitudinal: ' + esc(r.region) + ' · Piso altitudinal: ' + esc(r.belt) + (r.humidity ? ' · Provincia de humedad: ' + esc(r.humidity.name) : '') + '</div></div></div>';
     } else {
@@ -146,7 +146,7 @@
         h += '<tr><th>' + esc(p.name || 'P' + (i + 1)) + '</th><td>' + esc(Fmt.latlon(p.lat, p.lon)) + (isNum(p.alt) ? ' · ' + esc(Fmt.num(p.alt, 0)) + ' m' : '') + '</td></tr>';
       });
       h += '</table>';
-      if (a.n >= 2) h += '<div style="max-width:560px;margin-top:12px">' + Diagram.polygonSVG(project.points, { width: 560, height: 380, center: a.center, bad: a.selfIntersects, layers: project.layers, color: project.mainColor }) + Diagram.legendHTML(project.layers, project.mainColor, 'Mis puntos', true) + '</div>';
+      if (a.n >= 2) h += '<h2>Croquis</h2><div style="max-width:560px;margin-top:12px">' + Diagram.polygonSVG(project.points, { width: 560, height: 380, center: a.center, bad: a.selfIntersects, layers: project.layers, color: project.mainColor }) + Diagram.legendHTML(project.layers, project.mainColor, 'Mis puntos', true) + '</div>';
       if (a.n >= 2) h += sketchHtml('Croquis satelital', 'croquis satelital', o.satellite) + sketchHtml('Croquis topográfico', 'croquis topográfico', o.topo) + profileHtml(project);
     }
     if (a.vertexZones && a.vertexZones.length && a.distinctZones && a.distinctZones.length > 1) {

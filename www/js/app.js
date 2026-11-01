@@ -5,7 +5,7 @@
   var Geo = window.Geo, H = window.Holdridge, Climate = window.Climate, A = window.Analysis, Fmt = window.Fmt,
       Gps = window.Gps, Store = window.Store, Diagram = window.Diagram, Report = window.Report,
       Gis = window.Gis, Backup = window.Backup, IO = window.IO, WL = window.WalterLieth, Mapa = window.Mapa, MapView = window.MapView, Satelite = window.Satelite, Perfil = window.Perfil;
-  var APP_VERSION = '2.3.0';
+  var APP_VERSION = '2.4.0';
 
   var S = Store.loadState();
   var MEM = new Climate.Memory();
@@ -13,7 +13,7 @@
   var ui = { tab: 'puntos', gpsOn: false, fix: null, stopWatch: null, sampling: null, fetching: false, diagram: null, sheetOpen: false, undo: null, wasOn: false,
              imp: null, restore: null, edit: null,
              polyView: 'croquis', polyActive: true, mapBase: Mapa.baseId(Store.loadFlag('mapBase')), mapRef: Store.loadFlag('mapRef') === true,
-             map: null, mapFollow: false, mapFitKey: null, tileErrors: 0,
+             map: null, mapFollow: false, mapFitKey: null, tileErrors: 0, mapMode: '', mapMenu: false, mapModeFor: null,
              croq: { satelite: { img: null, busy: false, error: null }, topo: { img: null, busy: false, error: null } }, sharing: false };
 
   /* ---------- Utilidades ---------- */
@@ -285,7 +285,7 @@
   function editMain() {
     var p = proj();
     ui.edit = { kind: 'main', color: p.mainColor };
-    openSheet('Color de mis puntos', '<p class="lead">Es el color con el que se dibujan tus puntos y tu polígono en los planos, en Google Earth (al exportar) y en el informe.</p>' + colorPalette(p.mainColor) +
+    openSheet('Color de mis puntos', '<p class="lead">Es el color con el que se dibujan tus puntos y tu polígono en los planos, en Google Earth (al exportar) y en el reporte.</p>' + colorPalette(p.mainColor) +
       '<div class="btns"><button class="btn btn-primary" data-act="saveEdit2">Guardar</button></div>');
   }
   function editLayer(id) {
@@ -303,6 +303,15 @@
     if (!ui.edit) return;
     ui.edit.color = t.getAttribute('data-color');
     Array.prototype.forEach.call(document.querySelectorAll('#sheet .sw'), function (b) { b.setAttribute('aria-pressed', String(b === t)); });
+    var dflt = $('#sheet [data-act="pointColorDefault"]');
+    if (dflt) dflt.setAttribute('aria-pressed', 'false');
+  }
+  function pointColorDefault() {
+    if (!ui.edit) return;
+    ui.edit.color = '';
+    Array.prototype.forEach.call(document.querySelectorAll('#sheet .sw'), function (b) { b.setAttribute('aria-pressed', 'false'); });
+    var dflt = $('#sheet [data-act="pointColorDefault"]');
+    if (dflt) dflt.setAttribute('aria-pressed', 'true');
   }
   function saveEdit2() {
     var e = ui.edit, p = proj();
@@ -468,14 +477,31 @@
     if (isEdit && isNum(pt.altGps) && pt.alt !== pt.altGps) h += '<button class="btn btn-block" style="margin-bottom:14px" data-act="restoreGps" data-id="' + esc(pt.id) + '">Restaurar altitud del GPS (' + Fmt.num(pt.altGps, 0) + ' m)</button>';
     if (!isEdit) h += '<label class="f"><span>Nombre (opcional)</span><input type="text" id="fName" autocomplete="off" placeholder="P' + proj().nextPoint + '"></label>';
     if (isEdit) {
+      // Color propio y leyenda (una nota que solo se ve en esta ficha) y los datos con los que se guardó el punto
+      h += '<div class="f"><span style="display:block;margin-bottom:6px;font-weight:650">Color del punto</span>' + colorPalette(pt.color || '') +
+        '<button class="chipbtn" data-act="pointColorDefault" aria-pressed="' + !pt.color + '">Usar el color de mis puntos</button></div>';
+      h += '<label class="f"><span>Leyenda (opcional)</span><textarea id="fNote" maxlength="' + NOTE_MAX + '" rows="3" style="min-height:84px" placeholder="Por ejemplo: esquina junto al roble">' + esc(pt.note || '') + '</textarea>' +
+        '<span class="hint">Una nota para ti. Solo se ve en esta ficha: no se dibuja en el mapa ni sale en el reporte.</span></label>';
+      h += pointInfo(pt);
       h += '<div class="btns"><button class="btn btn-primary" data-act="saveEdit" data-id="' + esc(pt.id) + '">Guardar cambios</button><button class="btn btn-danger" data-act="askDelete" data-id="' + esc(pt.id) + '">Eliminar punto</button></div>';
     } else {
       h += '<div class="btns"><button class="btn btn-primary" data-act="saveNew" data-more="0">Guardar punto</button><button class="btn" data-act="saveNew" data-more="1">Guardar y añadir otro</button></div>';
     }
     return h;
   }
+  var NOTE_MAX = 300;
+  var SRC_TXT = { gps: 'GPS', archivo: 'archivo importado', manual: 'a mano' };
+  // Otros datos del punto, solo para leer
+  function pointInfo(pt) {
+    var rows = [['Origen de la posición', SRC_TXT[pt.src] || SRC_TXT.manual]];
+    if (isNum(pt.acc)) rows.push(['Precisión del GPS', '±' + Math.round(pt.acc) + ' m']);
+    if (isNum(pt.altGps)) rows.push(['Altitud del GPS', Fmt.num(pt.altGps, 0) + ' m' + (isNum(pt.altAcc) ? ' (±' + Math.round(pt.altAcc) + ' m)' : '')]);
+    var when = isNum(pt.ts) ? Fmt.dateTime(pt.ts) : '';
+    if (when) rows.push(['Guardado', when]);
+    return '<h3 class="sub">Otros datos</h3><dl class="kv" style="margin-bottom:14px">' + rows.map(function (r) { return '<div><dt>' + esc(r[0]) + '</dt><dd>' + esc(r[1]) + '</dd></div>'; }).join('') + '</dl>';
+  }
   function altHint(pt) {
-    if (!isNum(pt.alt)) return 'Sin altitud. Escríbela o complétala con internet desde la pestaña Clima.';
+    if (!isNum(pt.alt)) return 'Sin altitud. Escríbela o complétala con internet desde la pestaña Información.';
     if (pt.altSrc === 'gps') return 'Altitud tomada del GPS' + (isNum(pt.altAcc) ? ' (±' + Math.round(pt.altAcc) + ' m)' : '') + '. Puedes corregirla escribiendo otro valor.';
     if (pt.altSrc === 'internet') return 'Altitud obtenida de internet (modelo digital de elevación). Puedes corregirla.';
     return 'Altitud escrita a mano.';
@@ -509,7 +535,15 @@
   }
   function openEdit(id) {
     var pt = pointById(id); if (!pt) return;
-    openSheet('Editar ' + pt.name, coordFormBody(pt), bindCoordPreview);
+    ui.edit = { kind: 'point', id: id, color: pt.color || '' };
+    openSheet('Ficha de ' + pt.name, coordFormBody(pt), bindCoordPreview);
+  }
+  // Cambiar la posición de un punto: si se movió de verdad (≥ 0,5 m) ya no es la que midió el GPS, así que pasa a ser «a mano» y sin precisión de GPS.
+  function relocate(pt, lat, lon) {
+    var moved = Geo.haversine(pt.lat, pt.lon, lat, lon) >= 0.5;
+    pt.lat = lat; pt.lon = lon;
+    if (moved) { pt.src = 'manual'; pt.acc = null; }
+    return moved;
   }
   function saveEdit(id) {
     var pt = pointById(id); if (!pt) return;
@@ -518,7 +552,11 @@
     var a = parseNum($('#fAlt').value);
     if (a.error) { toast('Altitud: ' + a.error, { err: true }); return; }
     pt.name = $('#fName').value.trim() || pt.name;
-    pt.lat = r.lat; pt.lon = r.lon;
+    relocate(pt, r.lat, r.lon);
+    var e = ui.edit && ui.edit.kind === 'point' && ui.edit.id === id ? ui.edit : null;
+    if (e) { if (e.color) pt.color = e.color; else delete pt.color; }
+    var note = $('#fNote') ? $('#fNote').value.replace(/\r\n?/g, '\n').trim().slice(0, NOTE_MAX).trim() : '';
+    if (note) pt.note = note; else delete pt.note;
     if (a.empty) { pt.alt = null; pt.altSrc = null; }
     // El campo muestra la altitud sin decimales (2639) y la guardada puede ser 2639,4: solo cuenta como
     // corrección a mano si el valor escrito cambia de verdad (≥ 0,5 m). Así renombrar un punto no la toca.
@@ -640,6 +678,7 @@
     poly: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8.5 6.2-3.2 10H6.7L3.5 9.2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>',
     last: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2.2" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
     mark: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="2" fill="currentColor"/></svg>',
+    more: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="2.2" fill="currentColor"/><circle cx="12" cy="12" r="2.2" fill="currentColor"/><circle cx="12" cy="19" r="2.2" fill="currentColor"/></svg>',
     loc: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3.4" fill="currentColor"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>'
   };
   function mapaHtml() {
@@ -651,7 +690,10 @@
     h += '</div></div>';
     if (ui.mapBase === 'satelite') h += '<button class="chipbtn" data-act="mapRef" aria-pressed="' + ui.mapRef + '">Calles y nombres sobre el satélite</button>';
     h += '<div class="mapbox' + (ui.mapBase === 'satelite' ? ' with-chip' : '') + '"><div id="mapHost" class="maphost"></div>';
-    h += '<div id="mapNotice" class="mapnotice" role="status" hidden></div>';
+    h += mapMenuHtml();
+    h += '<div class="maptop"><div id="mapNotice" class="mapnotice" role="status" hidden></div>' +
+      '<div id="mapMode" class="mapmode" hidden><span id="mapModeTxt" role="status"></span><button data-act="mapMode" data-mode="">Salir</button></div></div>' +
+      '<div id="mapLive" class="maplive" hidden></div>';
     if (ui.sampling) {
       h += '<div class="mapprog" role="status"><div class="prog"><i id="mapProgBar"></i></div><p class="small" id="mapProgTxt">Esperando la primera lectura del GPS…</p><button class="btn btn-danger" data-act="cancelMark">Cancelar</button></div>';
     }
@@ -662,8 +704,86 @@
     h += '<button class="maploc" data-act="mapMyPos" aria-label="Centrar el mapa en mi posición">' + ICONS.loc + '</button></div>';
     if (!p.points.length && !Mapa.visibleLayers(p.layers).length) h += '<div class="tip">Todavía no hay puntos. Pulsa «Marcar punto» para guardar tu posición con el GPS, o agrégalos en la pestaña Puntos.</div>';
     h += '<p class="small muted">«Marcar punto» guarda tu posición con el GPS, promediando lecturas, igual que en la pestaña Puntos. «Último punto» te lleva al último que marcaste. El botón de la derecha centra el mapa donde estás.</p>';
+    h += '<label class="f" style="margin:12px 0 0"><span>Tiempo para levantar un punto (Posición manual)</span><select data-setting="holdMs">' +
+      Store.HOLD_MS.map(function (ms) { return '<option value="' + ms + '"' + (ms === S.settings.holdMs ? ' selected' : '') + '>' + Mapa.holdLabel(ms) + '</option>'; }).join('') +
+      '</select><span class="hint">Con «Posición manual», mantén pulsado un punto este tiempo, sin mover el dedo, y luego arrástralo. Un tiempo mayor evita moverlo sin querer.</span></label>';
     return h;
   }
+  // Menú ⋮ (arriba a la izquierda): dos casillas de las que solo una puede estar activa. El estado (ui.mapMode, ui.mapMenu) lo pinta syncMapMenu().
+  function mapMenuHtml() {
+    return '<div class="mapmenu"><button class="mapkebab" data-act="mapMenu" aria-label="Menú del mapa" aria-haspopup="true" aria-expanded="false" aria-controls="mapMenuPanel">' + ICONS.more + '</button>' +
+      '<div id="mapMenuPanel" class="mapmenu-panel" role="group" aria-label="Qué hacer al tocar el mapa" hidden>' +
+      '<label class="mapopt"><input type="checkbox" data-act="mapMode" data-mode="add"><span><b>Ingresar puntos</b><small>Toca el mapa para crear un punto</small></span></label>' +
+      '<label class="mapopt"><input type="checkbox" data-act="mapMode" data-mode="move"><span><b>Posición manual</b><small>Mantén pulsado un punto para moverlo; tócalo dos veces para abrir su ficha</small></span></label>' +
+      '</div></div>';
+  }
+  function mapModeText() {
+    var t = Mapa.modeText(ui.mapMode, S.settings.holdMs);
+    return t && ui.mapMode === 'move' && !proj().points.length ? t + ' Todavía no hay puntos que mover.' : t;
+  }
+  function syncMapMenu() {
+    var kebab = $('.mapkebab'), panel = $('#mapMenuPanel'), banner = $('#mapMode');
+    if (!kebab) return;
+    kebab.setAttribute('aria-expanded', String(ui.mapMenu));
+    kebab.classList.toggle('on', !!ui.mapMode);
+    panel.hidden = !ui.mapMenu;
+    Array.prototype.forEach.call(panel.querySelectorAll('input[data-mode]'), function (i) { i.checked = i.getAttribute('data-mode') === ui.mapMode; });
+    var t = mapModeText();
+    banner.hidden = !t;
+    $('#mapModeTxt').textContent = t;
+  }
+  function setMapMode(m) {
+    ui.mapMode = m; ui.mapMenu = false;
+    if (ui.map) ui.map.setMode(m);
+    syncMapMenu();
+  }
+  // «Ingresar puntos»: un toque crea el punto al instante, sin altitud, y el mapa no se mueve (la persona está mirando justo ahí).
+  function onMapTap(ll) {
+    if (ui.mapMenu) { ui.mapMenu = false; syncMapMenu(); return false; }   // con la lista abierta, un toque en el mapa solo la cierra (false: no se creó nada)
+    var p = proj(), prevNext = p.nextPoint;
+    var pt = addPoint({ lat: ll.lat, lon: ll.lon, src: 'manual' });
+    ui.mapFitKey = mapKey();
+    renderTab('area');
+    toast(pt.name + ' creado (sin altitud).', { action: 'Deshacer', fn: function () {
+      var i = p.points.indexOf(pt);
+      if (i < 0) return;
+      p.points.splice(i, 1);
+      if (p.nextPoint === prevNext + 1) p.nextPoint = prevNext;   // el siguiente punto vuelve a llamarse como habría sido
+      save(); renderTab(ui.tab);
+    } });
+  }
+  // Al soltar un punto arrastrado con «Posición manual»: queda donde se soltó y «Deshacer» lo devuelve (con su origen y su precisión de GPS de antes).
+  function onPointDrop(id, ll) {
+    var pt = pointById(id);
+    if (!pt || Geo.haversine(pt.lat, pt.lon, ll.lat, ll.lon) < 0.5) return;
+    var before = { lat: pt.lat, lon: pt.lon, src: pt.src, acc: pt.acc };
+    relocate(pt, ll.lat, ll.lon);
+    ui.mapFitKey = mapKey();
+    save(); renderTab('area');
+    toast(pt.name + ' movido.', { action: 'Deshacer', fn: function () {
+      var q = pointById(id);
+      if (!q) return;
+      q.lat = before.lat; q.lon = before.lon; q.src = before.src; q.acc = before.acc;
+      save(); renderTab(ui.tab);
+    } });
+  }
+  // Mientras se arrastra un punto: área, perímetro y aviso de lados cruzados al instante. Devuelve si el polígono quedaría mal.
+  function onPointDrag(id, ll, pos) {
+    var el = $('#mapLive'), banner = $('#mapMode');
+    if (!el) return;
+    if (!ll) { el.hidden = true; banner.hidden = !mapModeText(); return; }
+    banner.hidden = true;      // mientras se arrastra, el aviso del modo cede su sitio a las medidas en vivo
+    var pts = Mapa.withMoved(proj().points, id, ll.lat, ll.lon), unit = S.settings.areaUnit || 'ha';
+    var bad = Geo.selfIntersects(pts);
+    var moved = pointById(id);
+    el.textContent = 'Moviendo ' + (moved ? moved.name : '') + ' · ' + (pts.length >= 3 ? 'Área ' + Fmt.area(Geo.areaUnits(Geo.polygonArea(pts)), unit) + ' · Perímetro ' + Fmt.dist(Geo.perimeter(pts, true)) : 'Distancia ' + Fmt.dist(Geo.perimeter(pts, false))) +
+      (bad ? ' · los lados se cruzan' : '');
+    // Las medidas van arriba, salvo que el punto esté en la mitad de arriba: entonces van abajo, para no taparlo
+    el.className = 'maplive' + (bad ? ' bad' : '') + (pos && pos.y < pos.h / 2 ? ' low' : '');
+    el.hidden = false;
+    return { bad: bad };
+  }
+
   // Alto que tapan las herramientas de abajo (más su separación del borde): el encuadre deja ese espacio libre para que no cubran los puntos
   function toolsInset() { var t = $('.maptools'); return t ? t.offsetHeight + 44 : 100; }
   function mapKey() { var p = proj(); return p.id + ':' + (Mapa.extent(p.points, p.layers) ? 'con-datos' : 'vacio'); }
@@ -672,14 +792,18 @@
     if (!host) return;
     if (!window.L) { host.textContent = 'El mapa no se pudo cargar en este dispositivo.'; return; }
     var p = proj(), a = analysis();
-    if (!ui.map) ui.map = MapView.create({ onStatus: onTileStatus });
+    if (ui.mapModeFor !== p.id) { ui.mapMode = ''; ui.mapMenu = false; ui.mapModeFor = p.id; }   // otro proyecto: se empieza sin ningún modo activo
+    if (!ui.map) ui.map = MapView.create({ onStatus: onTileStatus, holdMs: S.settings.holdMs, onTap: onMapTap, onPointDrag: onPointDrag, onPointDrop: onPointDrop, onPointDouble: openEdit });
     ui.map.attach(host);
+    ui.map.setHold(S.settings.holdMs);
+    ui.map.setMode(ui.mapMode);
     ui.map.setBase(ui.mapBase, ui.mapRef);
     ui.map.draw(Mapa.shapes(p, { polyActive: ui.polyActive, bad: !!a.selfIntersects, fmt: function (n) { return Fmt.num(n, 0); } }));
     var key = mapKey();
     if (ui.mapFitKey !== key) { ui.map.fit(Mapa.extent(p.points, p.layers), { bottom: toolsInset() }); ui.mapFitKey = key; }   // solo al cambiar de proyecto o al llegar los primeros datos
     ui.map.showFix(ui.gpsOn ? ui.fix : null);
     updateMapNotice();
+    syncMapMenu();
   }
   function onTileStatus(st) { ui.tileErrors = st.errors; updateMapNotice(); }
   function updateMapNotice() {
@@ -902,7 +1026,7 @@
     fr.readAsText(file);
   }
 
-  /* ---------- Informe ---------- */
+  /* ---------- Reporte ---------- */
   function hexBadge(sym) {
     return '<svg class="hexbadge" viewBox="0 0 92 104" role="img" aria-label="Símbolo ' + esc(sym) + '"><polygon points="46,3 89,27.5 89,76.5 46,101 3,76.5 3,27.5" fill="var(--green-soft)" stroke="var(--green)" stroke-width="4"/>' +
       '<text x="46" y="' + (sym.length > 5 ? 58 : 60) + '" text-anchor="middle" font-size="' + (sym.length > 5 ? 22 : 27) + '" font-weight="800" fill="var(--ink)" font-family="system-ui,sans-serif">' + esc(sym) + '</text></svg>';
@@ -910,15 +1034,15 @@
 
   function tabInforme() {
     var p = proj(), a = analysis(), h = '';
-    if (a.empty) return '<div class="empty"><b>Sin puntos todavía</b>Agrega un punto en la pestaña Puntos para generar el informe.</div>';
+    if (a.empty) return '<div class="empty"><b>Sin puntos todavía</b>Agrega un punto en la pestaña Puntos para generar el reporte.</div>';
     var r = a.result;
     if (!r) {
-      h += '<div class="tip"><b>Falta la altitud.</b> Sin ella no se puede estimar la temperatura.</div><div class="btns"><button class="btn btn-primary" data-act="tab" data-tab="clima">Ir a Clima</button></div>';
+      h += '<div class="tip"><b>Falta la altitud.</b> Sin ella no se puede estimar la temperatura.</div><div class="btns"><button class="btn btn-primary" data-act="tab" data-tab="clima">Ir a Información</button></div>';
       return h;
     }
     if (!r.ok) {
       h += '<div class="result"><div></div><div><h3>Resultado incompleto</h3><p>Región latitudinal: ' + esc(r.region) + ' · Piso altitudinal: ' + esc(r.belt) + '</p></div></div>';
-      h += '<div class="tip"><b>Falta la precipitación anual.</b> Escríbela, importa un archivo de datos o complétala con internet para ubicar el punto en el diagrama.</div><div class="btns"><button class="btn btn-primary" data-act="tab" data-tab="clima">Ir a Clima</button></div>';
+      h += '<div class="tip"><b>Falta la precipitación anual.</b> Escríbela, importa un archivo de datos o complétala con internet para ubicar el punto en el diagrama.</div><div class="btns"><button class="btn btn-primary" data-act="tab" data-tab="clima">Ir a Información</button></div>';
       return h;
     }
     h += '<div class="result">' + hexBadge(r.zone.symbol) + '<div><h3>' + esc(r.zone.name) + '</h3><p>Región latitudinal: ' + esc(r.region) + '<br>Piso altitudinal: ' + esc(r.belt) + (r.humidity ? '<br>Provincia de humedad: ' + esc(r.humidity.name) : '') + '</p></div></div>';
@@ -951,11 +1075,11 @@
       '<div class="diagram-tools"><button data-act="dZoomOut" aria-label="Alejar">−</button><button data-act="dZoomIn" aria-label="Acercar">+</button><button class="txt" data-act="dCenter" aria-label="Centrar en el punto">Mi punto</button><button class="txt" data-act="dFit" aria-label="Ver todo el diagrama">Ver todo</button></div>' +
       '<p class="small muted">Arrastra para moverte y pellizca para acercar. El anillo rojo es el punto analizado y el hexágono verde, su zona de vida.</p></div>';
 
-    h += '<div class="block"><h2>Compartir</h2><div class="btns"><button class="btn btn-primary" data-act="share">Compartir informe</button><button class="btn" data-act="copy">Copiar resumen</button></div>' +
+    h += '<div class="block"><h2>Compartir</h2><div class="btns"><button class="btn btn-primary" data-act="share">Compartir reporte</button><button class="btn" data-act="copy">Copiar resumen</button></div>' +
       '<p class="small muted" style="margin-top:12px">' + esc(Report.DISCLAIMER) + '</p></div>';
     return h + exportBlock();
   }
-  /* ---------- Informe: perfil del relieve y croquis con imagen de fondo ---------- */
+  /* ---------- Reporte: perfil del relieve y croquis con imagen de fondo ---------- */
   function perfilBlock() {
     var p = proj(), m = Perfil.build(p.points), h = '<div class="block"><h2>Perfil del relieve</h2>';
     if (!m.ok) return h + '<p class="small muted">' + esc(m.reason) + '</p></div>';
@@ -970,9 +1094,9 @@
   var CROQ_KINDS = ['satelite', 'topo'];
   var CROQ = {
     satelite: { block: 'satBlock', act: 'satPrepare', title: 'Croquis satelital', noun: 'satelital', busy: 'Descargando la imagen satelital…',
-      note: 'Se baja una sola vez, con internet, y queda guardado dentro del informe que compartes (imagen de Esri, para uso personal o interno). Sin internet, el informe sale sin esta sección.' },
+      note: 'Se baja una sola vez, con internet, y queda guardado dentro del reporte que compartes (imagen de Esri, para uso personal o interno). Sin internet, el reporte sale sin esta sección.' },
     topo: { block: 'topoBlock', act: 'topoPrepare', title: 'Croquis topográfico', noun: 'topográfico', busy: 'Descargando la imagen topográfica…',
-      note: 'Se baja una sola vez, con internet, y queda guardado dentro del informe que compartes (mapa de OpenTopoMap con datos de OpenStreetMap y SRTM, licencia CC-BY-SA). Las curvas de nivel son aproximadas. Sin internet, el informe sale sin esta sección.' }
+      note: 'Se baja una sola vez, con internet, y queda guardado dentro del reporte que compartes (mapa de OpenTopoMap con datos de OpenStreetMap y SRTM, licencia CC-BY-SA). Las curvas de nivel son aproximadas. Sin internet, el reporte sale sin esta sección.' }
   };
   function croqCurrent(kind) { var c = ui.croq[kind]; return c.img && c.img.sig === Satelite.signature(proj()) ? c.img : null; }
   function croqBlock(kind) {
@@ -1021,17 +1145,17 @@
   }
   function shareReport() {
     if (ui.sharing) return;
-    var p = proj(), a = analysis(), name = IO.slug('informe zona de vida ' + p.name, 'html');
+    var p = proj(), a = analysis(), name = IO.slug('reporte zona de vida ' + p.name, 'html');
     ui.sharing = true;
     var kinds = a.n >= 2 ? CROQ_KINDS : [];
     var need = kinds.filter(function (k) { return !croqCurrent(k); });
-    if (need.length && navigator.onLine !== false) toast(need.length > 1 ? 'Preparando los croquis satelital y topográfico para el informe…' : 'Preparando el croquis ' + CROQ[need[0]].noun + ' para el informe…');
+    if (need.length && navigator.onLine !== false) toast(need.length > 1 ? 'Preparando los croquis satelital y topográfico para el reporte…' : 'Preparando el croquis ' + CROQ[need[0]].noun + ' para el reporte…');
     Promise.all(kinds.map(function (k) { return prepareCroquis(k, false); })).then(function (res) {
       var o = reportOpts(a); o.satellite = res[0] || null; o.topo = res[1] || null;
-      return IO.saveText(name, 'text/html', Report.html(p, a, o), { title: 'Informe de zona de vida', text: Report.text(p, a, o), dialogTitle: 'Compartir informe' });
+      return IO.saveText(name, 'text/html', Report.html(p, a, o), { title: 'Reporte de zona de vida', text: Report.text(p, a, o), dialogTitle: 'Compartir reporte' });
     }).then(function (r) {
       ui.sharing = false;
-      if (r.how === 'download') toast('Informe descargado: ' + name);
+      if (r.how === 'download') toast('Reporte descargado: ' + name);
     }).catch(function (e) { ui.sharing = false; toast('No se pudo compartir: ' + (e && e.message || e), { err: true }); });
   }
   function copySummary() {
@@ -1118,6 +1242,7 @@
     window.scrollTo(0, sy);
   }
   function showTab(t) {
+    if (t !== 'area') setMapMode('');          // el modo del mapa solo vale mientras se está viendo el mapa
     ui.tab = t;
     ['puntos', 'area', 'clima', 'informe'].forEach(function (k) {
       $('#tab-' + k).hidden = k !== t;
@@ -1133,11 +1258,14 @@
   var ACTIONS = {
     tab: function (t) { showTab(t.getAttribute('data-tab')); },
     projects: openProjects,
-    polyView: function (t) { ui.polyView = t.getAttribute('data-v') === 'mapa' ? 'mapa' : 'croquis'; renderTab('area'); },
+    polyView: function (t) { ui.polyView = t.getAttribute('data-v') === 'mapa' ? 'mapa' : 'croquis'; if (ui.polyView !== 'mapa') setMapMode(''); renderTab('area'); },
     mapBase: function (t) { ui.mapBase = Mapa.baseId(t.getAttribute('data-b')); Store.saveFlag('mapBase', ui.mapBase); renderTab('area'); },
     mapRef: function () { ui.mapRef = !ui.mapRef; Store.saveFlag('mapRef', ui.mapRef); renderTab('area'); },
     mapPoly: function () { ui.polyActive = !ui.polyActive; renderTab('area'); },
     mapLast: goLastPoint,
+    pointColorDefault: pointColorDefault,
+    mapMenu: function () { ui.mapMenu = !ui.mapMenu; syncMapMenu(); },
+    mapMode: function (t) { setMapMode(Mapa.toggleMode(ui.mapMode, t.getAttribute('data-mode'))); },
     mapMark: function () { if (!ui.gpsOn) gpsStart(); markPoint(); },
     mapMyPos: goMyPosition,
     gpsOn: gpsStart, gpsOff: gpsStop, mark: markPoint, cancelMark: cancelMark,
@@ -1183,6 +1311,7 @@
     toastAction: function () { var fn = ui.toastFn; $('#toast').hidden = true; if (fn) fn(); }
   };
   document.addEventListener('click', function (e) {
+    if (ui.mapMenu && !e.target.closest('.mapmenu')) { ui.mapMenu = false; syncMapMenu(); }   // un toque fuera de la lista la cierra
     var t = e.target.closest('[data-act]');
     if (!t) return;
     var fn = ACTIONS[t.getAttribute('data-act')];
@@ -1194,10 +1323,12 @@
     else if (e.target.matches('[data-setting]')) {
       S.settings[e.target.getAttribute('data-setting')] = parseInt(e.target.value, 10);
       save(); precisionBanner();
+      if (e.target.getAttribute('data-setting') === 'holdMs') { if (ui.map) ui.map.setHold(S.settings.holdMs); syncMapMenu(); }
       if (ui.tab === 'puntos') renderTab('puntos');
     }
   });
   document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && ui.mapMenu) { ui.mapMenu = false; syncMapMenu(); }
     if (e.key === 'Enter' && e.target.matches && e.target.matches('[data-field]')) e.target.blur();
   });
   $('#csvFile').addEventListener('change', function (e) {

@@ -169,8 +169,8 @@ test('rellenos: la lluvia cruza los 100 mm a mitad de camino entre 80 y 120 mm',
   assert.ok(pts.some((q) => Math.abs(q.x - 0.5) < 1e-9 && Math.abs(q.y - 50) < 1e-9), 'debe haber un vértice en x = 0,5 y = 50');
 });
 
-/* ---------- Informe ---------- */
-test('informe: «n puntos» de altitud solo si son 2 o más; zonas por punto solo si hay más de una distinta', () => {
+/* ---------- Reporte ---------- */
+test('reporte: «n puntos» de altitud solo si son 2 o más; zonas por punto solo si hay más de una distinta', () => {
   const proyecto = { name: 'F', points: [], layers: [] };
   const alt = (n) => ({ alt: { value: 2600, srcLabel: 'GPS', n }, climate: {}, result: null });
   assert.ok(!/1 puntos/.test(Report.rows(proyecto, alt(1))[0][1]));
@@ -183,10 +183,10 @@ test('informe: «n puntos» de altitud solo si son 2 o más; zonas por punto sol
   assert.match(Report.html(proyecto, zonas(2)), /Zonas según la altitud/);
 });
 
-test('informe: un proyecto sin nombre no escribe «null» ni «undefined»', () => {
+test('reporte: un proyecto sin nombre no escribe «null» ni «undefined»', () => {
   const a = { result: null, climate: {}, n: 0, warnings: [] };
   const html = Report.html({ name: null, points: [], layers: [] }, a);
-  assert.match(html, /<title>Informe de zona de vida · <\/title>/);
+  assert.match(html, /<title>Reporte de zona de vida · <\/title>/);
   assert.doesNotMatch(html, /null|undefined/);
 });
 

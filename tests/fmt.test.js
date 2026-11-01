@@ -57,3 +57,10 @@ test('date: fecha larga en español y vacío si no es fecha', () => {
   assert.equal(Fmt.date(NaN), '');
   assert.equal(Fmt.date('no es fecha'), '');
 });
+
+test('dateTime: fecha corta con la hora; vacío si no es una fecha', () => {
+  const t = Fmt.dateTime(Date.UTC(2026, 5, 15, 12, 5));
+  assert.match(t, /^1[45] (de )?jun\.?( de)? 2026,? \d{1,2}:\d{2}$/);
+  assert.equal(Fmt.dateTime(NaN), '');
+  assert.equal(Fmt.dateTime('no es fecha'), '');
+});
