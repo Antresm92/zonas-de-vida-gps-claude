@@ -16,7 +16,7 @@ test('defaultState: un proyecto vacío con los ajustes por defecto', () => {
   assert.deepEqual(s.projects[0].points, []);
   assert.deepEqual(s.projects[0].layers, []);
   assert.equal(s.projects[0].mainColor, Store.MAIN_COLOR);
-  assert.deepEqual(s.settings, { areaUnit: 'ha', minAcc: 10, csvStyle: 'es', holdMs: 1000 });
+  assert.deepEqual(s.settings, { areaUnit: 'ha', minAcc: 10, csvStyle: 'es' });
 });
 
 test('newProject: nombre por defecto y ids distintos', () => {
@@ -59,13 +59,13 @@ test('loadState: completa y corrige proyectos guardados con versiones anteriores
   assert.equal(b.layers.length, 1); assert.equal(b.layers[0].id, 'l1');
   assert.equal(b.mainColor, Store.MAIN_COLOR);
   assert.equal(c.mainColor, '#AABBCC');
-  assert.deepEqual(s.settings, { areaUnit: 'm2', minAcc: 10, csvStyle: 'es', holdMs: 1000 });       // minAcc, csvStyle y holdMs no válidos vuelven al valor por defecto
+  assert.deepEqual(s.settings, { areaUnit: 'm2', minAcc: 10, csvStyle: 'es' });       // minAcc y csvStyle no válidos vuelven al valor por defecto; el holdMs viejo se descarta
 });
 
 test('loadState: conserva ajustes válidos', () => {
   const raw = { projects: [{ id: 'a', name: 'X', points: [] }], currentId: 'a', settings: { areaUnit: 'fanegadas', minAcc: 3, csvStyle: 'std', holdMs: 2000 } };
   Store.setBackend(fakeStorage({ 'zvg.v1.state': JSON.stringify(raw) }));
-  assert.deepEqual(Store.loadState().settings, { areaUnit: 'fanegadas', minAcc: 3, csvStyle: 'std', holdMs: 2000 });
+  assert.deepEqual(Store.loadState().settings, { areaUnit: 'fanegadas', minAcc: 3, csvStyle: 'std' });   // el holdMs de la 2.4.0 ya no se conserva
 });
 
 test('saveState / loadState: ida y vuelta', () => {

@@ -41,8 +41,8 @@
   // Gestos del mapa (menú ⋮). Mantener pulsado un punto HOLD_MS (sin moverse más de HOLD_SLOP_PX) lo «levanta» para arrastrarlo;
   // dos toques cortos seguidos (≤ DOUBLE_TAP_MS y a ≤ DOUBLE_TAP_SLOP_PX uno del otro) abren su ficha.
   var MODES = ['add', 'move'];                // add: «Ingresar puntos» · move: «Posición manual»
-  var HOLD_CHOICES = [1000, 1500, 2000];      // tiempos posibles para mantener pulsado, en milisegundos
-  var HOLD_MS = HOLD_CHOICES[0], HOLD_SLOP_PX = 10, DOUBLE_TAP_MS = 350, DOUBLE_TAP_SLOP_PX = 24, TAP_SLOP_PX = 8;
+  var HOLD_MS = 1000, HOLD_SLOP_PX = 10,        // HOLD_MS: tiempo fijo para levantar un punto (ya no se ajusta)
+ DOUBLE_TAP_MS = 350, DOUBLE_TAP_SLOP_PX = 24, TAP_SLOP_PX = 8;
 
   function isNum(x) { return typeof x === 'number' && isFinite(x); }
   // El color propio de un punto (el que se elige en su ficha); si no tiene uno válido, el de los puntos del proyecto
@@ -133,12 +133,10 @@
   function modeId(m) { return MODES.indexOf(m) >= 0 ? m : ''; }
   // Solo una casilla a la vez: tocar la que ya está activa la apaga; tocar la otra pasa a esa.
   function toggleMode(current, wanted) { var w = modeId(wanted); return !w || w === modeId(current) ? '' : w; }
-  function holdMs(v) { return HOLD_CHOICES.indexOf(v) >= 0 ? v : HOLD_MS; }
-  function holdLabel(ms) { var s = holdMs(ms) / 1000; return String(s).replace('.', ',') + (s === 1 ? ' segundo' : ' segundos'); }
   // Aviso corto del modo activo: va sobre el mapa y no debe tapar mucho (los puntos de debajo se siguen pudiendo tocar)
-  function modeText(mode, ms) {
+  function modeText(mode) {
     if (mode === 'add') return 'Ingresar puntos: toca el mapa.';
-    if (mode === 'move') return 'Posición manual: mantén pulsado un punto ' + String(holdMs(ms) / 1000).replace('.', ',') + ' s.';
+    if (mode === 'move') return 'Posición manual: mantén pulsado un punto ' + HOLD_MS / 1000 + ' s.';
     return '';
   }
 
@@ -153,7 +151,7 @@
 
   // Gestos sobre un punto con «Posición manual». Es una máquina de estados sin pantalla ni reloj propios: el tiempo llega por
   // o.setTimer(fn, ms) / o.clearTimer(id) / o.now() (así se prueba en Node) y los avisos salen por o.onHold, o.onMove, o.onDrop, o.onAbort y o.onDouble.
-  //  · mantener pulsado o.holdMs sin moverse más de HOLD_SLOP_PX → el punto queda «levantado» (onHold); desde ahí cada movimiento llega a onMove y al soltar, a onDrop;
+  //  · mantener pulsado HOLD_MS sin moverse más de HOLD_SLOP_PX → el punto queda «levantado» (onHold); desde ahí cada movimiento llega a onMove y al soltar, a onDrop;
   //  · moverse más de HOLD_SLOP_PX antes de que pase el tiempo → se abandona (el dedo estaba arrastrando el mapa);
   //  · dos toques cortos seguidos sobre el mismo punto → onDouble.
   function pointGesture(o) {
@@ -163,7 +161,7 @@
       down: function (id, x, y) {
         if (cur) return;
         cur = { id: id, x: x, y: y, px: x, py: y, lifted: false, moved: false };
-        timer = o.setTimer(function () { timer = null; cur.lifted = true; o.onHold(cur.id, cur.px, cur.py); }, holdMs(o.holdMs));
+        timer = o.setTimer(function () { timer = null; cur.lifted = true; o.onHold(cur.id, cur.px, cur.py); }, HOLD_MS);
       },
       move: function (x, y) {
         if (!cur) return;
@@ -189,8 +187,8 @@
   }
 
   return {
-    MODES: MODES, HOLD_CHOICES: HOLD_CHOICES, HOLD_MS: HOLD_MS, HOLD_SLOP_PX: HOLD_SLOP_PX, TAP_SLOP_PX: TAP_SLOP_PX, DOUBLE_TAP_MS: DOUBLE_TAP_MS, DOUBLE_TAP_SLOP_PX: DOUBLE_TAP_SLOP_PX,
-    pointColor: pointColor, modeId: modeId, toggleMode: toggleMode, holdMs: holdMs, holdLabel: holdLabel, modeText: modeText, isRepeatTap: isRepeatTap, withMoved: withMoved, pointGesture: pointGesture,
+    MODES: MODES, HOLD_MS: HOLD_MS, HOLD_SLOP_PX: HOLD_SLOP_PX, TAP_SLOP_PX: TAP_SLOP_PX, DOUBLE_TAP_MS: DOUBLE_TAP_MS, DOUBLE_TAP_SLOP_PX: DOUBLE_TAP_SLOP_PX,
+    pointColor: pointColor, modeId: modeId, toggleMode: toggleMode, modeText: modeText, isRepeatTap: isRepeatTap, withMoved: withMoved, pointGesture: pointGesture,
     BASES: BASES, REFERENCE: REFERENCE, LABEL_MIN_ZOOM: LABEL_MIN_ZOOM, COLOMBIA: COLOMBIA, TILE_ERRORS_BEFORE_NOTICE: TILE_ERRORS_BEFORE_NOTICE,
     baseId: baseId, pointLabel: pointLabel, lastPoint: lastPoint, visibleLayers: visibleLayers, extent: extent, shapes: shapes,
     labelsVisible: labelsVisible, tileNotice: tileNotice, fixShape: fixShape

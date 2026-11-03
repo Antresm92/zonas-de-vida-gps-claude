@@ -129,7 +129,7 @@
     }
     var named = n <= 40;
     pts.forEach(function (p, i) {
-      s += '<circle cx="' + f(xy[i].x) + '" cy="' + f(xy[i].y) + '" r="6.5" fill="' + ORANGE + '" stroke="#fff" stroke-width="2.2"/>';
+      s += '<circle cx="' + f(xy[i].x) + '" cy="' + f(xy[i].y) + '" r="6.5" fill="' + color(p.color, ORANGE) + '" stroke="#fff" stroke-width="2.2"/>';   // color propio del punto (su ficha) o el naranja de siempre
       if (named) s += '<text x="' + f(xy[i].x + 10) + '" y="' + f(xy[i].y - 9) + '" font-size="14" font-weight="700" fill="#fff" paint-order="stroke" stroke="' + INK + '" stroke-width="4" stroke-linejoin="round">' + esc(p.name || ('P' + (i + 1))) + '</text>';
     });
     // Norte (arriba a la derecha) y escala (abajo a la izquierda)
@@ -151,7 +151,7 @@
   // Huella de lo que se dibuja: si cambia, el croquis ya preparado deja de servir
   function signature(project) {
     var p = project || {};
-    return JSON.stringify([p.id, (p.points || []).filter(validLL).map(function (q) { return [q.lat, q.lon, q.name || '']; }),
+    return JSON.stringify([p.id, (p.points || []).filter(validLL).map(function (q) { return [q.lat, q.lon, q.name || '', color(q.color, '')]; }),
       Mapa.visibleLayers(p.layers).map(function (l) { return [l.id, l.kind, l.color, l.points.length]; })]);
   }
 

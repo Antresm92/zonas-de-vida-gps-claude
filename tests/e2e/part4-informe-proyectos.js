@@ -133,7 +133,7 @@ module.exports = async function (c) {
     assert.deepEqual(await projectNames(), ['Mi primer proyecto']);
     await act('projects');
     assert.equal(await page.locator('[data-act="askDeleteProject"]').count(), 0, 'no se puede eliminar el único proyecto');
-    assert.match(await text('#sheet'), /versión 2\.4\.0/);
+    assert.match(await text('#sheet'), /versión 2\.5\.0/);
     await act('closeSheet'); await waitSheetClosed();
     // nombre vacío al crear → nombre por defecto
     await act('projects'); await act('newProject'); await fill('#pName', '   '); await act('saveNewProject'); await waitSheetClosed();
@@ -144,9 +144,9 @@ module.exports = async function (c) {
   });
 
   let backup;
-  await step('Copia de seguridad: exporta todo a un archivo JSON que se puede validar', async () => {
+  await step('Copia de seguridad (.json): exporta todo a un archivo JSON liviano que se puede validar', async () => {
     await act('projects');
-    const f = await download(() => page.click('[data-act="backupExport"]'));
+    const f = await download(() => page.click('[data-act="backupJson"]'));
     assert.match(f.name, /^zonas-de-vida-copia-\d{4}-\d{2}-\d{2}\.json$/);
     backup = f.text;
     const raw = JSON.parse(backup);

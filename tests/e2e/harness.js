@@ -50,12 +50,16 @@ async function launch(opts) {
   page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
   page.on('console', (m) => { if (m.type() === 'error') errors.push('console.error: ' + m.text()); });
   await page.coverage.startJSCoverage({ resetOnNavigation: false });
+  // Chromium descarta lo medido de una página cuando se navega (goto, reload): antes de cada navegación se guarda lo medido y se vuelve a empezar
+  page.__cov = [];
+  const guardar = async () => { const c = await page.coverage.stopJSCoverage(); c.forEach((e) => page.__cov.push({ url: e.url, functions: e.functions })); await page.coverage.startJSCoverage({ resetOnNavigation: false }); };
+  ['goto', 'reload'].forEach((m) => { const original = page[m].bind(page); page[m] = async (...a) => { await guardar(); return original(...a); }; });
   return { browser, context, page, errors };
 }
 
 async function saveCoverage(page, file) {
   const cov = await page.coverage.stopJSCoverage();
-  fs.writeFileSync(file, JSON.stringify(cov.map((e) => ({ url: e.url, functions: e.functions }))));
+  fs.writeFileSync(file, JSON.stringify((page.__cov || []).concat(cov.map((e) => ({ url: e.url, functions: e.functions })))));
 }
 
 // Mosaicos de mapa de mentira: responde a OpenStreetMap, Esri y OpenTopoMap con una imagen lisa y cuenta lo que se pidió.

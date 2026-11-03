@@ -55,7 +55,9 @@
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
   <input type="file" id="csvFile" accept=".csv,.txt,text/csv,text/plain" hidden>
   <input type="file" id="gisFile" accept=".kml,.kmz,.geojson,.json,.gpx,application/vnd.google-earth.kml+xml,application/vnd.google-earth.kmz,application/geo+json,application/json,application/gpx+xml,application/xml,text/xml,application/octet-stream" hidden>
-  <input type="file" id="backupFile" accept=".json,application/json,text/plain" hidden>
+  <input type="file" id="backupFile" accept=".json,.zip,application/json,application/zip,application/x-zip-compressed,text/plain,application/octet-stream" hidden>
+  <input type="file" id="photoCam" accept="image/*" capture="environment" hidden>
+  <input type="file" id="photoGal" accept="image/*" multiple hidden>
 
   <script src="js/geo.js"></script>
   <script src="js/holdridge.js"></script>
@@ -63,6 +65,7 @@
   <script src="js/analysis.js"></script>
   <script src="js/fmt.js"></script>
   <script src="js/gps.js"></script>
+  <script src="js/fotos.js"></script>
   <script src="js/store.js"></script>
   <script src="js/xml.js"></script>
   <script src="js/zip.js"></script>

@@ -58,7 +58,7 @@ test('copia: crear con datos incompletos y nombre de archivo con ceros a la izqu
   assert.equal(Backup.fileName(new Date(2026, 0, 5).getTime()), 'zonas-de-vida-copia-2026-01-05.json');
   assert.match(Backup.fileName(), /^zonas-de-vida-copia-\d{4}-\d{2}-\d{2}\.json$/);
   const con = Backup.create({ projects: [{ id: 'a', points: [{ lat: 1, lon: 1 }] }, { id: 'b' }], currentId: 'a' }, [{ lat: 1, lon: 1, T: 1 }], { now: 0, appVersion: '2' });
-  assert.deepEqual(con.summary, { projects: 2, points: 1, layers: 0 }); assert.equal(con.appVersion, '2');
+  assert.deepEqual(con.summary, { projects: 2, points: 1, layers: 0, photos: 0 }); assert.equal(con.appVersion, '2');
 });
 
 test('copia: proyectos sin listas, capas pequeñas, huecos dañados y clima parcial', () => {

@@ -67,7 +67,7 @@ test('zip: cabeceras dañadas, ZIP64, demasiadas entradas y archivos truncados',
   const eocd = (total, off) => { const b = Buffer.alloc(22); b.writeUInt32LE(0x06054B50, 0); b.writeUInt16LE(total, 8); b.writeUInt16LE(total, 10); b.writeUInt32LE(off >>> 0, 16); return new Uint8Array(b); };
   assert.throws(() => Zip.entries(eocd(0xFFFF, 0)), /ZIP64/);
   assert.throws(() => Zip.entries(eocd(3, 0xFFFFFFFF)), /ZIP64/);
-  assert.throws(() => Zip.entries(eocd(6000, 0)), /demasiados elementos/);
+  assert.throws(() => Zip.entries(eocd(26000, 0)), /demasiados elementos/);
   assert.throws(() => Zip.entries(eocd(1, 0)), /ZIP está dañado/);
   assert.deepEqual(Zip.entries(eocd(0, 0)), []);
   const z = makeZip([{ name: 'a.txt', data: 'hola' }]);

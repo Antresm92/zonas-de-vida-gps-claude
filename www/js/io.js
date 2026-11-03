@@ -54,6 +54,40 @@
     return Promise.resolve(download(filename, blob));
   }
 
+  // Bytes → texto base64 (por trozos, para no desbordar la pila con archivos grandes)
+  function toBase64(bytes) {
+    var s = '';
+    for (var i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    return (env.btoa || btoa)(s);
+  }
+
+  // Igual que saveText, pero con bytes (la copia de seguridad con fotos es un .zip). En el teléfono se escribe por trozos de 1,5 MB:
+  // un archivo de decenas de MB en un solo mensaje puede fallar. Cada trozo se escribe aparte y se anexa al archivo.
+  var CHUNK = 1572864;      // múltiplo de 3: cada trozo es base64 completo por sí solo
+  function saveBytes(filename, mime, bytes, opts) {
+    opts = opts || {};
+    var FS = capPlugin('Filesystem'), SH = capPlugin('Share');
+    if (FS && SH) {
+      var uri = '';
+      var chain = FS.writeFile({ path: filename, data: toBase64(bytes.subarray(0, Math.min(CHUNK, bytes.length))), directory: 'CACHE' }).then(function (w) { uri = w.uri; });
+      for (var off = CHUNK; off < bytes.length; off += CHUNK) {
+        (function (from) { chain = chain.then(function () { return FS.appendFile({ path: filename, data: toBase64(bytes.subarray(from, from + CHUNK)), directory: 'CACHE' }); }); })(off);
+      }
+      return chain.then(function () { return SH.share({ title: opts.title || filename, text: opts.text || '', url: uri, dialogTitle: opts.dialogTitle || 'Compartir archivo' }); })
+        .then(function () { return { how: 'share', name: filename }; }, function (e) { if (isCancel(e)) return { how: 'cancel', name: filename }; throw e; });
+    }
+    var blob = new Blob([bytes], { type: mime || 'application/octet-stream' });
+    try {
+      var file = new File([blob], filename, { type: mime || 'application/octet-stream' });
+      var nav = env.navigator;
+      if (nav && nav.canShare && nav.canShare({ files: [file] })) {
+        return nav.share({ files: [file], title: opts.title || filename, text: opts.text || '' })
+          .then(function () { return { how: 'share', name: filename }; }, function (e) { return isCancel(e) ? { how: 'cancel', name: filename } : download(filename, blob); });
+      }
+    } catch (e) { /* sigue con la descarga */ }
+    return Promise.resolve(download(filename, blob));
+  }
+
   function readBytes(file) {
     if (file && file.arrayBuffer) return file.arrayBuffer().then(function (b) { return new Uint8Array(b); });
     return new Promise(function (resolve, reject) {
@@ -67,5 +101,5 @@
     return readBytes(file).then(function (b) { return new TextDecoder('utf-8').decode(b).replace(/^﻿/, ''); });
   }
 
-  return { slug: slug, saveText: saveText, readBytes: readBytes, readText: readText, capPlugin: capPlugin, setEnv: setEnv };
+  return { slug: slug, saveText: saveText, saveBytes: saveBytes, toBase64: toBase64, readBytes: readBytes, readText: readText, capPlugin: capPlugin, setEnv: setEnv };
 });

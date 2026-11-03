@@ -350,33 +350,25 @@ module.exports = async function (c) {
     assert.equal(p2b.src, 'manual'); assert.equal(p2b.acc, null);
   });
 
-  await step('Ajuste «Tiempo para levantar un punto»: con 2 segundos a 1,3 s todavía no está levantado y a 2,1 s sí; el aviso del modo lo dice y se recuerda', async () => {
+  await step('Sin ajuste de tiempo: ya no hay selector, el aviso dice 1 s, a 0,6 s todavía no está levantado y a 1 s sí; un ajuste viejo guardado se descarta', async () => {
     await seed();
-    assert.equal(await page.inputValue('[data-setting="holdMs"]'), '1000', 'por defecto, 1 segundo');
-    assert.deepEqual(await page.$$eval('[data-setting="holdMs"] option', (els) => els.map((e) => e.textContent)), ['1 segundo', '1,5 segundos', '2 segundos']);
-    await page.selectOption('[data-setting="holdMs"]', '2000');
-    assert.equal((await c.state()).settings.holdMs, 2000);
+    assert.equal(await page.$('[data-setting="holdMs"]'), null, 'el selector «Tiempo para levantar un punto» ya no existe');
+    assert.equal(await page.evaluate(() => /Tiempo para levantar/.test(document.body.textContent)), false);
     await pick('move');
-    assert.equal(await text('#mapModeTxt'), 'Posición manual: mantén pulsado un punto 2 s.');
+    assert.equal(await text('#mapModeTxt'), 'Posición manual: mantén pulsado un punto 1 s.');
     const [p1] = await pts(), at = await hitXY(p1.id);
     await page.mouse.move(at.x, at.y); await page.mouse.down();
-    await page.waitForTimeout(1300);
-    assert.equal(await gesture(), 'press', 'a 1,3 s todavía no');
-    assert.equal(await page.evaluate((id) => getComputedStyle(document.querySelector('.mk-hit[data-id="' + id + '"]').closest('.mk')).getPropertyValue('--hold'), p1.id), '2000ms', 'el anillo dura lo mismo');
-    await page.waitForFunction(() => window.__app.ui.map.info().gesture === 'lifted', null, { timeout: 2500 });
-    await page.mouse.up();
-    // cambiar el ajuste con el modo ya activo también cambia el aviso y el tiempo
-    await page.selectOption('[data-setting="holdMs"]', '1500');
-    assert.equal(await text('#mapModeTxt'), 'Posición manual: mantén pulsado un punto 1,5 s.');
-    await page.mouse.move(at.x, at.y); await page.mouse.down();
-    await page.waitForTimeout(1200);
-    assert.equal(await gesture(), 'press');
+    await page.waitForTimeout(600);
+    assert.equal(await gesture(), 'press', 'a 0,6 s todavía no');
+    assert.equal(await page.evaluate((id) => getComputedStyle(document.querySelector('.mk-hit[data-id="' + id + '"]').closest('.mk')).getPropertyValue('--hold'), p1.id), '1000ms', 'el anillo dura 1 s');
     await page.waitForFunction(() => window.__app.ui.map.info().gesture === 'lifted', null, { timeout: 2000 });
     await page.mouse.up();
+    // un estado guardado por la 2.4.0 con holdMs: se abre sin problema y el ajuste se descarta
+    await page.evaluate(() => { const s = JSON.parse(localStorage.getItem('zvg.v1.state')); s.settings.holdMs = 2000; localStorage.setItem('zvg.v1.state', JSON.stringify(s)); });
     await page.reload(); await page.waitForSelector('#tab-puntos');
-    assert.equal((await c.state()).settings.holdMs, 1500, 'se recuerda al volver a abrir');
+    assert.equal('holdMs' in (await c.state()).settings, false, 'el ajuste viejo no se conserva');
     await openMap();
-    assert.equal(await page.inputValue('[data-setting="holdMs"]'), '1500');
+    assert.equal(await page.$('[data-setting="holdMs"]'), null);
   });
 
   await step('Con el dedo (toques táctiles reales): mantener pulsado y arrastrar mueve el punto; doble toque abre la ficha; un toque en el mapa no hace nada', async () => {

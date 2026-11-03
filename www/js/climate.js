@@ -426,9 +426,50 @@
     });
   }
 
+  /* ---------- Clima actual (Open-Meteo, solo el momento: no entra en el cálculo de Holdridge) ---------- */
+  // Códigos WMO del tiempo que devuelve Open-Meteo, en palabras
+  var WMO = { 0: 'Despejado', 1: 'Mayormente despejado', 2: 'Parcialmente nublado', 3: 'Nublado', 45: 'Niebla', 48: 'Niebla con escarcha',
+    51: 'Llovizna ligera', 53: 'Llovizna moderada', 55: 'Llovizna intensa', 56: 'Llovizna helada ligera', 57: 'Llovizna helada intensa',
+    61: 'Lluvia ligera', 63: 'Lluvia moderada', 65: 'Lluvia fuerte', 66: 'Lluvia helada ligera', 67: 'Lluvia helada fuerte',
+    71: 'Nevada ligera', 73: 'Nevada moderada', 75: 'Nevada fuerte', 77: 'Granos de nieve', 80: 'Chubascos ligeros', 81: 'Chubascos moderados', 82: 'Chubascos violentos',
+    85: 'Chubascos de nieve ligeros', 86: 'Chubascos de nieve fuertes', 95: 'Tormenta eléctrica', 96: 'Tormenta con granizo ligero', 99: 'Tormenta con granizo fuerte' };
+  function weatherText(code) { return isNum(code) && Object.prototype.hasOwnProperty.call(WMO, code) ? WMO[code] : 'Condición no reconocida'; }
+  function hhmm(s) { var m = /T(\d{2}):(\d{2})/.exec(typeof s === 'string' ? s : ''); return m && +m[1] < 24 && +m[2] < 60 ? m[1] + ':' + m[2] : null; }
+  function inRange(v, lo, hi) { return isNum(v) && v >= lo && v <= hi ? v : null; }
+
+  // json: respuesta de /v1/forecast con current= y daily=sunrise,sunset. Lo que venga fuera de rango se descarta; si no sirve nada, falla.
+  function parseCurrent(json, now) {
+    var c = json && typeof json === 'object' ? json.current : null;
+    if (!c || typeof c !== 'object') throw new Error('Open-Meteo no devolvió el clima actual');
+    var d = json.daily && typeof json.daily === 'object' ? json.daily : {};
+    var code = isNum(c.weather_code) && Math.floor(c.weather_code) === c.weather_code ? c.weather_code : null;
+    var out = {
+      T: inRange(c.temperature_2m, -90, 60), humidity: inRange(c.relative_humidity_2m, 0, 100), pressure: inRange(c.pressure_msl, 300, 1100),
+      wind: inRange(c.wind_speed_10m, 0, 400), code: code,
+      sunrise: hhmm(Array.isArray(d.sunrise) ? d.sunrise[0] : null), sunset: hhmm(Array.isArray(d.sunset) ? d.sunset[0] : null),
+      obs: typeof c.time === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(c.time) ? c.time.slice(0, 16) : null,
+      at: isNum(now) ? now : Date.now(), source: 'Open-Meteo'
+    };
+    if (out.T === null && out.humidity === null && out.pressure === null && out.wind === null && out.code === null) throw new Error('Open-Meteo no devolvió datos válidos para este punto');
+    return out;
+  }
+
+  // Resuelve siempre (nunca rechaza) con { ok: true, data } o { ok: false, error }. opts: { timeoutMs, now }
+  function fetchCurrent(lat, lon, fetchFn, opts) {
+    opts = opts || {};
+    var f = fetchFn || (typeof fetch !== 'undefined' ? function (u, o) { return fetch(u, o); } : null);
+    if (!isNum(lat) || !isNum(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) return Promise.resolve({ ok: false, error: 'Las coordenadas no son válidas.' });
+    if (!f) return Promise.resolve({ ok: false, error: 'Este dispositivo no puede hacer consultas de red.' });
+    var url = 'https://api.open-meteo.com/v1/forecast?latitude=' + lat.toFixed(5) + '&longitude=' + lon.toFixed(5) +
+      '&current=temperature_2m,relative_humidity_2m,weather_code,pressure_msl,wind_speed_10m&daily=sunrise,sunset&wind_speed_unit=kmh&timezone=auto&forecast_days=1';
+    return withTimeout(f, url, opts.timeoutMs || 15000).then(function (j) { return { ok: true, data: parseCurrent(j, opts.now) }; })
+      .catch(function (e) { return { ok: false, error: String(e && e.name === 'AbortError' ? 'tardó demasiado en responder' : (e && e.message) || e) }; });
+  }
+
   return {
     LAPSE: LAPSE, T0_EQUATOR: T0_EQUATOR,
     seaLevelTemp: seaLevelTemp, estimateT: estimateT, estimateUncertainty: estimateUncertainty,
-    Memory: Memory, resolve: resolve, parseCSV: parseCSV, parsePower: parsePower, parseOpenMeteo: parseOpenMeteo, fetchOnline: fetchOnline
+    Memory: Memory, resolve: resolve, parseCSV: parseCSV, parsePower: parsePower, parseOpenMeteo: parseOpenMeteo, fetchOnline: fetchOnline,
+    parseCurrent: parseCurrent, fetchCurrent: fetchCurrent, weatherText: weatherText
   };
 });

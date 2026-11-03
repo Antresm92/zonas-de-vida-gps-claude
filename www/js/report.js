@@ -1,8 +1,8 @@
 /* report.js — reporte de zona de vida: texto plano y página HTML autocontenida (con el diagrama). */
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory(require('./fmt.js'), require('./geo.js'), require('./diagram.js'), require('./perfil.js'));
-  else root.Report = factory(root.Fmt, root.Geo, root.Diagram, root.Perfil);
-})(typeof self !== 'undefined' ? self : this, function (Fmt, Geo, Diagram, Perfil) {
+  if (typeof module === 'object' && module.exports) module.exports = factory(require('./fmt.js'), require('./geo.js'), require('./diagram.js'), require('./perfil.js'), require('./climate.js'));
+  else root.Report = factory(root.Fmt, root.Geo, root.Diagram, root.Perfil, root.Climate);
+})(typeof self !== 'undefined' ? self : this, function (Fmt, Geo, Diagram, Perfil, Climate) {
   'use strict';
 
   function esc(s) { return String(s === null || s === undefined ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
@@ -30,6 +30,23 @@
     if (r && isNum(r.per)) out.push(['Relación ETP / precipitación', Fmt.num(r.per, 2)]);
     return out;
   }
+
+  // Clima actual consultado (Open-Meteo), como filas [etiqueta, valor]. Lo que falte o no sea un número no se escribe.
+  function currentRows(w) {
+    var out = [];
+    if (!w || typeof w !== 'object') return out;
+    if (isNum(w.T)) out.push(['Temperatura', Fmt.num(w.T, 1) + ' °C']);
+    if (isNum(w.code)) out.push(['Condición', Climate.weatherText(w.code)]);
+    if (isNum(w.wind)) out.push(['Viento', Fmt.num(w.wind, 1) + ' km/h']);
+    if (isNum(w.pressure)) out.push(['Presión', Fmt.num(w.pressure, 0) + ' hPa']);
+    if (isNum(w.humidity)) out.push(['Humedad', Fmt.num(w.humidity, 0) + ' %']);
+    if (typeof w.sunrise === 'string' && w.sunrise) out.push(['Amanecer', w.sunrise]);
+    if (typeof w.sunset === 'string' && w.sunset) out.push(['Atardecer', w.sunset]);
+    return out;
+  }
+  var CURRENT_NOTE = 'Condiciones del momento de la consulta (no el promedio de varios años); no entran en el cálculo de la zona de vida.';
+  // «Actualizado: 28 oct 2026, 14:03 · Open-Meteo»
+  function currentStamp(w) { return 'Actualizado: ' + (isNum(w && w.at) ? Fmt.dateTime(w.at) : 'fecha desconocida') + ' · Open-Meteo'; }
 
   function text(project, a, o) {
     o = o || {};
@@ -70,10 +87,18 @@
       L.push('Diagrama de Walter-Lieth (datos mensuales):');
       o.walter.lines.forEach(function (x) { L.push('  ' + x); });
     }
+    var cur = currentRows(project.weatherNow);
+    if (cur.length) {
+      L.push('');
+      L.push('Clima actual (' + currentStamp(project.weatherNow) + '):');
+      cur.forEach(function (x) { L.push('  ' + x[0] + ': ' + x[1]); });
+      L.push('  ' + CURRENT_NOTE);
+    }
     L.push('');
     L.push('Puntos:');
     project.points.forEach(function (p, i) {
-      L.push('  ' + (p.name || 'P' + (i + 1)) + ': ' + Fmt.latlon(p.lat, p.lon) + (isNum(p.alt) ? ', ' + Fmt.num(p.alt, 0) + ' m' : ''));
+      var nf = Array.isArray(p.photos) ? p.photos.length : 0;
+      L.push('  ' + (p.name || 'P' + (i + 1)) + ': ' + Fmt.latlon(p.lat, p.lon) + (isNum(p.alt) ? ', ' + Fmt.num(p.alt, 0) + ' m' : '') + (nf ? ' · ' + nf + (nf === 1 ? ' foto' : ' fotos') : ''));
     });
     if (project.layers && project.layers.length) {
       L.push('');
@@ -92,7 +117,15 @@
     '.zone{display:flex;gap:16px;align-items:center;margin:12px 0}.hex{width:92px;height:104px;flex:none}.zn{font-size:24px;font-weight:700;line-height:1.2}.zs{color:#5B6F61}' +
     'table{border-collapse:collapse;width:100%;max-width:760px}td,th{padding:6px 10px;border-bottom:1px solid #D6DED8;text-align:left;vertical-align:top}th{color:#5B6F61;font-weight:500;width:42%}' +
     '.note{background:#F2F5EF;border-left:4px solid #D8353C;padding:8px 12px;margin:8px 0}.small{color:#5B6F61;font-size:14px}svg{max-width:100%;height:auto}' +
+    '.dot{display:inline-block;width:.75em;height:.75em;border-radius:50%;margin-right:.5em;border:1px solid rgba(0,0,0,.35);-webkit-print-color-adjust:exact;print-color-adjust:exact}' +
+    '.gal{display:flex;flex-wrap:wrap;gap:10px;margin:6px 0 14px}.gal figure{margin:0;width:260px;max-width:100%;break-inside:avoid}.gal img{display:block;width:100%;height:auto;border-radius:6px;border:1px solid #D6DED8}.gal figcaption{font-size:13px;color:#5B6F61}h3.ptitle{font-size:16px;margin:14px 0 4px}' +
     '@media print{body{padding:0}h2{break-after:avoid}.diag{break-before:page}}';
+
+  // Punto de color delante del nombre: el color propio del punto (su ficha) o el de los puntos del proyecto
+  function dot(p, project) {
+    var c = /^#[0-9a-fA-F]{6}$/.test(p.color || '') ? p.color : /^#[0-9a-fA-F]{6}$/.test(project.mainColor || '') ? project.mainColor : '#2F8F4E';
+    return '<span class="dot" style="background:' + c + '"></span>';
+  }
 
   function hexBadge(sym) {
     return '<svg class="hex" viewBox="0 0 92 104" role="img" aria-label="' + esc(sym) + '"><polygon points="46,2 90,27 90,77 46,102 2,77 2,27" fill="rgba(47,143,78,.18)" stroke="#2F8F4E" stroke-width="4"/>' +
@@ -105,6 +138,25 @@
     var h = '<h2>' + title + '</h2>';
     if (d.svg) return h + '<div style="max-width:760px">' + d.svg + '</div><p class="small">' + esc(d.caption || '') + '</p>';
     return h + '<div class="note">No se pudo preparar el ' + noun + (d.unavailable ? ': ' + esc(d.unavailable) : '.') + '</div>';
+  }
+
+  // Fotos de los puntos. o.photos = { id: 'data:image/jpeg;base64,…' } con las imágenes ya preparadas; la que falte no se dibuja.
+  function photosHtml(project, o) {
+    var map = o && o.photos;
+    if (!map || typeof map !== 'object') return '';
+    var h = '', any = false;
+    project.points.forEach(function (p, i) {
+      var name = p.name || 'P' + (i + 1);
+      var list = (Array.isArray(p.photos) ? p.photos : []).filter(function (f) { return f && typeof map[f.id] === 'string' && map[f.id].indexOf('data:image/jpeg;base64,') === 0; });
+      if (!list.length) return;
+      if (!any) { h += '<h2>Fotos de los puntos</h2>'; any = true; }
+      h += '<h3 class="ptitle">' + dot(p, project) + esc(name) + '</h3><div class="gal">';
+      list.forEach(function (f, k) {
+        h += '<figure><img src="' + esc(map[f.id]) + '" alt="Foto ' + (k + 1) + ' de ' + esc(name) + '"><figcaption>' + (k === 0 ? 'Principal' : 'Foto ' + (k + 1)) + '</figcaption></figure>';
+      });
+      h += '</div>';
+    });
+    return any ? h + '<p class="small">Fotos reducidas para este reporte. En el teléfono y en la copia de seguridad quedan con más calidad (hasta 1280 px).</p>' : '';
   }
 
   // Perfil del relieve con lo que está guardado en el proyecto (no consulta internet)
@@ -136,6 +188,12 @@
       h += '<p class="small">Con el margen de error de los datos (±' + Fmt.num(a.margins.t, 1) + ' °C y ±' + Fmt.num(a.margins.p * 100, 0) + ' % en precipitación, supuestos) el punto también podría caer en: ' +
         a.alternatives.map(function (z) { return esc(z.name) + ' (' + esc(z.symbol) + ')'; }).join('; ') + '.</p>';
     }
+    var cur = currentRows(project.weatherNow);
+    if (cur.length) {
+      h += '<h2>Clima actual</h2><table>';
+      cur.forEach(function (x) { h += '<tr><th>' + esc(x[0]) + '</th><td>' + esc(x[1]) + '</td></tr>'; });
+      h += '</table><p class="small">' + esc(currentStamp(project.weatherNow)) + '. ' + esc(CURRENT_NOTE) + '</p>';
+    }
     if (a.n) {
       h += '<h2>Terreno</h2><table>';
       if (a.area) h += '<tr><th>Área</th><td>' + esc(Fmt.area(a.area, 'ha')) + ' · ' + esc(Fmt.area(a.area, 'm2')) + ' · ' + esc(Fmt.area(a.area, 'fanegadas')) + '</td></tr>';
@@ -143,12 +201,13 @@
       h += '<tr><th>Centro</th><td>' + esc(Fmt.latlon(a.center.lat, a.center.lon)) + '</td></tr></table>';
       h += '<h2>Puntos</h2><table>';
       project.points.forEach(function (p, i) {
-        h += '<tr><th>' + esc(p.name || 'P' + (i + 1)) + '</th><td>' + esc(Fmt.latlon(p.lat, p.lon)) + (isNum(p.alt) ? ' · ' + esc(Fmt.num(p.alt, 0)) + ' m' : '') + '</td></tr>';
+        h += '<tr><th>' + dot(p, project) + esc(p.name || 'P' + (i + 1)) + '</th><td>' + esc(Fmt.latlon(p.lat, p.lon)) + (isNum(p.alt) ? ' · ' + esc(Fmt.num(p.alt, 0)) + ' m' : '') + '</td></tr>';
       });
       h += '</table>';
       if (a.n >= 2) h += '<h2>Croquis</h2><div style="max-width:560px;margin-top:12px">' + Diagram.polygonSVG(project.points, { width: 560, height: 380, center: a.center, bad: a.selfIntersects, layers: project.layers, color: project.mainColor }) + Diagram.legendHTML(project.layers, project.mainColor, 'Mis puntos', true) + '</div>';
       if (a.n >= 2) h += sketchHtml('Croquis satelital', 'croquis satelital', o.satellite) + sketchHtml('Croquis topográfico', 'croquis topográfico', o.topo) + profileHtml(project);
     }
+    h += photosHtml(project, o);
     if (a.vertexZones && a.vertexZones.length && a.distinctZones && a.distinctZones.length > 1) {
       h += '<h2>Zonas según la altitud de cada punto</h2><table>';
       a.vertexZones.forEach(function (v) { h += '<tr><th>' + esc(v.name) + ' (' + esc(Fmt.num(v.alt, 0)) + ' m)</th><td>' + esc(v.zone) + ' (' + esc(v.symbol) + ')</td></tr>'; });
@@ -173,5 +232,5 @@
     return h;
   }
 
-  return { text: text, html: html, rows: rows, QUALITY: QUALITY, DISCLAIMER: DISCLAIMER, SRC_T: SRC_T, SRC_P: SRC_P };
+  return { text: text, html: html, rows: rows, dot: dot, currentRows: currentRows, currentStamp: currentStamp, CURRENT_NOTE: CURRENT_NOTE, QUALITY: QUALITY, DISCLAIMER: DISCLAIMER, SRC_T: SRC_T, SRC_P: SRC_P };
 });

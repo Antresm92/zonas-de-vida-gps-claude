@@ -10,6 +10,7 @@
   var COL = { ink: '#14301F', soft: '#5B6F61', grid: '#D6DED8', halo: '#FFFFFF' };
   var SRC_LABEL = { gps: 'GPS', manual: 'a mano', internet: 'internet', archivo: 'archivo' };
   var STEPS = [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 5000];
+  var HEX = /^#[0-9a-fA-F]{6}$/;
   var GPS_QUIET_RELIEF = 20;      // por debajo de este desnivel (m) un perfil hecho con GPS puede ser solo ruido
 
   function isNum(x) { return typeof x === 'number' && isFinite(x); }
@@ -28,7 +29,7 @@
       prev = p;
       if (!isNum(p.alt)) { missing++; return; }
       var src = p.altSrc || 'manual';
-      items.push({ name: p.name || ('P' + (i + 1)), alt: p.alt, src: src, srcLabel: srcLabel(src), dist: dist });
+      items.push({ name: p.name || ('P' + (i + 1)), alt: p.alt, src: src, srcLabel: srcLabel(src), dist: dist, color: HEX.test(p.color || '') ? p.color : null });
     });
     if (items.length < 2) return { ok: false, reason: 'Se necesitan al menos 2 puntos con altitud para dibujar el perfil.', missing: missing };
     var first = items[0].dist;
@@ -86,7 +87,7 @@
   function svg(m, o) {
     o = o || {};
     var W = o.width || 640, H = o.height || 340, id = esc(o.id || 'pf');
-    var color = /^#[0-9a-fA-F]{6}$/.test(o.color || '') ? o.color : '#2F8F4E';
+    var color = HEX.test(o.color || '') ? o.color : '#2F8F4E';
     if (!m || !m.ok) return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Perfil del relieve sin datos"></svg>';
     var L = 58, R = 30, T = 36, B = 58;
     var pw = W - L - R, ph = H - T - B;
@@ -118,7 +119,7 @@
     var many = m.items.length > 10, prevX = -Infinity, flip = false;
     m.items.forEach(function (it, i) {
       var cx = X(it.dist), cy = Y(it.alt);
-      s += '<circle cx="' + r1(cx) + '" cy="' + r1(cy) + '" r="4.6" fill="#fff" stroke="' + color + '" stroke-width="2.4"/>';
+      s += '<circle cx="' + r1(cx) + '" cy="' + r1(cy) + '" r="4.6" fill="#fff" stroke="' + (it.color || color) + '" stroke-width="2.4"/>';   // el color propio del punto, si lo tiene
       if (many && it !== m.high && it !== m.low && i !== 0 && i !== m.items.length - 1) return;
       flip = cx - prevX < 78 ? !flip : false;           // si el rótulo anterior queda cerca, este va debajo del punto
       prevX = cx;

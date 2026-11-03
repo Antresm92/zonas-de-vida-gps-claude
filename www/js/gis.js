@@ -399,6 +399,10 @@
     var m = norm(model), out = [];
     var styles = [{ id: 'principal', color: m.mainColor }];
     m.layers.forEach(function (l, i) { styles.push({ id: 'capa' + i, color: l.color }); });
+    // Un punto con color propio (su ficha) lleva su propio estilo de ícono; los demás usan el principal
+    var ownStyles = {};
+    m.points.forEach(function (p) { if (isHex(p.color) && p.color.toUpperCase() !== m.mainColor.toUpperCase()) ownStyles[p.color.toUpperCase()] = 'punto' + p.color.slice(1).toUpperCase(); });
+    function styleOf(p) { return isHex(p.color) && ownStyles[p.color.toUpperCase()] ? ownStyles[p.color.toUpperCase()] : 'principal'; }
     out.push('<?xml version="1.0" encoding="UTF-8"?>', '<kml xmlns="http://www.opengis.net/kml/2.2">', '<Document>', '<name>' + esc(m.name) + '</name>');
     var d = [];
     if (m.areaM2 !== null) d.push('Área: ' + numEs(m.areaM2 / 10000, 4) + ' ha (' + numEs(m.areaM2, 0) + ' m²)');
@@ -411,6 +415,9 @@
         '<PolyStyle><color>' + kmlColor(s.color, '55') + '</color></PolyStyle>' +
         '<IconStyle><color>' + kmlColor(s.color, 'ff') + '</color><scale>0.8</scale><Icon><href>' + ICON + '</href></Icon></IconStyle>' +
         '<LabelStyle><scale>0.8</scale></LabelStyle></Style>');
+    });
+    Object.keys(ownStyles).forEach(function (hex) {
+      out.push('<Style id="' + ownStyles[hex] + '"><IconStyle><color>' + kmlColor(hex, 'ff') + '</color><scale>0.8</scale><Icon><href>' + ICON + '</href></Icon></IconStyle><LabelStyle><scale>0.8</scale></LabelStyle></Style>');
     });
     function ringXml(pts) { return '<LinearRing><coordinates>' + closed(pts).map(lonlatAlt).join(' ') + '</coordinates></LinearRing>'; }
     function polygonXml(name, style, outer, holes) {
@@ -432,7 +439,7 @@
       if (n >= 3) out.push(polygonXml(m.name, 'principal', m.points, null));
       else if (n === 2) out.push(lineXml(m.name, 'principal', m.points));
       out.push('<Folder><name>Vértices</name>');
-      m.points.forEach(function (p, i) { out.push(pointXml(p.name || ('P' + (i + 1)), 'principal', p, ptDesc(p))); });
+      m.points.forEach(function (p, i) { out.push(pointXml(p.name || ('P' + (i + 1)), styleOf(p), p, ptDesc(p))); });
       out.push('</Folder></Folder>');
     }
     m.layers.forEach(function (l, i) {
@@ -473,7 +480,7 @@
       feats.push({ type: 'Feature', properties: { name: m.name, tipo: 'linea', largo_m: Number(fix(m.perimeter, 1)), color: m.mainColor }, geometry: { type: 'LineString', coordinates: m.points.map(function (p) { return pos(p, true); }) } });
     }
     m.points.forEach(function (p, i) {
-      var props = { name: p.name || ('P' + (i + 1)), tipo: 'vertice', capa: m.name, color: m.mainColor };
+      var props = { name: p.name || ('P' + (i + 1)), tipo: 'vertice', capa: m.name, color: isHex(p.color) ? p.color : m.mainColor };
       if (isNum(p.alt)) { props.altitud_m = Number(fix(p.alt, 1)); if (p.altSrc) props.fuente_altitud = p.altSrc; }
       if (isNum(p.acc)) props.precision_m = Number(fix(p.acc, 1));
       feats.push({ type: 'Feature', properties: props, geometry: { type: 'Point', coordinates: pos(p, true) } });

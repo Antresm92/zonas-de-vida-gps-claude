@@ -1,9 +1,9 @@
 /* store.js — datos guardados en el dispositivo (localStorage), siempre con try/catch.
  * Si el almacenamiento no está disponible la app sigue funcionando con los datos en memoria. */
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory();
-  else root.Store = factory();
-})(typeof self !== 'undefined' ? self : this, function () {
+  if (typeof module === 'object' && module.exports) module.exports = factory(require('./fotos.js'));
+  else root.Store = factory(root.Fotos);
+})(typeof self !== 'undefined' ? self : this, function (Fotos) {
   'use strict';
 
   var KEY_STATE = 'zvg.v1.state';
@@ -11,8 +11,7 @@
   var KEY_FLAGS = 'zvg.v1.flags';
   var MAIN_COLOR = '#2F8F4E';
   var MIN_ACC = [0, 3, 5, 10, 20];
-  var HOLD_MS = [1000, 1500, 2000];     // cuánto se mantiene pulsado un punto del mapa para moverlo (Posición manual)
-  var DEFAULT_SETTINGS = { areaUnit: 'ha', minAcc: 10, csvStyle: 'es', holdMs: 1000 };
+  var DEFAULT_SETTINGS = { areaUnit: 'ha', minAcc: 10, csvStyle: 'es' };
   var mem = {};          // respaldo si localStorage falla
   var storage = null;
   try { storage = typeof localStorage !== 'undefined' ? localStorage : null; } catch (e) { storage = null; }
@@ -50,15 +49,22 @@
       p.nextPoint = p.nextPoint || (p.points.length + 1);
       p.layers = Array.isArray(p.layers) ? p.layers.filter(function (l) { return l && Array.isArray(l.points); }) : [];
       p.mainColor = /^#[0-9a-fA-F]{6}$/.test(p.mainColor) ? p.mainColor : MAIN_COLOR;
+      if (!p.weatherNow || typeof p.weatherNow !== 'object' || Array.isArray(p.weatherNow)) delete p.weatherNow;   // clima actual consultado (2.5.0)
+      p.points.forEach(function (pt) {      // fotos de cada punto (2.5.0): solo la lista de ids; la imagen vive aparte
+        if (!pt || typeof pt !== 'object' || pt.photos === undefined) return;
+        var l = Fotos.cleanList(pt.photos);
+        if (l.length) pt.photos = l; else delete pt.photos;
+      });
     });
     if (!s.projects.some(function (p) { return p.id === s.currentId; })) s.currentId = s.projects[0].id;
     s.settings = Object.assign({}, DEFAULT_SETTINGS, s.settings || {});
     if (MIN_ACC.indexOf(s.settings.minAcc) < 0) s.settings.minAcc = DEFAULT_SETTINGS.minAcc;
     if (s.settings.csvStyle !== 'es' && s.settings.csvStyle !== 'std') s.settings.csvStyle = 'es';
-    if (HOLD_MS.indexOf(s.settings.holdMs) < 0) s.settings.holdMs = DEFAULT_SETTINGS.holdMs;
+    delete s.settings.holdMs;     // ajuste que existió en la 2.4.0 («Tiempo para levantar un punto»): ya no se ofrece, el tiempo es fijo
     return s;
   }
   function saveState(s) { return write(KEY_STATE, s); }
+  function hasSavedState() { var s = read(KEY_STATE); return !!(s && Array.isArray(s.projects) && s.projects.length); }   // ¿hay datos guardados de verdad (y no los de un primer arranque)?
   function loadMemory() { var m = read(KEY_MEM); return Array.isArray(m) ? m : []; }
   function saveMemory(arr) { return write(KEY_MEM, arr); }
 
@@ -67,6 +73,6 @@
   function loadFlag(name) { var f = flagBag(); return Object.prototype.hasOwnProperty.call(f, name) ? f[name] : null; }
   function saveFlag(name, value) { var f = flagBag(); f[name] = value; return write(KEY_FLAGS, f); }
 
-  return { loadState: loadState, saveState: saveState, loadMemory: loadMemory, saveMemory: saveMemory, loadFlag: loadFlag, saveFlag: saveFlag,
-           newProject: newProject, uid: uid, setBackend: setBackend, defaultState: defaultState, MAIN_COLOR: MAIN_COLOR, MIN_ACC: MIN_ACC, HOLD_MS: HOLD_MS };
+  return { loadState: loadState, saveState: saveState, hasSavedState: hasSavedState, loadMemory: loadMemory, saveMemory: saveMemory, loadFlag: loadFlag, saveFlag: saveFlag,
+           newProject: newProject, uid: uid, setBackend: setBackend, defaultState: defaultState, MAIN_COLOR: MAIN_COLOR, MIN_ACC: MIN_ACC };
 });

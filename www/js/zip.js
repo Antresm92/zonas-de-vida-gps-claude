@@ -1,4 +1,4 @@
-/* zip.js — lector de archivos ZIP (los .kmz de Google Earth son ZIP). Sin dependencias.
+/* zip.js — lector de archivos ZIP (los .kmz de Google Earth son ZIP) y creador de ZIP sin compresión (la copia de seguridad con fotos). Sin dependencias.
  * La descompresión (deflate) está escrita aquí, así no depende de que el WebView del teléfono tenga
  * DecompressionStream. Verifica el CRC-32 y limita el tamaño descomprimido (protección contra "bombas zip"). */
 (function (root, factory) {
@@ -8,7 +8,7 @@
   'use strict';
 
   var MAX_OUT = 64 * 1024 * 1024;       // tamaño máximo descomprimido por entrada
-  var MAX_ENTRIES = 5000;
+  var MAX_ENTRIES = 25000;
 
   /* ---------- CRC-32 ---------- */
   var CRC_TABLE = (function () {
@@ -202,5 +202,47 @@
     return out;
   }
 
-  return { entries: entries, extract: extract, inflate: inflate, crc32: crc32, isZip: isZip, utf8: utf8 };
+  /* ---------- Creación del ZIP ---------- */
+  // files: [{ name, bytes }] → Uint8Array con un ZIP sin compresión (los JPEG ya vienen comprimidos). Los nombres van en UTF-8.
+  // No se hace ZIP64: hasta 65 534 archivos y 4 GB en total.
+  function w16(b, o, v) { b[o] = v & 255; b[o + 1] = (v >>> 8) & 255; }
+  function w32(b, o, v) { b[o] = v & 255; b[o + 1] = (v >>> 8) & 255; b[o + 2] = (v >>> 16) & 255; b[o + 3] = (v >>> 24) & 255; }
+  function dosStamp(ms) {
+    var d = new Date(ms);
+    var y = Math.max(1980, Math.min(2107, d.getFullYear()));
+    return { time: (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1), date: ((y - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate() };
+  }
+  function create(files, now) {
+    if (!Array.isArray(files) || files.length > 65534) throw new Error('Demasiados archivos para un ZIP.');
+    var st = dosStamp(typeof now === 'number' ? now : Date.now()), enc = new TextEncoder();
+    var items = files.map(function (f) {
+      var name = enc.encode(String(f.name));
+      if (!name.length || name.length > 65535 || !(f.bytes instanceof Uint8Array)) throw new Error('Archivo no válido para el ZIP.');
+      return { name: name, bytes: f.bytes, crc: crc32(f.bytes) };
+    });
+    var size = 22, i;
+    items.forEach(function (it) { size += 30 + it.name.length + it.bytes.length + 46 + it.name.length; });
+    if (size >= 0xFFFFFFFF) throw new Error('El ZIP sería demasiado grande.');
+    var out = new Uint8Array(size), p = 0, cd = [];
+    items.forEach(function (it) {
+      it.offset = p;
+      w32(out, p, 0x04034B50); w16(out, p + 4, 20); w16(out, p + 6, 0x800); w16(out, p + 8, 0); w16(out, p + 10, st.time); w16(out, p + 12, st.date);
+      w32(out, p + 14, it.crc); w32(out, p + 18, it.bytes.length); w32(out, p + 22, it.bytes.length); w16(out, p + 26, it.name.length); w16(out, p + 28, 0);
+      out.set(it.name, p + 30); out.set(it.bytes, p + 30 + it.name.length);
+      p += 30 + it.name.length + it.bytes.length;
+    });
+    var cdStart = p;
+    items.forEach(function (it) {
+      w32(out, p, 0x02014B50); w16(out, p + 4, 20); w16(out, p + 6, 20); w16(out, p + 8, 0x800); w16(out, p + 10, 0); w16(out, p + 12, st.time); w16(out, p + 14, st.date);
+      w32(out, p + 16, it.crc); w32(out, p + 20, it.bytes.length); w32(out, p + 24, it.bytes.length); w16(out, p + 28, it.name.length);
+      w16(out, p + 30, 0); w16(out, p + 32, 0); w16(out, p + 34, 0); w16(out, p + 36, 0); w32(out, p + 38, 0); w32(out, p + 42, it.offset);
+      out.set(it.name, p + 46);
+      p += 46 + it.name.length;
+    });
+    w32(out, p, 0x06054B50); w16(out, p + 4, 0); w16(out, p + 6, 0); w16(out, p + 8, items.length); w16(out, p + 10, items.length);
+    w32(out, p + 12, p - cdStart); w32(out, p + 16, cdStart); w16(out, p + 20, 0);
+    return out;
+  }
+
+  return { entries: entries, extract: extract, inflate: inflate, crc32: crc32, isZip: isZip, utf8: utf8, create: create };
 });

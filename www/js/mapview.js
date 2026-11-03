@@ -134,7 +134,7 @@
       if (pending) draw(pending);
     }
     var gopts = {
-      holdMs: options.holdMs, setTimer: function (fn, ms) { return w.setTimeout(fn, ms); }, clearTimer: function (t) { w.clearTimeout(t); }, now: function () { return Date.now(); },
+      setTimer: function (fn, ms) { return w.setTimeout(fn, ms); }, clearTimer: function (t) { w.clearTimeout(t); }, now: function () { return Date.now(); },
       onHold: function (id, x, y) {
         var ref = refs[id];
         var here = container(x, y), at = map.latLngToContainerPoint(ref.marker.getLatLng());
@@ -176,7 +176,7 @@
     function markPress(id) {
       var ref = refs[id], node = ref && ref.marker.getElement();
       if (!node) return;
-      node.style.setProperty('--hold', Mapa.holdMs(gopts.holdMs) + 'ms');
+      node.style.setProperty('--hold', Mapa.HOLD_MS + 'ms');
       node.classList.add('mk-press'); pressed = node;
     }
     el.addEventListener('pointerdown', function (e) {
@@ -245,7 +245,6 @@
       el: el,
       attach: function (host) { if (el.parentNode !== host) host.appendChild(el); map.invalidateSize(); syncLabels(); },
       setBase: setBase, draw: draw, fit: fit, showFix: showFix, flyTo: flyTo, setMode: setMode,
-      setHold: function (ms) { gopts.holdMs = ms; },
       zoom: function () { return map.getZoom(); },
       refresh: function () { map.invalidateSize(); },
       info: function () {

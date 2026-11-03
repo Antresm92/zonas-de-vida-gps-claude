@@ -199,23 +199,15 @@ test('modos: solo uno activo a la vez; tocar el activo lo apaga; lo desconocido 
   }
 });
 
-test('tiempo para mantener pulsado: 1 s por defecto; solo 1, 1,5 y 2 s; el texto lo dice en palabras', () => {
+test('tiempo para mantener pulsado: fijo en 1 s y ya no se ofrece como ajuste', () => {
   assert.equal(Mapa.HOLD_MS, 1000);
-  assert.deepEqual(Mapa.HOLD_CHOICES, [1000, 1500, 2000]);
-  assert.equal(Mapa.holdMs(1500), 1500);
-  for (const raro of [undefined, null, 0, 300, 5000, '1000', NaN]) assert.equal(Mapa.holdMs(raro), 1000);
-  assert.equal(Mapa.holdLabel(1000), '1 segundo');
-  assert.equal(Mapa.holdLabel(1500), '1,5 segundos');
-  assert.equal(Mapa.holdLabel(2000), '2 segundos');
-  assert.equal(Mapa.holdLabel('x'), '1 segundo');
+  for (const viejo of ['HOLD_CHOICES', 'holdMs', 'holdLabel']) assert.equal(Mapa[viejo], undefined, viejo + ' ya no existe');
+  assert.equal(Mapa.modeText('move', 2000), Mapa.modeText('move'), 'un segundo argumento viejo no cambia el texto');
 });
 
 test('texto del aviso de cada modo; sin modo no hay aviso', () => {
   assert.equal(Mapa.modeText('add'), 'Ingresar puntos: toca el mapa.');
   assert.equal(Mapa.modeText('move'), 'Posición manual: mantén pulsado un punto 1 s.');
-  assert.equal(Mapa.modeText('move', 1500), 'Posición manual: mantén pulsado un punto 1,5 s.');
-  assert.equal(Mapa.modeText('move', 2000), 'Posición manual: mantén pulsado un punto 2 s.');
-  assert.equal(Mapa.modeText('move', 123), 'Posición manual: mantén pulsado un punto 1 s.', 'un tiempo inválido vuelve a 1 s');
   assert.ok(Mapa.modeText('move').length <= 50 && Mapa.modeText('add').length <= 50, 'el aviso es corto: no tapa el mapa');
   assert.equal(Mapa.modeText(''), '');
   assert.equal(Mapa.modeText('otro'), '');
@@ -248,7 +240,6 @@ test('withMoved: cambia solo las coordenadas del punto indicado, sin tocar la li
 function gestoDePrueba(extra) {
   const r = { now: 0, timers: [], eventos: [] };
   const g = Mapa.pointGesture(Object.assign({
-    holdMs: 1000,
     setTimer: (fn, ms) => { const t = { fn, at: r.now + ms, on: true }; r.timers.push(t); return t; },
     clearTimer: (t) => { t.on = false; },
     now: () => r.now,
@@ -366,13 +357,12 @@ test('gesto: un segundo dedo (otro down mientras hay uno en curso) se ignora; mo
   assert.equal(r.timers.length, 1);
 });
 
-test('gesto: el tiempo que se pide es el elegido (1,5 s) y uno inválido vuelve a 1 s', () => {
-  let r = gestoDePrueba({ holdMs: 1500 });
-  r.g.down('A', 0, 0); r.avanzar(1499); assert.deepEqual(r.eventos, []); r.avanzar(1);
-  assert.equal(r.eventos.length, 1);
-  r = gestoDePrueba({ holdMs: 42 });
-  r.g.down('A', 0, 0); r.avanzar(999); assert.deepEqual(r.eventos, []); r.avanzar(1);
-  assert.equal(r.eventos.length, 1);
+test('gesto: el punto se levanta a 1 s exacto, y un tiempo que llegue por las opciones no lo cambia', () => {
+  for (const extra of [{}, { holdMs: 1500 }, { holdMs: 42 }]) {
+    const r = gestoDePrueba(extra);
+    r.g.down('A', 0, 0); r.avanzar(999); assert.deepEqual(r.eventos, []); r.avanzar(1);
+    assert.equal(r.eventos.length, 1);
+  }
 });
 
 test('color de un punto: el suyo si es #RRGGBB; si no, el de los puntos del proyecto', () => {
@@ -390,10 +380,10 @@ test('shapes: cada punto se dibuja con su color propio y los demás con el del p
   assert.equal(s.color, '#2F8F4E', 'el color del polígono sigue siendo el del proyecto');
 });
 
-test('el tiempo para levantar un punto que guarda la app y el que entiende el mapa son los mismos', () => {
+test('la app ya no guarda ningún tiempo para levantar un punto', () => {
   const Store = require('../www/js/store.js');
-  assert.deepEqual(Store.HOLD_MS, Mapa.HOLD_CHOICES);
-  assert.equal(Store.defaultState().settings.holdMs, Mapa.HOLD_MS);
+  assert.equal(Store.HOLD_MS, undefined);
+  assert.equal('holdMs' in Store.defaultState().settings, false);
 });
 
 test('tolerancia del toque: más que los 3 px que trae Leaflet, para un dedo, y menos que lo que mueve un arrastre de verdad', () => {

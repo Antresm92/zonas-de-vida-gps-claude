@@ -1,23 +1,24 @@
-/* backup.js — copia de seguridad y restauración de todos los proyectos (puntos, capas, clima y ajustes).
+/* backup.js — copia de seguridad y restauración de todos los proyectos (puntos, capas, clima, ajustes y fotos).
  *
  * El archivo es un JSON { app, format, created, summary, state: { projects, currentId, settings }, memory }.
+ * Tres formas de guardarla (2.5.0): .zip (copia.json + fotos/<id>.jpg; la completa, para esta app), .json liviano (sin fotos; es el de siempre)
+ * y .json pesado (el mismo JSON con las fotos dentro, cada una como texto base64 en la clave «photos»).
  * Al restaurar NO se copia nada tal cual: validate() reconstruye cada proyecto, punto y capa solo con los campos
  * conocidos y valores dentro de rango, así un archivo dañado o manipulado no puede romper la app.
  * Modos al restaurar: 'replace' (reemplaza todo) y 'merge' (suma los proyectos a los que ya hay). */
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory();
-  else root.Backup = factory();
-})(typeof self !== 'undefined' ? self : this, function () {
+  if (typeof module === 'object' && module.exports) module.exports = factory(require('./fotos.js'), require('./zip.js'));
+  else root.Backup = factory(root.Fotos, root.Zip);
+})(typeof self !== 'undefined' ? self : this, function (Fotos, Zip) {
   'use strict';
 
   var APP = 'zonas-de-vida-gps', FORMAT = 1;
-  var LIM = { projects: 500, points: 20000, layers: 500, layerPoints: 150000, memory: 100000, note: 300 };
+  var LIM = { projects: 500, points: 20000, layers: 500, layerPoints: 150000, memory: 100000, note: 300, photos: 20000, photoBytes: 600 * 1024 * 1024, jsonPhotoBytes: 40 * 1024 * 1024 };   // jsonPhotoBytes: tope de fotos dentro de un .json (el texto pesa un tercio más y se arma entero en memoria)
   var ALT_SRC = ['gps', 'manual', 'internet', 'archivo'];
   var PT_SRC = ['gps', 'manual', 'archivo'];
   var KINDS = ['polygon', 'line', 'points'];
   var UNITS = ['ha', 'm2', 'km2', 'fanegadas'];
   var MIN_ACC = [0, 3, 5, 10, 20];
-  var HOLD_MS = [1000, 1500, 2000];
   var MAIN_COLOR = '#2F8F4E', LAYER_COLOR = '#E67E22';
 
   function uidDefault() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
@@ -46,7 +47,7 @@
   function validLL(lat, lon) { return typeof lat === 'number' && typeof lon === 'number' && isFinite(lat) && isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180; }
 
   /* ---------- Limpieza de cada estructura ---------- */
-  function Cleaner(uid, now) { this.uid = uid; this.now = now; this.drop = { points: 0, layerPoints: 0, layers: 0, memory: 0, ids: 0 }; this.used = {}; }
+  function Cleaner(uid, now, hasPhoto) { this.uid = uid; this.now = now; this.hasPhoto = hasPhoto || function () { return false; }; this.drop = { points: 0, layerPoints: 0, layers: 0, memory: 0, ids: 0, photos: 0 }; this.used = {}; }
   Cleaner.prototype.id = function (v) {
     if (typeof v === 'string' && /^[A-Za-z0-9_\-]{1,40}$/.test(v) && !has(this.used, v)) { this.used[v] = true; return v; }
     if (typeof v === 'string' && v) this.drop.ids++;
@@ -67,6 +68,11 @@
     var color = hex(p.color, null), leyenda = note(p.note, LIM.note);
     if (color) out.color = color;
     if (leyenda) out.note = leyenda;
+    if (Array.isArray(p.photos)) {       // solo cuentan las fotos cuya imagen viene dentro del archivo
+      var all = Fotos.cleanList(p.photos), fotos = Fotos.cleanList(p.photos, this.hasPhoto);
+      this.drop.photos += all.length - fotos.length;
+      if (fotos.length) out.photos = fotos;
+    }
     return out;
   };
 
@@ -124,6 +130,18 @@
     return out;
   }
 
+  // Clima actual consultado (Open-Meteo): solo números en rango y horas «HH:MM»; la fuente siempre es la misma
+  function hhmm(v) { return typeof v === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(v) ? v : null; }
+  function cleanWeather(w) {
+    w = obj(w);
+    if (!w) return null;
+    var code = typeof w.code === 'number' && Math.floor(w.code) === w.code && w.code >= 0 && w.code <= 99 ? w.code : null;
+    var out = { lat: num(w.lat, -90, 90), lon: num(w.lon, -180, 180), T: num(w.T, -90, 60), humidity: num(w.humidity, 0, 100), pressure: num(w.pressure, 300, 1100),
+                wind: num(w.wind, 0, 400), code: code, sunrise: hhmm(w.sunrise), sunset: hhmm(w.sunset),
+                obs: typeof w.obs === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(w.obs) ? w.obs : null, at: num(w.at, 0, 8.64e15), source: 'Open-Meteo' };
+    return out.T === null && out.humidity === null && out.pressure === null && out.wind === null && out.code === null ? null : out;
+  }
+
   Cleaner.prototype.project = function (p, budget) {
     p = obj(p);
     if (!p) return null;
@@ -131,13 +149,16 @@
     (Array.isArray(p.points) ? p.points : []).slice(0, LIM.points).forEach(function (q, i) { var c = self.point(q, i); if (c) pts.push(c); });
     (Array.isArray(p.layers) ? p.layers : []).slice(0, LIM.layers).forEach(function (l) { var c = self.layer(l, budget); if (c) layers.push(c); });
     var nxt = typeof p.nextPoint === 'number' && isFinite(p.nextPoint) && p.nextPoint >= 1 && p.nextPoint <= 1e7 ? Math.floor(p.nextPoint) : 0;
-    return { id: this.id(p.id), name: str(p.name, 60, 'Proyecto sin nombre'), created: num(p.created, 0, 8.64e15) || this.now, points: pts,
+    var out = { id: this.id(p.id), name: str(p.name, 60, 'Proyecto sin nombre'), created: num(p.created, 0, 8.64e15) || this.now, points: pts,
              climate: cleanClimate(p.climate), nextPoint: Math.max(nxt, pts.length + 1), layers: layers, mainColor: hex(p.mainColor, MAIN_COLOR) };
+    var wn = cleanWeather(p.weatherNow);
+    if (wn) out.weatherNow = wn;
+    return out;
   };
 
   function cleanSettings(s) {
     s = obj(s) || {};
-    return { areaUnit: oneOf(s.areaUnit, UNITS, 'ha'), minAcc: oneOf(s.minAcc, MIN_ACC, 10), csvStyle: oneOf(s.csvStyle, ['es', 'std'], 'es'), holdMs: oneOf(s.holdMs, HOLD_MS, 1000) };
+    return { areaUnit: oneOf(s.areaUnit, UNITS, 'ha'), minAcc: oneOf(s.minAcc, MIN_ACC, 10), csvStyle: oneOf(s.csvStyle, ['es', 'std'], 'es') };   // las copias de la 2.4.0 traían holdMs: se ignora
   }
 
   function cleanMemory(arr, drop) {
@@ -159,8 +180,11 @@
 
   /* ---------- Crear ---------- */
   function counts(projects) {
-    var s = { projects: projects.length, points: 0, layers: 0 };
-    projects.forEach(function (p) { s.points += (p.points || []).length; s.layers += (p.layers || []).length; });
+    var s = { projects: projects.length, points: 0, layers: 0, photos: 0 };
+    projects.forEach(function (p) {
+      s.points += (p.points || []).length; s.layers += (p.layers || []).length;
+      (p.points || []).forEach(function (q) { s.photos += Array.isArray(q.photos) ? q.photos.length : 0; });
+    });
     return s;
   }
 
@@ -168,6 +192,15 @@
   function create(state, memory, meta) {
     meta = meta || {};
     var projects = JSON.parse(JSON.stringify(state.projects || []));
+    if (typeof meta.hasPhoto === 'function') {        // solo van las fotos cuya imagen se pudo leer del teléfono
+      projects.forEach(function (p) {
+        (p.points || []).forEach(function (q) {
+          if (!Array.isArray(q.photos)) return;
+          q.photos = q.photos.filter(function (f) { return f && meta.hasPhoto(f.id); });
+          if (!q.photos.length) delete q.photos;
+        });
+      });
+    }
     return {
       app: APP, format: FORMAT, appVersion: meta.appVersion || '', created: new Date(meta.now || Date.now()).toISOString(),
       summary: counts(projects),
@@ -176,9 +209,65 @@
     };
   }
   function stringify(b) { return JSON.stringify(b); }
-  function fileName(now) {
+  // ext: 'json' (por defecto) o 'zip'; tag 'fotos' marca el .json pesado (el que lleva las fotos dentro)
+  function fileName(now, ext, tag) {
     var d = new Date(now || Date.now()), p = function (n) { return (n < 10 ? '0' : '') + n; };
-    return 'zonas-de-vida-copia-' + d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + '.json';
+    return 'zonas-de-vida-copia-' + (tag === 'fotos' ? 'fotos-' : '') + d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + '.' + (ext === 'zip' ? 'zip' : 'json');
+  }
+
+  /* ---------- Copia .json pesada: las fotos dentro del propio JSON ---------- */
+  // photos: [{ id, bytes }]. Agrega la clave «photos» ({ id: base64 }) al final de la copia; devuelve la misma copia.
+  function attachPhotos(b, photos) {
+    var map = {};
+    (photos || []).forEach(function (f) { map[f.id] = Fotos.toBase64(f.bytes); });
+    b.photos = map;
+    return b;
+  }
+  // Lee las fotos de un .json ya interpretado. Devuelve { photos: { id: Uint8Array }, skipped }; lo que no sirve (id raro, texto que no es base64,
+  // no es JPEG, pesa demasiado, o pasa los límites) no detiene la lectura: se cuenta en «skipped». Un .json liviano no trae «photos»: da { photos: {}, skipped: 0 }.
+  function photosFromJson(raw) {
+    var out = { photos: {}, skipped: 0 }, src = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw.photos : null;
+    if (!src || typeof src !== 'object' || Array.isArray(src)) return out;
+    var count = 0, total = 0, maxText = Math.ceil(Fotos.MAX_PHOTO / 3) * 4;
+    Object.keys(src).forEach(function (id) {
+      var t = src[id];
+      if (!Fotos.isId(id) || typeof t !== 'string' || t.length > maxText || count >= LIM.photos || total + t.length * 0.75 > LIM.photoBytes) { out.skipped++; return; }
+      var bytes = Fotos.fromBase64(t);
+      if (!bytes || !Fotos.isJpeg(bytes) || bytes.length > Fotos.MAX_PHOTO) { out.skipped++; return; }
+      out.photos[id] = bytes; count++; total += bytes.length;
+    });
+    return out;
+  }
+
+  /* ---------- Copia con fotos (.zip) ---------- */
+  // photos: [{ id, bytes }]. Devuelve los bytes del ZIP: copia.json y fotos/<id>.jpg (sin comprimir: el JPEG ya viene comprimido).
+  function toZip(b, photos, now) {
+    var files = [{ name: 'copia.json', bytes: new TextEncoder().encode(stringify(b)) }];
+    (photos || []).forEach(function (f) { files.push({ name: 'fotos/' + f.id + '.jpg', bytes: f.bytes }); });
+    return Zip.create(files, now);
+  }
+  // Lee un ZIP de copia de seguridad. Devuelve { raw, photos: { id: Uint8Array }, skipped }. Si algo esencial falla, lanza un Error con un mensaje claro;
+  // una foto dañada, demasiado pesada o que no es JPEG no detiene la lectura: se cuenta en «skipped».
+  function readZip(bytes) {
+    var list;
+    try { list = Zip.entries(bytes); } catch (e) { throw new Error('No se pudo leer el ZIP: ' + (e && e.message || e)); }
+    var main = null;
+    list.forEach(function (e) { if (e.name === 'copia.json' && !e.dir) main = e; });
+    if (!main) throw new Error('Este ZIP no es una copia de seguridad de Zonas de Vida (falta copia.json).');
+    var raw;
+    try { raw = JSON.parse(Zip.utf8(Zip.extract(bytes, main))); } catch (e) { throw new Error('No se pudo leer copia.json dentro del ZIP: ' + (e && e.message || e)); }
+    var photos = {}, skipped = 0, count = 0, total = 0;
+    list.forEach(function (e) {
+      var m = /^fotos\/([A-Za-z0-9_\-]{1,40})\.jpg$/.exec(e.name);
+      if (!m || e.dir) return;
+      if (count >= LIM.photos || total + e.size > LIM.photoBytes || e.size > Fotos.MAX_PHOTO || has(photos, m[1])) { skipped++; return; }
+      try {
+        var data = Zip.extract(bytes, e, Fotos.MAX_PHOTO);
+        if (!Fotos.isJpeg(data)) { skipped++; return; }
+        photos[m[1]] = data; count++; total += data.length;
+      } catch (err) { skipped++; }
+    });
+    return { raw: raw, photos: photos, skipped: skipped };
   }
 
   /* ---------- Validar ---------- */
@@ -196,13 +285,14 @@
     if (!st.projects.length) { res.errors.push('La copia no tiene ningún proyecto.'); return res; }
     if (st.projects.length > LIM.projects) { res.errors.push('La copia tiene demasiados proyectos (máximo ' + LIM.projects + ').'); return res; }
 
-    var cl = new Cleaner(uid, now), budget = { n: 0 }, projects = [];
+    var cl = new Cleaner(uid, now, function (id) { return !!opts.photos && has(opts.photos, id); }), budget = { n: 0 }, projects = [];
     st.projects.forEach(function (p) { var c = cl.project(p, budget); if (c) projects.push(c); });
     if (!projects.length) { res.errors.push('Ningún proyecto de la copia se pudo leer.'); return res; }
     if (projects.length < st.projects.length) res.warnings.push((st.projects.length - projects.length) + ' proyecto(s) dañado(s) se omitieron.');
     if (cl.drop.points) res.warnings.push(cl.drop.points + ' punto(s) con coordenadas no válidas se omitieron.');
     if (cl.drop.layers) res.warnings.push(cl.drop.layers + ' capa(s) vacía(s) o dañada(s) se omitieron.');
     if (cl.drop.layerPoints) res.warnings.push(cl.drop.layerPoints + ' punto(s) de capas con coordenadas no válidas se omitieron.');
+    if (cl.drop.photos) res.warnings.push(cl.drop.photos + (cl.drop.photos === 1 ? ' foto no venía' : ' fotos no venían') + ' en el archivo y se ' + (cl.drop.photos === 1 ? 'omitió.' : 'omitieron.'));
     if (cl.drop.ids) res.warnings.push('Se corrigieron ' + cl.drop.ids + ' identificador(es) repetido(s) o no válido(s).');
     if (budget.n >= LIM.layerPoints) res.warnings.push('Las capas eran muy grandes: se leyeron solo los primeros ' + LIM.layerPoints + ' puntos.');
     var memDrop = { memory: 0 };
@@ -257,5 +347,5 @@
     };
   }
 
-  return { APP: APP, FORMAT: FORMAT, LIMITS: LIM, create: create, stringify: stringify, fileName: fileName, validate: validate, apply: apply, cleanSettings: cleanSettings, cleanClimate: cleanClimate };
+  return { APP: APP, FORMAT: FORMAT, LIMITS: LIM, create: create, stringify: stringify, fileName: fileName, attachPhotos: attachPhotos, photosFromJson: photosFromJson, toZip: toZip, readZip: readZip, validate: validate, apply: apply, cleanSettings: cleanSettings, cleanClimate: cleanClimate };
 });

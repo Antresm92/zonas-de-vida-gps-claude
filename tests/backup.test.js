@@ -10,7 +10,7 @@ const NOW = Date.UTC(2026, 9, 22, 15, 0, 0);
 function sampleState() {
   return {
     v: 1, currentId: 'p2',
-    settings: { areaUnit: 'fanegadas', minAcc: 5, csvStyle: 'std', holdMs: 1500 },
+    settings: { areaUnit: 'fanegadas', minAcc: 5, csvStyle: 'std' },
     projects: [
       { id: 'p1', name: 'Finca Ejemplo', created: 1000, nextPoint: 4, mainColor: '#2F8F4E',
         points: [
@@ -33,17 +33,17 @@ test('copia: crear → texto → leer → validar devuelve lo mismo', () => {
   const b = Backup.create(sampleState(), MEMORY, { now: NOW, appVersion: '2.0.0' });
   assert.equal(b.app, 'zonas-de-vida-gps');
   assert.equal(b.format, 1);
-  assert.deepEqual(b.summary, { projects: 2, points: 3, layers: 1 });
+  assert.deepEqual(b.summary, { projects: 2, points: 3, layers: 1, photos: 0 });
   assert.equal(b.created, '2026-10-22T15:00:00.000Z');
   const res = Backup.validate(JSON.parse(Backup.stringify(b)), { uid, now: NOW });
   assert.equal(res.ok, true, res.errors.join('; '));
   assert.deepEqual(res.warnings, []);
   assert.deepEqual(res.data.projects, sampleState().projects);
   assert.equal(res.data.currentId, 'p2');
-  assert.deepEqual(res.data.settings, { areaUnit: 'fanegadas', minAcc: 5, csvStyle: 'std', holdMs: 1500 });
+  assert.deepEqual(res.data.settings, { areaUnit: 'fanegadas', minAcc: 5, csvStyle: 'std' });
   assert.equal(res.data.memory.length, 2);
   assert.equal(res.data.memory[0].name, 'Bogotá');
-  assert.deepEqual(res.summary, { projects: 2, points: 3, layers: 1, memory: 2 });
+  assert.deepEqual(res.summary, { projects: 2, points: 3, layers: 1, photos: 0, memory: 2 });
   assert.equal(res.created, Date.parse('2026-10-22T15:00:00.000Z'));
 });
 
@@ -85,7 +85,7 @@ test('validar: descarta lo dañado, corrige lo corregible y avisa', () => {
   p.climate.online.monthlyT = [1, 2, 3];
   b.memory.push({ lat: 4, lon: 200, T: 5 }, { lat: 4, lon: 5 }, null);
   b.state.currentId = 'no-existe';
-  b.state.settings = { areaUnit: 'acres', minAcc: 7, csvStyle: 'x', holdMs: 999 };
+  b.state.settings = { areaUnit: 'acres', minAcc: 7, csvStyle: 'x' };
   const r = Backup.validate(b, { uid, now: NOW });
   assert.equal(r.ok, true);
   const q = r.data.projects[0];
@@ -101,7 +101,7 @@ test('validar: descarta lo dañado, corrige lo corregible y avisa', () => {
   assert.equal(q.climate.online.monthlyT, null);
   assert.equal(q.climate.online.monthlyP.length, 12);
   assert.equal(r.data.currentId, 'p1');                                       // el actual no existía: el primero
-  assert.deepEqual(r.data.settings, { areaUnit: 'ha', minAcc: 10, csvStyle: 'es', holdMs: 1000 });
+  assert.deepEqual(r.data.settings, { areaUnit: 'ha', minAcc: 10, csvStyle: 'es' });
   assert.equal(r.data.memory.length, 2);
   assert.ok(r.warnings.some((w) => /punto\(s\) con coordenadas no válidas/.test(w)));
   assert.ok(r.warnings.some((w) => /capa\(s\)/.test(w)));
@@ -152,7 +152,7 @@ test('restaurar sumando: conserva lo actual, evita duplicados exactos y renombra
   const mine = sampleState();
   mine.projects[1].name = 'Mi versión distinta';        // mismo id p2, contenido distinto
   mine.currentId = 'p1';
-  mine.settings = { areaUnit: 'ha', minAcc: 10, csvStyle: 'es', holdMs: 1000 };
+  mine.settings = { areaUnit: 'ha', minAcc: 10, csvStyle: 'es' };
   const current = { state: mine, memory: [MEMORY[0]] };
   const out = Backup.apply(current, v.data, 'merge', { uid });
   assert.equal(out.skipped, 1);                          // p1 idéntico: ya estaba
@@ -196,4 +196,12 @@ test('copia: la leyenda con saltos de línea viaja completa de ida y vuelta', ()
   assert.equal(b.state.projects[0].points[0].color, '#C0392B');
   const r = Backup.validate(b, { uid, now: NOW });
   assert.equal(r.data.projects[0].points[0].note, 'Esquina junto al roble\nCon vista al río');
+});
+
+test('una copia de seguridad de la 2.4.0 (con holdMs en los ajustes) se restaura sin ese ajuste', () => {
+  const b = Backup.create(sampleState(), MEMORY);
+  b.state.settings = { areaUnit: 'fanegadas', minAcc: 5, csvStyle: 'std', holdMs: 2000 };
+  const r = Backup.validate(b, { uid, now: NOW });
+  assert.equal(r.ok, true);
+  assert.deepEqual(r.data.settings, { areaUnit: 'fanegadas', minAcc: 5, csvStyle: 'std' });
 });

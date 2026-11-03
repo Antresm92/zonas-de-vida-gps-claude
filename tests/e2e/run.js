@@ -62,7 +62,8 @@ const arg = (n) => { const a = process.argv.find((x) => x.startsWith('--' + n + 
   };
   const download = async (clickFn) => {
     const [dl] = await Promise.all([page.waitForEvent('download'), clickFn()]);
-    return { name: dl.suggestedFilename(), text: fs.readFileSync(await dl.path(), 'utf8') };
+    const file = await dl.path();
+    return { name: dl.suggestedFilename(), text: fs.readFileSync(file, 'utf8'), bytes: new Uint8Array(fs.readFileSync(file)) };
   };
   const setFile = async (sel, name, data, mime) => page.setInputFiles(sel, { name, mimeType: mime || 'application/octet-stream', buffer: Buffer.isBuffer(data) ? data : Buffer.from(data) });
 
@@ -72,7 +73,7 @@ const arg = (n) => { const a = process.argv.find((x) => x.startsWith('--' + n + 
   await page.goto(url);
   await page.waitForSelector('#tab-puntos');
   const only = (arg('parts') || '').split(',').filter(Boolean);
-  for (const part of ['part1-puntos', 'part2-area-importar', 'part3-clima', 'part4-informe-proyectos', 'part5-offline', 'part7-mapa', 'part8-perfil-satelital', 'part9-menu-mapa', 'part10-posicion-manual']) {
+  for (const part of ['part1-puntos', 'part2-area-importar', 'part3-clima', 'part4-informe-proyectos', 'part5-offline', 'part7-mapa', 'part8-perfil-satelital', 'part9-menu-mapa', 'part10-posicion-manual', 'part11-v25', 'part12-fotos']) {
     if (only.length && !only.some((o) => part.startsWith(o))) continue;
     const f = path.join(__dirname, part + '.js');
     if (fs.existsSync(f)) { console.log('\n' + part); await require(f)(ctx); }
