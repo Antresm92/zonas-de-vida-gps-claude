@@ -67,13 +67,16 @@ const arg = (n) => { const a = process.argv.find((x) => x.startsWith('--' + n + 
   };
   const setFile = async (sel, name, data, mime) => page.setInputFiles(sel, { name, mimeType: mime || 'application/octet-stream', buffer: Buffer.isBuffer(data) ? data : Buffer.from(data) });
 
-  const ctx = { page, url, state, proj, toastText, act, sheetOpen, sheetTitle, waitSheetClosed, waitToast, tab, text, fresh, fill, gpsPush, shot, addPointManual, download, setFile, step, errors, context, browser, assert, fx, shots, H, tiles };
+  // «Compartir reporte» pregunta el formato: abre la hoja y elige HTML o PDF
+  const compartir = async (formato) => { await page.click('[data-act="share"]'); await page.click('[data-act="shareReport' + formato + '"]'); };
+
+  const ctx = { compartir, page, url, state, proj, toastText, act, sheetOpen, sheetTitle, waitSheetClosed, waitToast, tab, text, fresh, fill, gpsPush, shot, addPointManual, download, setFile, step, errors, context, browser, assert, fx, shots, H, tiles };
 
   console.log('Recorrido de la app en Chromium (' + url + ')');
   await page.goto(url);
   await page.waitForSelector('#tab-puntos');
   const only = (arg('parts') || '').split(',').filter(Boolean);
-  for (const part of ['part1-puntos', 'part2-area-importar', 'part3-clima', 'part4-informe-proyectos', 'part5-offline', 'part7-mapa', 'part8-perfil-satelital', 'part9-menu-mapa', 'part10-posicion-manual', 'part11-v25', 'part12-fotos']) {
+  for (const part of ['part1-puntos', 'part2-area-importar', 'part3-clima', 'part4-informe-proyectos', 'part5-offline', 'part7-mapa', 'part8-perfil-satelital', 'part9-menu-mapa', 'part10-posicion-manual', 'part11-v25', 'part12-fotos', 'part13-pdf']) {
     if (only.length && !only.some((o) => part.startsWith(o))) continue;
     const f = path.join(__dirname, part + '.js');
     if (fs.existsSync(f)) { console.log('\n' + part); await require(f)(ctx); }

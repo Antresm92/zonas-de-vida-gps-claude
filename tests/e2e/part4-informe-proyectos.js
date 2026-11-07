@@ -71,7 +71,7 @@ module.exports = async function (c) {
     await importFile('vecino.kml', fx.vecinoKml());
     await act('importLayer'); await waitSheetClosed();
     await tab('informe');
-    const f = await download(() => page.click('[data-act="share"]'));
+    const f = await download(() => c.compartir('Html'));
     assert.match(f.name, /^reporte-zona-de-vida-mi-primer-proyecto\.html$/);
     assert.match(f.text, /^<!doctype html>/);
     assert.match(f.text, /Diagrama de Walter-Lieth/);
@@ -133,7 +133,7 @@ module.exports = async function (c) {
     assert.deepEqual(await projectNames(), ['Mi primer proyecto']);
     await act('projects');
     assert.equal(await page.locator('[data-act="askDeleteProject"]').count(), 0, 'no se puede eliminar el único proyecto');
-    assert.match(await text('#sheet'), /versión 2\.5\.0/);
+    assert.match(await text('#sheet'), /versión 2\.6\.0/);
     await act('closeSheet'); await waitSheetClosed();
     // nombre vacío al crear → nombre por defecto
     await act('projects'); await act('newProject'); await fill('#pName', '   '); await act('saveNewProject'); await waitSheetClosed();

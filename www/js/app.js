@@ -5,7 +5,7 @@
   var Geo = window.Geo, H = window.Holdridge, Climate = window.Climate, A = window.Analysis, Fmt = window.Fmt,
       Gps = window.Gps, Store = window.Store, Diagram = window.Diagram, Report = window.Report,
       Gis = window.Gis, Backup = window.Backup, IO = window.IO, WL = window.WalterLieth, Mapa = window.Mapa, MapView = window.MapView, Satelite = window.Satelite, Perfil = window.Perfil, Fotos = window.Fotos, Zip = window.Zip;
-  var APP_VERSION = '2.5.0';
+  var APP_VERSION = '2.6.0';
 
   var S = Store.loadState();
   var hadSaved = Store.hasSavedState();      // ¿había datos guardados al abrir? (solo entonces se limpian las fotos sin uso)
@@ -1327,22 +1327,51 @@
     var w = walterModel(a);
     return { walter: w ? { svg: w.svg, lines: w.lines, source: w.source } : null };
   }
+  // «Compartir reporte» pregunta el formato: HTML (se abre en cualquier navegador) o PDF (hoja A4 lista para imprimir)
   function shareReport() {
     if (ui.sharing) return;
-    var p = proj(), a = analysis(), name = IO.slug('reporte zona de vida ' + p.name, 'html');
+    openSheet('Compartir reporte',
+      '<p class="lead">¿En qué formato quieres el reporte?</p>' +
+      '<div class="btns"><button class="btn btn-primary" data-act="shareReportPdf">PDF (hoja A4)</button><button class="btn" data-act="shareReportHtml">HTML</button></div>' +
+      '<p class="small muted" style="margin-top:12px"><b>PDF:</b> una hoja A4 lista para imprimir o enviar; se ve igual en cualquier teléfono. <b>HTML:</b> una página web con los gráficos que se acerca bien en pantalla.</p>');
+  }
+  // Prepara lo que los dos formatos comparten (croquis satelital y topográfico, fotos); entrega { p, a, o, name base }
+  function prepareReport(build) {
+    var p = proj(), a = analysis();
     ui.sharing = true;
     var kinds = a.n >= 2 ? CROQ_KINDS : [];
     var need = kinds.filter(function (k) { return !croqCurrent(k); });
     if (need.length && navigator.onLine !== false) toast(need.length > 1 ? 'Preparando los croquis satelital y topográfico para el reporte…' : 'Preparando el croquis ' + CROQ[need[0]].noun + ' para el reporte…');
     else if (Fotos.countAll(p.points).photos) toast('Preparando las fotos para el reporte…');
-    Promise.all([Promise.all(kinds.map(function (k) { return prepareCroquis(k, false); })), reportPhotos(p)]).then(function (all) {
+    return Promise.all([Promise.all(kinds.map(function (k) { return prepareCroquis(k, false); })), reportPhotos(p)]).then(function (all) {
       var res = all[0];
       var o = reportOpts(a); o.satellite = res[0] || null; o.topo = res[1] || null; o.photos = all[1];
+      return build(p, a, o);
+    }).then(function (r) { ui.sharing = false; return r; }, function (e) { ui.sharing = false; throw e; });
+  }
+  function shareReportPdf() {
+    if (ui.sharing) return;
+    closeSheet();
+    var name = IO.slug('reporte zona de vida ' + proj().name, 'pdf');
+    prepareReport(function (p, a, o) {
+      toast('Preparando el PDF…');                                          // los croquis y las fotos ya están: falta dibujar las gráficas en imágenes y armar la hoja
+      return ReportPdf.rasterizeAll(ReportPdf.sketches(p, a, o), ReportPdf.PX, window).then(function (images) {
+        var bytes = ReportPdf.build(p, a, o, images);
+        return IO.saveBytes(name, 'application/pdf', bytes, { title: 'Reporte de zona de vida', text: Report.text(p, a, o), dialogTitle: 'Compartir reporte' });
+      });
+    }).then(function (r) {
+      if (r.how === 'download') toast('Reporte descargado: ' + name);
+    }).catch(function (e) { toast('No se pudo preparar el PDF: ' + (e && e.message || e), { err: true }); });
+  }
+  function shareReportHtml() {
+    if (ui.sharing) return;
+    closeSheet();
+    var name = IO.slug('reporte zona de vida ' + proj().name, 'html');
+    prepareReport(function (p, a, o) {
       return IO.saveText(name, 'text/html', Report.html(p, a, o), { title: 'Reporte de zona de vida', text: Report.text(p, a, o), dialogTitle: 'Compartir reporte' });
     }).then(function (r) {
-      ui.sharing = false;
       if (r.how === 'download') toast('Reporte descargado: ' + name);
-    }).catch(function (e) { ui.sharing = false; toast('No se pudo compartir: ' + (e && e.message || e), { err: true }); });
+    }).catch(function (e) { toast('No se pudo compartir: ' + (e && e.message || e), { err: true }); });
   }
   function copySummary() {
     var a = analysis(), t = Report.text(proj(), a, reportOpts(a));
@@ -1525,7 +1554,7 @@
     importCsv: function () { $('#csvFile').click(); },
     askClearMem: function () { openSheet('¿Borrar los datos guardados?', '<p>Se borran los ' + MEM.count + ' registros de clima de este equipo. Tus puntos y proyectos no cambian.</p><div class="btns"><button class="btn btn-danger" data-act="doClearMem">Borrar</button><button class="btn" data-act="closeSheet">Conservar</button></div>'); },
     doClearMem: function () { MEM.clear(); saveMemory(); closeSheet(); renderTab(ui.tab); toast('Datos borrados.'); },
-    share: shareReport, copy: copySummary, fetchNow: fetchNow,
+    share: shareReport, shareReportPdf: shareReportPdf, shareReportHtml: shareReportHtml, copy: copySummary, fetchNow: fetchNow,
     photoCam: function (t) { ui.photoFor = t.getAttribute('data-pid'); $('#photoCam').click(); },
     photoGal: function (t) { ui.photoFor = t.getAttribute('data-pid'); $('#photoGal').click(); },
     photoView: function (t) { openPhoto(t.getAttribute('data-fid')); },

@@ -64,7 +64,7 @@ module.exports = async function (c) {
   });
 
   await step('Reporte compartido y KML/GeoJSON: el punto con color propio sale con él', async () => {
-    const f = await download(() => page.click('[data-act="share"]'));
+    const f = await download(() => c.compartir('Html'));
     assert.match(f.text, new RegExp('<span class="dot" style="background:' + rojo + '"></span>Abajo'));
     assert.match(f.text, /<span class="dot" style="background:#2F8F4E"><\/span>Arriba/);
     assert.match(f.text, new RegExp('<circle[^>]*stroke="' + rojo + '"'), 'el perfil del reporte');
@@ -143,7 +143,7 @@ module.exports = async function (c) {
   });
 
   await step('Reporte compartido y copia de seguridad llevan el clima actual', async () => {
-    const f = await download(() => page.click('[data-act="share"]'));
+    const f = await download(() => c.compartir('Html'));
     assert.match(f.text, /<h2>Clima actual<\/h2><table>/);
     assert.match(f.text, /<tr><th>Temperatura<\/th><td>24,3 °C<\/td><\/tr>/);
     assert.match(f.text, /Condiciones del momento de la consulta/);

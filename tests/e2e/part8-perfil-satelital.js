@@ -147,7 +147,7 @@ module.exports = async function (c) {
 
   await step('Compartir con los dos croquis ya preparados: no vuelve a bajar nada y el reporte trae croquis, satelital, topográfico y perfil en ese orden', async () => {
     tiles.reset();
-    const f = await download(() => page.click('[data-act="share"]'));
+    const f = await download(() => c.compartir('Html'));
     assert.equal(tiles.urls.length, 0, 'usa la imagen ya guardada');
     const h = f.text;
     const iTituloCroquis = iPos(h, '<h2>Croquis</h2>'), iCroquis = iPos(h, 'aria-label="Plano del polígono"'), iSat = iPos(h, '<h2>Croquis satelital</h2>'), iTopo = iPos(h, '<h2>Croquis topográfico</h2>'), iPerfil = iPos(h, '<h2>Perfil del relieve</h2>');
@@ -176,7 +176,8 @@ module.exports = async function (c) {
     let descargas = 0;
     const count = () => { descargas++; };
     page.on('download', count);
-    const [dl] = await Promise.all([page.waitForEvent('download'), page.evaluate(() => { const b = document.querySelector('[data-act="share"]'); b.click(); b.click(); })]);
+    await page.click('[data-act="share"]');
+    const [dl] = await Promise.all([page.waitForEvent('download'), page.evaluate(() => { const b = document.querySelector('[data-act="shareReportHtml"]'); b.click(); b.click(); })]);
     assert.ok((await seenToasts()).some((t) => /^Preparando los croquis satelital y topográfico para el reporte…$/.test(t)), 'avisa que prepara los dos: ' + JSON.stringify(await seenToasts()));
     const html = require('fs').readFileSync(await dl.path(), 'utf8');
     await page.waitForTimeout(400);
@@ -212,7 +213,7 @@ module.exports = async function (c) {
     assert.match(wt, /No se pudo preparar el croquis topográfico: no se pudieron descargar las imágenes: revisa la conexión a internet/);
     assert.match(await toastText(), /No se pudo preparar el croquis topográfico/);
     assert.equal(await page.locator('#topoBlock svg image').count(), 0);
-    const f = await download(() => page.click('[data-act="share"]'));
+    const f = await download(() => c.compartir('Html'));
     assert.match(f.text, /<h2>Croquis satelital<\/h2><div class="note">No se pudo preparar el croquis satelital: no se pudieron descargar las imágenes/);
     assert.match(f.text, /<h2>Croquis topográfico<\/h2><div class="note">No se pudo preparar el croquis topográfico: no se pudieron descargar las imágenes/);
     assert.match(f.text, /<h2>Perfil del relieve<\/h2>/);
@@ -237,7 +238,7 @@ module.exports = async function (c) {
     await tab('informe');
     tiles.fail(/opentopomap/);
     tiles.reset();
-    const f = await download(() => page.click('[data-act="share"]'));
+    const f = await download(() => c.compartir('Html'));
     assert.equal(nImages(f.text), 1, 'solo la imagen satelital quedó dentro');
     assert.match(f.text, /<h2>Croquis satelital<\/h2><div style="max-width:760px"><svg/);
     assert.match(f.text, /<h2>Croquis topográfico<\/h2><div class="note">No se pudo preparar el croquis topográfico: no se pudieron descargar las imágenes/);
@@ -248,7 +249,7 @@ module.exports = async function (c) {
     // al volver el servicio, compartir de nuevo prepara solo el topográfico (el satelital ya está) y lo dice así
     tiles.fail(false); tiles.reset();
     await watchToasts();
-    const g = await download(() => page.click('[data-act="share"]'));
+    const g = await download(() => c.compartir('Html'));
     assert.ok((await seenToasts()).some((t) => /^Preparando el croquis topográfico para el reporte…$/.test(t)), 'avisa que prepara solo el topográfico: ' + JSON.stringify(await seenToasts()));
     assert.equal(tiles.count(ESRI), 0, 'no volvió a bajar el satelital');
     assert.ok(tiles.count(TOPO) >= 4);
@@ -275,7 +276,7 @@ module.exports = async function (c) {
       assert.match(flat(await satWarn()), /No se pudo preparar el croquis satelital: no hay conexión a internet en este momento/);
       await act('topoPrepare');
       assert.match(flat(await topoWarn()), /No se pudo preparar el croquis topográfico: no hay conexión a internet en este momento/);
-      const f = await download(() => page.click('[data-act="share"]'));
+      const f = await download(() => c.compartir('Html'));
       assert.equal(tiles.urls.length, 0, 'sin internet no pide nada');
       assert.match(f.text, /<div class="note">No se pudo preparar el croquis satelital: no hay conexión a internet en este momento<\/div>/);
       assert.match(f.text, /<div class="note">No se pudo preparar el croquis topográfico: no hay conexión a internet en este momento<\/div>/);
@@ -306,7 +307,7 @@ module.exports = async function (c) {
     const t = flat(await text('#tab-informe'));
     assert.match(t, /3 altitudes fueron tomadas con el GPS del teléfono, que suele tener un error de varios metros/);
     assert.match(t, /es del orden de ese error: el perfil podría mostrar ruido del GPS y no el relieve real/);
-    const f = await download(() => page.click('[data-act="share"]'));
+    const f = await download(() => c.compartir('Html'));
     assert.match(f.text, /podría mostrar ruido del GPS/);
   });
 

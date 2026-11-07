@@ -165,7 +165,7 @@ module.exports = async function (c) {
 
   await step('Reporte compartido: lleva las fotos dentro del archivo, reducidas a 900 px', async () => {
     await tab('informe');
-    const f = await download(() => page.click('[data-act="share"]'));
+    const f = await download(() => c.compartir('Html'));
     assert.match(f.text, /<h2>Fotos de los puntos<\/h2>/);
     const imgs = [...f.text.matchAll(/<img src="data:image\/jpeg;base64,([A-Za-z0-9+/=]+)"/g)].map((m) => new Uint8Array(Buffer.from(m[1], 'base64')));
     assert.equal(imgs.length, 5);
