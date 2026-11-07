@@ -4,8 +4,8 @@
 
   var Geo = window.Geo, H = window.Holdridge, Climate = window.Climate, A = window.Analysis, Fmt = window.Fmt,
       Gps = window.Gps, Store = window.Store, Diagram = window.Diagram, Report = window.Report,
-      Gis = window.Gis, Backup = window.Backup, IO = window.IO, WL = window.WalterLieth, Mapa = window.Mapa, MapView = window.MapView, Satelite = window.Satelite, Perfil = window.Perfil, Fotos = window.Fotos, Zip = window.Zip;
-  var APP_VERSION = '2.6.0';
+      Gis = window.Gis, Backup = window.Backup, IO = window.IO, WL = window.WalterLieth, Mapa = window.Mapa, MapView = window.MapView, Satelite = window.Satelite, Perfil = window.Perfil, Fotos = window.Fotos, Zip = window.Zip, Units = window.Units;
+  var APP_VERSION = '2.7.0';
 
   var S = Store.loadState();
   var hadSaved = Store.hasSavedState();      // ¿había datos guardados al abrir? (solo entonces se limpian las fotos sin uso)
@@ -15,7 +15,8 @@
              imp: null, restore: null, edit: null,
              polyView: 'croquis', polyActive: true, mapBase: Mapa.baseId(Store.loadFlag('mapBase')), mapRef: Store.loadFlag('mapRef') === true,
              map: null, mapFollow: false, mapFitKey: null, tileErrors: 0, mapMode: '', mapMenu: false, mapModeFor: null,
-             croq: { satelite: { img: null, busy: false, error: null }, topo: { img: null, busy: false, error: null } }, sharing: false, nowBusy: false, nowError: '', photoBusy: false, restoring: false };
+             croq: { satelite: { img: null, busy: false, error: null }, topo: { img: null, busy: false, error: null } }, sharing: false, nowBusy: false, nowError: '', photoBusy: false, restoring: false,
+             conv: null, convMem: {}, tool: null, wx: null, wxToken: 0, toolGpsKind: '' };
 
   /* ---------- Utilidades ---------- */
   function $(s, r) { return (r || document).querySelector(s); }
@@ -195,7 +196,7 @@
     var first = el.querySelector('input,textarea');
     if (first) setTimeout(function () { try { first.focus(); } catch (e) { /* nada */ } }, 60);
   }
-  function hideSheet() { var el = $('#sheet'); el.hidden = true; el.innerHTML = ''; ui.sheetOpen = false; }
+  function hideSheet() { var el = $('#sheet'); el.hidden = true; el.innerHTML = ''; ui.sheetOpen = false; ui.conv = null; ui.tool = null; ui.toolGpsKind = ''; }
   function closeSheet() {
     if (!ui.sheetOpen) return;
     if (history.state && history.state.sheet) history.back(); else hideSheet();
@@ -241,7 +242,7 @@
   function gpsStart() {
     if (!Gps.available()) { toast('Este dispositivo no permite leer el GPS. Puedes escribir las coordenadas.', { err: true }); return; }
     ui.gpsOn = true; ui.fix = null; updateChips();
-    ui.stopWatch = Gps.watch(function (fix) { ui.fix = fix; updateReadout(); updateChips(); onMapFix(fix); }, function (e) {
+    ui.stopWatch = Gps.watch(function (fix) { ui.fix = fix; updateReadout(); updateChips(); onMapFix(fix); onToolFix(); }, function (e) {
       toast(Gps.explain(e), { err: true });
       if (e && e.code === 1) gpsStop();
     });
@@ -252,6 +253,8 @@
     ui.stopWatch = null; ui.gpsOn = false; ui.fix = null; ui.mapFollow = false; updateChips();
     if (ui.map) ui.map.showFix(null);
     if (ui.tab === 'puntos') renderTab('puntos');
+    if (ui.wx) ui.wx.wait = false;
+    renderGpsTool(); renderWeatherTool();
   }
   document.addEventListener('visibilitychange', function () {
     if (document.hidden && ui.gpsOn && !ui.sampling) { ui.wasOn = true; gpsStop(); }
@@ -1373,15 +1376,19 @@
       if (r.how === 'download') toast('Reporte descargado: ' + name);
     }).catch(function (e) { toast('No se pudo compartir: ' + (e && e.message || e), { err: true }); });
   }
-  function copySummary() {
-    var a = analysis(), t = Report.text(proj(), a, reportOpts(a));
+  // Copia un texto al portapapeles (con el método de respaldo si el navegador no lo permite) y avisa con okMsg
+  function copyText(t, okMsg) {
     function fallback() {
       var ta = document.createElement('textarea'); ta.value = t; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select();
       var ok = false; try { ok = document.execCommand('copy'); } catch (e) { /* nada */ }
-      ta.remove(); toast(ok ? 'Resumen copiado.' : 'No se pudo copiar.', { err: !ok });
+      ta.remove(); toast(ok ? okMsg : 'No se pudo copiar.', { err: !ok });
     }
-    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(function () { toast('Resumen copiado.'); }, fallback);
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(function () { toast(okMsg); }, fallback);
     else fallback();
+  }
+  function copySummary() {
+    var a = analysis();
+    copyText(Report.text(proj(), a, reportOpts(a)), 'Resumen copiado.');
   }
 
   /* ---------- Proyectos ---------- */
@@ -1497,8 +1504,143 @@
     openSheet(title, '<label class="f"><span>Nombre del proyecto</span><input type="text" id="pName" value="' + esc(value) + '" autocomplete="off" maxlength="60"></label><div class="btns"><button class="btn btn-primary" data-act="' + act + '">Guardar</button></div>');
   }
 
+  /* ---------- Herramientas (2.7.0): conversor de unidades, clima actual y GPS en vivo ---------- */
+  var TOOL_ICON = {
+    area: '<path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/>',
+    distancia: '<path d="M4 16L16 4l4 4L8 20z"/><path d="M7.5 12.5l2 2M10.5 9.5l2 2M13.5 6.5l2 2"/>',
+    peso: '<path d="M6.5 9h11L20 20H4z"/><circle cx="12" cy="5.5" r="2.5"/>',
+    volumen: '<path d="M5 4h14l-2 16H7z"/><path d="M5.8 10h12.4"/>',
+    energia: '<path d="M13 2L5 13.5h6L10 22l9-12h-6z"/>',
+    temperatura: '<path d="M14 14.8V5a2 2 0 0 0-4 0v9.8a4 4 0 1 0 4 0z"/><path d="M12 9v7"/>',
+    velocidad: '<path d="M4 17a8 8 0 1 1 16 0"/><path d="M12 17l4.5-5.5"/>',
+    potencia: '<rect x="2.5" y="7.5" width="16" height="9" rx="2"/><path d="M21.5 10.5v3"/><path d="M11 9.5l-2.5 3h3L9 15"/>',
+    clima: '<path d="M7 15.5a4 4 0 0 1-.6-7.9 5.5 5.5 0 0 1 10.6 1A3.5 3.5 0 0 1 17 15.5z"/><path d="M8.5 18.5l-.8 2M12.5 18.5l-.8 2M16.5 18.5l-.8 2"/>',
+    gps: '<path d="M12 21s-7-6.2-7-11.2A7 7 0 0 1 19 9.8C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.8" r="2.5"/>'
+  };
+  function toolCard(act, key, title, sub) {
+    return '<button class="tcard" data-act="' + act + '" data-tool="' + key + '"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + TOOL_ICON[key] + '</svg><b>' + esc(title) + '</b><span>' + esc(sub) + '</span></button>';
+  }
+  function tabHerramientas() {
+    var h = '<h2 class="tt">Herramientas</h2><p class="lead">Conversor de unidades y utilidades de campo.</p>';
+    h += '<h3 class="sub">Conversor de unidades</h3><div class="tgrid">';
+    Units.CATEGORIES.forEach(function (c) { h += toolCard('convert', c.id, c.name, 'Convierte como quieras'); });
+    h += '</div><h3 class="sub">Utilidades de campo</h3><div class="tgrid">' + toolCard('toolWeather', 'clima', 'Clima', 'Condiciones actuales') + toolCard('toolGps', 'gps', 'GPS', 'Coordenadas y precisión') + '</div>';
+    return h;
+  }
+
+  // Conversor: se escribe un valor en una unidad y se ven todas las demás a la vez. Lo escrito y la unidad se recuerdan mientras la app está abierta.
+  function openConverter(catId) {
+    var cat = Units.category(catId);
+    if (!cat) return;
+    var m = ui.convMem[catId] || (ui.convMem[catId] = { unit: cat.def, text: '1' });
+    var opts = cat.units.map(function (u) { return '<option value="' + u.id + '"' + (u.id === m.unit ? ' selected' : '') + '>' + esc(u.name + ' (' + u.sym + ')') + '</option>'; }).join('');
+    openSheet(cat.name, '<label class="f"><span>Valor</span><input type="text" inputmode="decimal" id="cvVal" data-conv="val" value="' + esc(m.text) + '" autocomplete="off"></label>' +
+      '<label class="f"><span>Está en</span><select id="cvUnit" data-conv="unit">' + opts + '</select></label>' +
+      '<div id="cvRes" aria-live="polite"></div><p class="small muted">Toca un resultado para copiarlo. El punto o la coma sirven como decimal (1,5 o 1.5). Funciona sin internet.</p>',
+      function () { ui.conv = catId; renderConverter(); setTimeout(function () { var i = $('#cvVal'); if (i) { i.focus(); i.select(); } }, 80); });
+  }
+  function renderConverter() {
+    var el = $('#cvRes'), cat = Units.category(ui.conv), m = ui.conv && ui.convMem[ui.conv];
+    if (!el || !cat || !m) return;
+    var v = Units.parse(m.text), r;
+    if (v === null) r = { ok: false, error: m.text.trim() ? 'No se entiende ese número. Escríbelo así: 1234,5' : 'Escribe un número para convertir.' };
+    else r = Units.convert(cat.id, v, m.unit);
+    if (!r.ok) { el.innerHTML = '<div class="tip">' + esc(r.error) + '</div>'; return; }
+    el.innerHTML = '<div class="cvlist">' + r.rows.map(function (x) {
+      return '<button class="cvrow' + (x.id === m.unit ? ' cvfrom' : '') + '" data-act="cvCopy" data-t="' + esc(x.text + ' ' + x.sym) + '"><span class="cvn">' + esc(x.name) + '</span><b>' + esc(x.text) + ' <small>' + esc(x.sym) + '</small></b></button>';
+    }).join('') + '</div>';
+  }
+
+  // GPS en vivo: coordenadas, altitud y precisión. Los números se cambian en su sitio (sin volver a dibujar los botones) para que un toque no se pierda.
+  function openGpsTool() {
+    openSheet('GPS', '<div id="toolBody"></div>', function () { ui.tool = 'gps'; ui.toolGpsKind = ''; renderGpsTool(); });
+  }
+  function gpsToolKind() { return !ui.gpsOn ? 'off' : ui.fix ? 'fix' : 'search'; }
+  function fillGpsNumbers() {
+    var f = ui.fix, set = function (id, t) { var e = $('#' + id); if (e) e.innerHTML = t; };
+    if (!f) return;
+    set('tgLat', Fmt.coord(f.lat) + '°'); set('tgLon', Fmt.coord(f.lon) + '°');
+    set('tgAlt', isNum(f.alt) ? Fmt.num(f.alt, 0) + ' <small>m</small>' : '<small>sin dato</small>');
+    set('tgAcc', isNum(f.acc) ? '±' + Fmt.num(f.acc, 0) + ' <small>m</small>' : '—');
+    set('tgDms', esc(Fmt.dms(f.lat, f.lon)));
+  }
+  function renderGpsTool() {
+    var el = $('#toolBody');
+    if (!el || ui.tool !== 'gps') return;
+    var kind = gpsToolKind();
+    if (kind === ui.toolGpsKind) { if (kind === 'fix') fillGpsNumbers(); return; }   // misma pantalla: solo cambian los números
+    ui.toolGpsKind = kind;
+    var h = '';
+    if (kind === 'off') h = '<div class="tip">El GPS está apagado. Enciéndelo para ver dónde estás.</div><div class="btns"><button class="btn btn-primary" data-act="toolGpsOn">Encender GPS</button></div>';
+    else if (kind === 'search') h = '<div class="tip">Buscando señal… sal a un lugar abierto y espera unos segundos.</div><div class="btns"><button class="btn" data-act="toolGpsOff">Apagar GPS</button></div>';
+    else {
+      h = '<div class="readout"><div><span class="k">Latitud</span><span class="v" id="tgLat"></span></div><div><span class="k">Longitud</span><span class="v" id="tgLon"></span></div>' +
+        '<div><span class="k">Altitud</span><span class="v" id="tgAlt"></span></div><div><span class="k">Precisión</span><span class="v" id="tgAcc"></span></div></div>' +
+        '<p class="small muted" id="tgDms" style="margin:8px 0 0"></p>' +
+        '<div class="btns" style="margin-top:12px"><button class="btn btn-primary" data-act="toolGpsCopy">Copiar coordenadas</button><button class="btn" data-act="toolGpsOff">Apagar GPS</button></div>' +
+        '<p class="small muted" style="margin-top:12px">La altitud del GPS suele errar entre 10 y 30 m; la precisión es el error probable de la posición. El GPS sigue encendido hasta que lo apagues aquí o en Puntos.</p>';
+    }
+    el.innerHTML = h;
+    if (kind === 'fix') fillGpsNumbers();
+  }
+
+  // Clima actual donde estás (Open-Meteo): usa la posición del GPS o, si prefieres, el centro de los puntos del proyecto. No se guarda en el proyecto.
+  function openWeatherTool() {
+    var token = ++ui.wxToken;
+    openSheet('Clima actual', '<div id="toolBody"></div>', function () {
+      ui.tool = 'clima'; ui.wx = { token: token, busy: false, error: '', data: null, from: null, wait: false };
+      if (navigator.onLine !== false && ui.gpsOn && ui.fix) weatherFetch('gps'); else renderWeatherTool();
+    });
+  }
+  function weatherSource(kind) {
+    if (kind === 'gps') return ui.gpsOn && ui.fix ? { kind: 'gps', lat: ui.fix.lat, lon: ui.fix.lon, acc: ui.fix.acc } : null;
+    var a = analysis();
+    return a.empty ? null : { kind: 'center', lat: a.center.lat, lon: a.center.lon };
+  }
+  function weatherFetch(kind) {
+    var w = ui.wx, src = weatherSource(kind);
+    if (!w || w.busy || !src) return;
+    if (navigator.onLine === false) { toast('Sin conexión. El clima actual se consulta con internet.', { err: true }); renderWeatherTool(); return; }
+    w.busy = true; w.error = ''; w.wait = false; w.from = src; renderWeatherTool();
+    Climate.fetchCurrent(src.lat, src.lon, null, {}).then(function (r) {
+      if (ui.wx !== w) return;                                                    // se cerró o se abrió otra vez mientras llegaba
+      w.busy = false;
+      if (r.ok) w.data = Object.assign({ lat: src.lat, lon: src.lon }, r.data); else w.error = r.error;
+      renderWeatherTool();
+    });
+  }
+  function renderWeatherTool() {
+    var el = $('#toolBody'), w = ui.wx;
+    if (!el || ui.tool !== 'clima' || !w) return;
+    var rows = Report.currentRows(w.data), h = '', hasFix = ui.gpsOn && ui.fix, a = analysis();
+    if (navigator.onLine === false) h += '<div class="tip">Sin conexión. El clima actual se consulta con internet.</div>';
+    if (w.busy) h += '<p class="muted">Consultando el clima…</p>';
+    else if (w.wait) h += '<p class="muted">Buscando tu posición con el GPS…</p>';
+    if (w.error) h += '<div class="warn">No se pudo consultar el clima actual: ' + esc(w.error) + '. Revisa la conexión a internet e inténtalo otra vez.</div>';
+    if (rows.length) {
+      h += '<div class="nowcard"><p class="nowname">' + (w.from && w.from.kind === 'gps' ? 'Tu posición' : esc(proj().name)) + '</p><p class="small muted">' + esc(Fmt.latlon(w.data.lat, w.data.lon)) +
+        (w.from && w.from.kind === 'gps' && isNum(w.from.acc) ? ' · GPS ±' + esc(Fmt.num(w.from.acc, 0)) + ' m' : w.from && w.from.kind === 'center' ? ' · centro de los puntos' : '') + '</p>';
+      if (isNum(w.data.T)) h += '<p class="nowtemp">' + esc(Fmt.num(w.data.T, 1)) + ' °C</p>';
+      h += '<dl class="kv">';
+      rows.forEach(function (x) { if (x[0] !== 'Temperatura') h += '<div><dt>' + esc(x[0]) + '</dt><dd>' + esc(x[1]) + '</dd></div>'; });
+      h += '</dl><p class="small muted">' + esc(Report.currentStamp(w.data)) + '</p></div>';
+    }
+    var busy = w.busy || w.wait, off = navigator.onLine === false;
+    h += '<div class="btns">';
+    h += '<button class="btn' + (rows.length ? '' : ' btn-primary') + '" data-act="toolWxGps"' + (busy || off ? ' disabled' : '') + '>' + (rows.length && w.from && w.from.kind === 'gps' ? 'Actualizar' : hasFix ? 'Usar mi posición' : 'Usar mi GPS') + '</button>';
+    if (!a.empty) h += '<button class="btn" data-act="toolWxCenter"' + (busy || off ? ' disabled' : '') + '>Usar el centro de mis puntos</button>';
+    h += '</div><p class="small muted" style="margin-top:12px">Son las condiciones de este momento en el lugar elegido (Open-Meteo): no el promedio de varios años, no se guardan en el proyecto y no cambian la zona de vida. Para incluirlas en el reporte usa «Consultar clima actual» en la pestaña Reporte.</p>';
+    el.innerHTML = h;
+  }
+  // Llegó una lectura del GPS: se refresca la herramienta abierta y, si el clima esperaba la posición, se consulta
+  function onToolFix() {
+    if (ui.tool === 'gps') renderGpsTool();
+    else if (ui.tool === 'clima' && ui.wx && ui.wx.wait && ui.fix) weatherFetch('gps');
+    else if (ui.tool === 'clima') renderWeatherTool();
+  }
+
   /* ---------- Pestañas ---------- */
-  var TABS = { puntos: tabPuntos, area: tabArea, clima: tabClima, informe: tabInforme };
+  var TABS = { puntos: tabPuntos, area: tabArea, clima: tabClima, informe: tabInforme, herramientas: tabHerramientas };
   function renderTab(t) {
     var el = $('#tab-' + t);
     if (!el) return;
@@ -1513,7 +1655,7 @@
   function showTab(t) {
     if (t !== 'area') setMapMode('');          // el modo del mapa solo vale mientras se está viendo el mapa
     ui.tab = t;
-    ['puntos', 'area', 'clima', 'informe'].forEach(function (k) {
+    ['puntos', 'area', 'clima', 'informe', 'herramientas'].forEach(function (k) {
       $('#tab-' + k).hidden = k !== t;
       var b = $('#nav-' + k);
       if (k === t) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
@@ -1526,6 +1668,19 @@
   /* ---------- Eventos ---------- */
   var ACTIONS = {
     tab: function (t) { showTab(t.getAttribute('data-tab')); },
+    convert: function (t) { openConverter(t.getAttribute('data-tool')); }, cvCopy: function (t) { copyText(t.getAttribute('data-t'), 'Copiado: ' + t.getAttribute('data-t')); },
+    toolGps: openGpsTool, toolGpsOn: function () { gpsStart(); renderGpsTool(); }, toolGpsOff: gpsStop,
+    toolGpsCopy: function () { if (ui.fix) copyText(Fmt.latlon(ui.fix.lat, ui.fix.lon), 'Coordenadas copiadas.'); },
+    toolWeather: openWeatherTool,
+    toolWxGps: function () {
+      if (!ui.wx || ui.wx.busy || ui.wx.wait) return;
+      if (ui.gpsOn && ui.fix) { weatherFetch('gps'); return; }
+      ui.wx.wait = true; ui.wx.error = '';
+      if (!ui.gpsOn) gpsStart();
+      if (!ui.gpsOn) ui.wx.wait = false;                                           // este equipo no deja leer el GPS (gpsStart ya avisó)
+      renderWeatherTool();
+    },
+    toolWxCenter: function () { weatherFetch('center'); },
     projects: openProjects,
     polyView: function (t) { ui.polyView = t.getAttribute('data-v') === 'mapa' ? 'mapa' : 'croquis'; if (ui.polyView !== 'mapa') setMapMode(''); renderTab('area'); },
     mapBase: function (t) { ui.mapBase = Mapa.baseId(t.getAttribute('data-b')); Store.saveFlag('mapBase', ui.mapBase); renderTab('area'); },
@@ -1600,6 +1755,12 @@
       save(); precisionBanner();
       if (ui.tab === 'puntos') renderTab('puntos');
     }
+  });
+  document.addEventListener('input', function (e) {
+    if (!e.target.matches || !e.target.matches('[data-conv]') || !ui.conv) return;
+    var m = ui.convMem[ui.conv];
+    if (e.target.getAttribute('data-conv') === 'val') m.text = e.target.value; else m.unit = e.target.value;
+    renderConverter();
   });
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape' && ui.mapMenu) { ui.mapMenu = false; syncMapMenu(); }

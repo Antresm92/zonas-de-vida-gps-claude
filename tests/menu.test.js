@@ -10,12 +10,12 @@ const nav = html.slice(html.indexOf('<nav class="tabs"'), html.indexOf('</nav>')
 const botones = [...nav.matchAll(/<button id="nav-(\w+)" data-act="tab" data-tab="(\w+)"[^>]*>[\s\S]*?<span>([^<]+)<\/span>/g)]
   .map((m) => ({ id: m[1], tab: m[2], etiqueta: m[3] }));
 
-test('menú inferior: Puntos, Polígono, Información y Reporte, en ese orden', () => {
-  assert.deepEqual(botones.map((b) => b.etiqueta), ['Puntos', 'Polígono', 'Información', 'Reporte']);
+test('menú inferior: Puntos, Polígono, Información, Reporte y Herramientas, en ese orden', () => {
+  assert.deepEqual(botones.map((b) => b.etiqueta), ['Puntos', 'Polígono', 'Información', 'Reporte', 'Herramientas']);
 });
 
 test('menú inferior: cada botón abre su sección (los identificadores internos se conservan)', () => {
-  assert.deepEqual(botones.map((b) => b.tab), ['puntos', 'area', 'clima', 'informe']);
+  assert.deepEqual(botones.map((b) => b.tab), ['puntos', 'area', 'clima', 'informe', 'herramientas']);
   for (const b of botones) {
     assert.equal(b.id, b.tab);
     assert.match(html, new RegExp('<section class="tab" id="tab-' + b.tab + '" aria-labelledby="nav-' + b.tab + '"'));

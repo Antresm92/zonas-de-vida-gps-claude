@@ -9,10 +9,10 @@ module.exports = async function (c) {
   const importFile = async (name, data, mime) => { await setFile('#gisFile', name, data, mime); await page.waitForSelector('#sheet:not([hidden])'); };
   const projectNames = async () => (await state()).projects.map((p) => p.name);
 
-  await step('Menú inferior: se lee Puntos, Polígono, Información y Reporte, y cada botón abre su sección', async () => {
+  await step('Menú inferior: se lee Puntos, Polígono, Información, Reporte y Herramientas, y cada botón abre su sección', async () => {
     await fresh();
     const etiquetas = await page.$$eval('nav.tabs button span', (els) => els.map((e) => e.textContent.trim()));
-    assert.deepEqual(etiquetas, ['Puntos', 'Polígono', 'Información', 'Reporte']);
+    assert.deepEqual(etiquetas, ['Puntos', 'Polígono', 'Información', 'Reporte', 'Herramientas']);
     await addPointManual('4.6000, -74.0800', 1300, 'Abajo');
     await tab('clima');
     assert.equal(await page.getAttribute('#nav-clima', 'aria-current'), 'page');
@@ -133,7 +133,7 @@ module.exports = async function (c) {
     assert.deepEqual(await projectNames(), ['Mi primer proyecto']);
     await act('projects');
     assert.equal(await page.locator('[data-act="askDeleteProject"]').count(), 0, 'no se puede eliminar el único proyecto');
-    assert.match(await text('#sheet'), /versión 2\.6\.0/);
+    assert.match(await text('#sheet'), /versión 2\.7\.0/);
     await act('closeSheet'); await waitSheetClosed();
     // nombre vacío al crear → nombre por defecto
     await act('projects'); await act('newProject'); await fill('#pName', '   '); await act('saveNewProject'); await waitSheetClosed();

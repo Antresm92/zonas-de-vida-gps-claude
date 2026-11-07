@@ -3,10 +3,10 @@
 module.exports = async function (c) {
   const { page, assert, step, fresh, act, fill, text, proj, state, toastText, waitToast, sheetOpen, sheetTitle, waitSheetClosed, gpsPush, addPointManual, errors, shot } = c;
 
-  await step('Primer arranque: proyecto vacío, 4 pestañas y GPS apagado', async () => {
+  await step('Primer arranque: proyecto vacío, 5 pestañas y GPS apagado', async () => {
     await fresh();
     assert.match(await text('#projName'), /Mi primer proyecto/);
-    assert.equal(await page.locator('.tabs button').count(), 4);
+    assert.equal(await page.locator('.tabs button').count(), 5);
     assert.match(await text('#gpsChipText'), /GPS apagado/);
     assert.match(await text('#tab-puntos'), /Aún no hay puntos/);
     assert.equal((await state()).settings.minAcc, 10);
