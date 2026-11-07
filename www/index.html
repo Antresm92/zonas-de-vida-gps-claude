@@ -58,6 +58,15 @@
 
   <div id="sheet" class="sheet" hidden></div>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  <div id="busy" class="busy" role="alertdialog" aria-modal="true" aria-labelledby="busyTitle" aria-describedby="busyDetail" hidden>
+    <div class="busy-card" id="busyCard" tabindex="-1">
+      <div class="busy-spin" aria-hidden="true"></div>
+      <h2 id="busyTitle"></h2>
+      <p id="busyDetail" class="busy-detail" role="status" aria-live="polite"></p>
+      <p id="busyNote" class="small muted"></p>
+      <button class="btn" id="busyHide" data-act="busyHide" hidden>Ocultar este aviso</button>
+    </div>
+  </div>
   <input type="file" id="csvFile" accept=".csv,.txt,text/csv,text/plain" hidden>
   <input type="file" id="gisFile" accept=".kml,.kmz,.geojson,.json,.gpx,application/vnd.google-earth.kml+xml,application/vnd.google-earth.kmz,application/geo+json,application/json,application/gpx+xml,application/xml,text/xml,application/octet-stream" hidden>
   <input type="file" id="backupFile" accept=".json,.zip,application/json,application/zip,application/x-zip-compressed,text/plain,application/octet-stream" hidden>

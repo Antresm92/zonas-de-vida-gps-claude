@@ -5,7 +5,7 @@
   var Geo = window.Geo, H = window.Holdridge, Climate = window.Climate, A = window.Analysis, Fmt = window.Fmt,
       Gps = window.Gps, Store = window.Store, Diagram = window.Diagram, Report = window.Report,
       Gis = window.Gis, Backup = window.Backup, IO = window.IO, WL = window.WalterLieth, Mapa = window.Mapa, MapView = window.MapView, Satelite = window.Satelite, Perfil = window.Perfil, Fotos = window.Fotos, Zip = window.Zip, Units = window.Units;
-  var APP_VERSION = '2.7.0';
+  var APP_VERSION = '2.7.1';
 
   var S = Store.loadState();
   var hadSaved = Store.hasSavedState();      // ¿había datos guardados al abrir? (solo entonces se limpian las fotos sin uso)
@@ -171,6 +171,51 @@
     ui.toastFn = o.fn || null;
     clearTimeout(toastTimer);
     toastTimer = setTimeout(function () { el.hidden = true; }, o.err ? 7000 : 4500);
+  }
+
+  /* ---------- Ventana de progreso («Elaborando el reporte…») ----------
+   * Sale al instante, tapa la pantalla (nadie toca otra cosa ni cree que la app se colgó) y cuenta en qué etapa va. Se queda al menos
+   * BUSY_MIN_MS para no parpadear cuando todo es muy rápido, y pasados BUSY_SLOW_MS ofrece ocultarla por si algo tarda de más. */
+  var BUSY_MIN_MS = 500, BUSY_SLOW_MS = 30000;
+  var busy = { on: false, since: 0, slowT: 0 };
+  function busyShow(title, detail) {
+    clearTimeout(busy.slowT);
+    $('#busyTitle').textContent = title;
+    $('#busyDetail').textContent = detail || '';
+    $('#busyNote').textContent = 'Esto toma unos segundos. Por favor no cierres la app.';
+    $('#busyHide').hidden = true;
+    $('#busy').hidden = false;
+    busy.on = true; busy.since = Date.now();
+    busy.slowT = setTimeout(function () {
+      $('#busyNote').textContent = 'Está tardando más de lo normal (con muchas fotos puede demorar). Puedes seguir esperando.';
+      $('#busyHide').hidden = false;
+    }, BUSY_SLOW_MS);
+    try { $('#busyCard').focus(); } catch (e) { /* nada */ }
+  }
+  function busyStep(detail) { if (busy.on) $('#busyDetail').textContent = detail; }
+  function busyHide() {
+    clearTimeout(busy.slowT);
+    busy.on = false;
+    $('#busy').hidden = true;
+  }
+  // Promesa que se cumple cuando la ventana ya estuvo visible el tiempo mínimo
+  function busyMin() {
+    var left = busy.on ? BUSY_MIN_MS - (Date.now() - busy.since) : 0;
+    return left > 0 ? new Promise(function (r) { setTimeout(r, left); }) : Promise.resolve();
+  }
+  // Espera a que el navegador pinte lo último (la ventana y su texto) antes de seguir con trabajo pesado; sin pintar (app en segundo plano) sigue a los 100 ms
+  function busyPaint() {
+    return new Promise(function (resolve) {
+      var done = false;
+      function go() { if (!done) { done = true; resolve(); } }
+      setTimeout(go, 100);
+      if (window.requestAnimationFrame) window.requestAnimationFrame(function () { setTimeout(go, 0); });
+    });
+  }
+  // Muestra la ventana, hace el trabajo y la quita siempre al terminar (bien o mal, antes de que salga el aviso de error)
+  function busyRun(title, detail, work) {
+    busyShow(title, detail);
+    return busyPaint().then(work).then(function (r) { busyHide(); return r; }, function (e) { busyHide(); throw e; });
   }
 
   function analysisInput() {
@@ -1344,8 +1389,8 @@
     ui.sharing = true;
     var kinds = a.n >= 2 ? CROQ_KINDS : [];
     var need = kinds.filter(function (k) { return !croqCurrent(k); });
-    if (need.length && navigator.onLine !== false) toast(need.length > 1 ? 'Preparando los croquis satelital y topográfico para el reporte…' : 'Preparando el croquis ' + CROQ[need[0]].noun + ' para el reporte…');
-    else if (Fotos.countAll(p.points).photos) toast('Preparando las fotos para el reporte…');
+    if (need.length && navigator.onLine !== false) busyStep(need.length > 1 ? 'Preparando los croquis satelital y topográfico para el reporte…' : 'Preparando el croquis ' + CROQ[need[0]].noun + ' para el reporte…');
+    else if (Fotos.countAll(p.points).photos) busyStep('Preparando las fotos para el reporte…');
     return Promise.all([Promise.all(kinds.map(function (k) { return prepareCroquis(k, false); })), reportPhotos(p)]).then(function (all) {
       var res = all[0];
       var o = reportOpts(a); o.satellite = res[0] || null; o.topo = res[1] || null; o.photos = all[1];
@@ -1353,25 +1398,39 @@
     }).then(function (r) { ui.sharing = false; return r; }, function (e) { ui.sharing = false; throw e; });
   }
   function shareReportPdf() {
-    if (ui.sharing) return;
+    if (ui.sharing || busy.on) return;
     closeSheet();
     var name = IO.slug('reporte zona de vida ' + proj().name, 'pdf');
-    prepareReport(function (p, a, o) {
-      toast('Preparando el PDF…');                                          // los croquis y las fotos ya están: falta dibujar las gráficas en imágenes y armar la hoja
-      return ReportPdf.rasterizeAll(ReportPdf.sketches(p, a, o), ReportPdf.PX, window).then(function (images) {
-        var bytes = ReportPdf.build(p, a, o, images);
-        return IO.saveBytes(name, 'application/pdf', bytes, { title: 'Reporte de zona de vida', text: Report.text(p, a, o), dialogTitle: 'Compartir reporte' });
+    busyRun('Elaborando el reporte en PDF', 'Reuniendo los datos del reporte…', function () {
+      return prepareReport(function (p, a, o) {
+        busyStep('Dibujando los gráficos…');                                // los croquis y las fotos ya están: falta dibujar las gráficas en imágenes y armar la hoja
+        return ReportPdf.rasterizeAll(ReportPdf.sketches(p, a, o), ReportPdf.PX, window).then(function (images) {
+          busyStep('Armando las hojas del PDF…');
+          return busyPaint().then(function () {
+            var bytes = ReportPdf.build(p, a, o, images);
+            busyStep('Guardando el archivo…');
+            return busyMin().then(function () {
+              return IO.saveBytes(name, 'application/pdf', bytes, { title: 'Reporte de zona de vida', text: Report.text(p, a, o), dialogTitle: 'Compartir reporte', onReady: busyHide });
+            });
+          });
+        });
       });
     }).then(function (r) {
       if (r.how === 'download') toast('Reporte descargado: ' + name);
     }).catch(function (e) { toast('No se pudo preparar el PDF: ' + (e && e.message || e), { err: true }); });
   }
   function shareReportHtml() {
-    if (ui.sharing) return;
+    if (ui.sharing || busy.on) return;
     closeSheet();
     var name = IO.slug('reporte zona de vida ' + proj().name, 'html');
-    prepareReport(function (p, a, o) {
-      return IO.saveText(name, 'text/html', Report.html(p, a, o), { title: 'Reporte de zona de vida', text: Report.text(p, a, o), dialogTitle: 'Compartir reporte' });
+    busyRun('Elaborando el reporte en HTML', 'Reuniendo los datos del reporte…', function () {
+      return prepareReport(function (p, a, o) {
+        busyStep('Armando la página del reporte…');
+        var html = Report.html(p, a, o);
+        return busyMin().then(function () {
+          return IO.saveText(name, 'text/html', html, { title: 'Reporte de zona de vida', text: Report.text(p, a, o), dialogTitle: 'Compartir reporte', onReady: busyHide });
+        });
+      });
     }).then(function (r) {
       if (r.how === 'download') toast('Reporte descargado: ' + name);
     }).catch(function (e) { toast('No se pudo compartir: ' + (e && e.message || e), { err: true }); });
@@ -1709,7 +1768,7 @@
     importCsv: function () { $('#csvFile').click(); },
     askClearMem: function () { openSheet('¿Borrar los datos guardados?', '<p>Se borran los ' + MEM.count + ' registros de clima de este equipo. Tus puntos y proyectos no cambian.</p><div class="btns"><button class="btn btn-danger" data-act="doClearMem">Borrar</button><button class="btn" data-act="closeSheet">Conservar</button></div>'); },
     doClearMem: function () { MEM.clear(); saveMemory(); closeSheet(); renderTab(ui.tab); toast('Datos borrados.'); },
-    share: shareReport, shareReportPdf: shareReportPdf, shareReportHtml: shareReportHtml, copy: copySummary, fetchNow: fetchNow,
+    share: shareReport, shareReportPdf: shareReportPdf, shareReportHtml: shareReportHtml, busyHide: busyHide, copy: copySummary, fetchNow: fetchNow,
     photoCam: function (t) { ui.photoFor = t.getAttribute('data-pid'); $('#photoCam').click(); },
     photoGal: function (t) { ui.photoFor = t.getAttribute('data-pid'); $('#photoGal').click(); },
     photoView: function (t) { openPhoto(t.getAttribute('data-fid')); },

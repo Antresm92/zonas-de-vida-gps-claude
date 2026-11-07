@@ -239,6 +239,19 @@ input:focus, textarea:focus { border-color: var(--blue); outline: none; }
 .toast.err { background: #7A1D22; }
 /* Con una ventana abierta el aviso sube a la parte de arriba para no tapar sus botones */
 .sheet:not([hidden]) ~ .toast { bottom: auto; top: calc(var(--top-h) + env(safe-area-inset-top) + 8px); }
+/* Ventana de progreso: tapa toda la pantalla mientras se elabora el reporte (así nadie piensa que la app se colgó ni toca otra cosa) */
+.busy { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgba(8, 20, 13, .62); }
+.busy[hidden] { display: none; }
+.busy-card { width: 100%; max-width: 330px; padding: 26px 20px 22px; border-radius: 18px; background: var(--surface); color: var(--ink); text-align: center; border: 1px solid var(--line); box-shadow: 0 12px 36px rgba(0, 0, 0, .35); outline: none; }
+.busy-card h2 { margin: 14px 0 6px; font-size: 19px; }
+.busy-detail { margin: 0 0 10px; font-size: 16px; font-weight: 650; color: var(--green); min-height: 1.4em; }
+.busy-card .small { margin: 0; }
+.busy-card .btn { margin-top: 14px; }
+.busy-spin { width: 46px; height: 46px; margin: 0 auto; border-radius: 50%; border: 5px solid var(--green-soft); border-top-color: var(--green); }
+@media (prefers-reduced-motion: no-preference) {
+  .busy-spin { animation: busy-spin .9s linear infinite; }
+  @keyframes busy-spin { to { transform: rotate(360deg); } }
+}
 details.help { margin: 8px 0; }
 details.help summary { min-height: 44px; display: flex; align-items: center; font-weight: 650; color: var(--blue); cursor: pointer; }
 pre.code { margin: 6px 0; padding: 10px 12px; overflow-x: auto; border-radius: 8px; background: var(--surface); border: 1px solid var(--line); font: 13.5px/1.5 ui-monospace, Menlo, Consolas, monospace; }

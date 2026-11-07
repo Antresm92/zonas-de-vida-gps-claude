@@ -11,13 +11,14 @@ module.exports = async function (c) {
   const satWarn = async () => { await page.waitForSelector('#satBlock .warn', { timeout: 8000 }); return text('#satBlock .warn'); };
   const topoReady = () => page.waitForSelector('#topoBlock svg image', { state: 'attached', timeout: 8000 });
   const topoWarn = async () => { await page.waitForSelector('#topoBlock .warn', { timeout: 8000 }); return text('#topoBlock .warn'); };
-  // Los avisos duran poco y el siguiente tapa al anterior: se anotan todos los que aparecen para poder comprobar el de «Preparando…»
-  const watchToasts = () => page.evaluate(() => {
-    window.__toasts = [];
-    const el = document.querySelector('#toast');
-    new MutationObserver(() => { if (!el.hidden && el.textContent) window.__toasts.push(el.textContent); }).observe(el, { childList: true, characterData: true, subtree: true, attributes: true });
+  // La ventana de progreso cambia de texto sin parar: se anota cada «título · detalle» que aparece mientras está visible (hay que volver a anotarlos después de cada recarga)
+  const watchBusy = () => page.evaluate(() => {
+    window.__busy = [];
+    const el = document.querySelector('#busy');
+    const anota = () => { if (!el.hidden) window.__busy.push(document.querySelector('#busyTitle').textContent + ' · ' + document.querySelector('#busyDetail').textContent); };
+    new MutationObserver(anota).observe(el, { childList: true, characterData: true, subtree: true, attributes: true });
   });
-  const seenToasts = () => page.evaluate(() => window.__toasts.slice());
+  const seenBusy = () => page.evaluate(() => (window.__busy || []).slice());
   const nImages = (h) => (h.match(/<image href="data:image\/jpeg;base64,/g) || []).length;
   const flat = (s) => String(s).replace(/\s+/g, ' ');
   const openReport = async (html, name) => {
@@ -172,13 +173,13 @@ module.exports = async function (c) {
     assert.equal(await text('[data-act="satPrepare"]'), 'Preparar croquis satelital');
     assert.equal(await text('[data-act="topoPrepare"]'), 'Preparar croquis topográfico');
     tiles.reset();
-    await watchToasts();
+    await watchBusy();
     let descargas = 0;
     const count = () => { descargas++; };
     page.on('download', count);
     await page.click('[data-act="share"]');
     const [dl] = await Promise.all([page.waitForEvent('download'), page.evaluate(() => { const b = document.querySelector('[data-act="shareReportHtml"]'); b.click(); b.click(); })]);
-    assert.ok((await seenToasts()).some((t) => /^Preparando los croquis satelital y topográfico para el reporte…$/.test(t)), 'avisa que prepara los dos: ' + JSON.stringify(await seenToasts()));
+    assert.ok((await seenBusy()).some((t) => /^Elaborando el reporte en HTML · Preparando los croquis satelital y topográfico para el reporte…$/.test(t)), 'avisa que prepara los dos: ' + JSON.stringify(await seenBusy()));
     const html = require('fs').readFileSync(await dl.path(), 'utf8');
     await page.waitForTimeout(400);
     page.off('download', count);
@@ -248,9 +249,9 @@ module.exports = async function (c) {
     assert.match(flat(await topoWarn()), /No se pudo preparar el croquis topográfico/);
     // al volver el servicio, compartir de nuevo prepara solo el topográfico (el satelital ya está) y lo dice así
     tiles.fail(false); tiles.reset();
-    await watchToasts();
+    await watchBusy();
     const g = await download(() => c.compartir('Html'));
-    assert.ok((await seenToasts()).some((t) => /^Preparando el croquis topográfico para el reporte…$/.test(t)), 'avisa que prepara solo el topográfico: ' + JSON.stringify(await seenToasts()));
+    assert.ok((await seenBusy()).some((t) => /^Elaborando el reporte en HTML · Preparando el croquis topográfico para el reporte…$/.test(t)), 'avisa que prepara solo el topográfico: ' + JSON.stringify(await seenBusy()));
     assert.equal(tiles.count(ESRI), 0, 'no volvió a bajar el satelital');
     assert.ok(tiles.count(TOPO) >= 4);
     assert.equal(nImages(g.text), 2, 'ahora el reporte trae las dos imágenes');

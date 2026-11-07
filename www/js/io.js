@@ -33,13 +33,25 @@
     return { how: 'download', name: filename };
   }
 
+  // opts.onReady (opcional): se llama una sola vez, cuando el archivo ya está listo y justo antes de abrir el menú de compartir o de descargarlo.
+  // Sirve para quitar una ventana de «espere» antes de que aparezca el menú del sistema (la promesa de compartir no termina hasta que se cierra).
+  function readyOnce(opts) {
+    var done = false;
+    return function () {
+      if (done) return;
+      done = true;
+      if (opts && typeof opts.onReady === 'function') { try { opts.onReady(); } catch (e) { /* un fallo del aviso no debe impedir guardar */ } }
+    };
+  }
+
   // Devuelve una promesa con { how: 'share' | 'download' | 'cancel', name }
   function saveText(filename, mime, text, opts) {
     opts = opts || {};
+    var ready = readyOnce(opts);
     var FS = capPlugin('Filesystem'), SH = capPlugin('Share');
     if (FS && SH) {
       return FS.writeFile({ path: filename, data: text, directory: 'CACHE', encoding: 'utf8' })
-        .then(function (w) { return SH.share({ title: opts.title || filename, text: opts.text || '', url: w.uri, dialogTitle: opts.dialogTitle || 'Compartir archivo' }); })
+        .then(function (w) { ready(); return SH.share({ title: opts.title || filename, text: opts.text || '', url: w.uri, dialogTitle: opts.dialogTitle || 'Compartir archivo' }); })
         .then(function () { return { how: 'share', name: filename }; }, function (e) { if (isCancel(e)) return { how: 'cancel', name: filename }; throw e; });
     }
     var blob = new Blob([text], { type: mime || 'text/plain' });
@@ -47,10 +59,12 @@
       var file = new File([blob], filename, { type: mime || 'text/plain' });
       var nav = env.navigator;
       if (nav && nav.canShare && nav.canShare({ files: [file] })) {
+        ready();
         return nav.share({ files: [file], title: opts.title || filename, text: opts.text || '' })
           .then(function () { return { how: 'share', name: filename }; }, function (e) { return isCancel(e) ? { how: 'cancel', name: filename } : download(filename, blob); });
       }
     } catch (e) { /* sigue con la descarga */ }
+    ready();
     return Promise.resolve(download(filename, blob));
   }
 
@@ -66,6 +80,7 @@
   var CHUNK = 1572864;      // múltiplo de 3: cada trozo es base64 completo por sí solo
   function saveBytes(filename, mime, bytes, opts) {
     opts = opts || {};
+    var ready = readyOnce(opts);
     var FS = capPlugin('Filesystem'), SH = capPlugin('Share');
     if (FS && SH) {
       var uri = '';
@@ -73,7 +88,7 @@
       for (var off = CHUNK; off < bytes.length; off += CHUNK) {
         (function (from) { chain = chain.then(function () { return FS.appendFile({ path: filename, data: toBase64(bytes.subarray(from, from + CHUNK)), directory: 'CACHE' }); }); })(off);
       }
-      return chain.then(function () { return SH.share({ title: opts.title || filename, text: opts.text || '', url: uri, dialogTitle: opts.dialogTitle || 'Compartir archivo' }); })
+      return chain.then(function () { ready(); return SH.share({ title: opts.title || filename, text: opts.text || '', url: uri, dialogTitle: opts.dialogTitle || 'Compartir archivo' }); })
         .then(function () { return { how: 'share', name: filename }; }, function (e) { if (isCancel(e)) return { how: 'cancel', name: filename }; throw e; });
     }
     var blob = new Blob([bytes], { type: mime || 'application/octet-stream' });
@@ -81,10 +96,12 @@
       var file = new File([blob], filename, { type: mime || 'application/octet-stream' });
       var nav = env.navigator;
       if (nav && nav.canShare && nav.canShare({ files: [file] })) {
+        ready();
         return nav.share({ files: [file], title: opts.title || filename, text: opts.text || '' })
           .then(function () { return { how: 'share', name: filename }; }, function (e) { return isCancel(e) ? { how: 'cancel', name: filename } : download(filename, blob); });
       }
     } catch (e) { /* sigue con la descarga */ }
+    ready();
     return Promise.resolve(download(filename, blob));
   }
 
