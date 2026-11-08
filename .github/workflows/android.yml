@@ -37,17 +37,24 @@ jobs:
       - name: Crear el proyecto Android
         run: npx cap add android
 
-      - name: Permisos de GPS e ícono
+      # Permisos de GPS, ícono, versión (versionCode y versionName salen de package.json) y firma de publicación.
+      - name: Permisos, versión, firma e ícono
         run: node scripts/patch-android.js
 
       - name: Comprobar que el manifiesto pide el GPS
         run: grep -q "ACCESS_FINE_LOCATION" android/app/src/main/AndroidManifest.xml
 
+      - name: Mostrar versión y niveles de Android
+        run: |
+          grep -nE "versionCode|versionName" android/app/build.gradle
+          grep -nE "minSdkVersion|compileSdkVersion|targetSdkVersion" android/variables.gradle
+          if grep -qE "versionCode 1$" android/app/build.gradle; then echo "::error::versionCode quedó en 1: no se aplicó la versión de package.json"; exit 1; fi
+
       - name: Copiar la web a Android
         run: npx cap sync android
 
-      # Clave de firma fija: así cada APK nuevo se instala SOBRE el anterior
-      # y no pierdes tus proyectos al actualizar.
+      # APK de PRUEBA: se firma con una clave fija (de depuración), así cada APK nuevo se instala SOBRE el anterior
+      # y no pierdes tus proyectos al actualizar. Esa clave es pública: este APK sirve para probar, no para publicar.
       - name: Usar la clave de firma fija
         run: |
           mkdir -p ~/.android
@@ -64,4 +71,41 @@ jobs:
         with:
           name: zonas-de-vida-apk
           path: zonas-de-vida.apk
+          if-no-files-found: error
+
+      # PAQUETE DE PUBLICACIÓN (.aab) para Google Play: solo se arma si en Settings → Secrets and variables → Actions
+      # están los cuatro secretos de la llave de carga (ver README, «Publicar en Google Play»). Sin ellos se omite y el APK de prueba sale igual.
+      - name: ¿Hay llave de publicación?
+        id: llave
+        env:
+          KS: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KS" ]; then
+            echo "hay=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "hay=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No hay llave de publicación (secretos ANDROID_*): se omite el .aab. El APK de prueba sí se compiló."
+          fi
+
+      - name: Compilar el paquete de publicación (.aab)
+        if: steps.llave.outputs.hay == 'true'
+        working-directory: android
+        env:
+          KS: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          trap 'rm -f "$RUNNER_TEMP/upload.jks"' EXIT
+          echo "$KS" | base64 --decode > "$RUNNER_TEMP/upload.jks"
+          export ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/upload.jks"
+          ./gradlew bundleRelease --no-daemon
+          cp app/build/outputs/bundle/release/app-release.aab ../zonas-de-vida.aab
+
+      - name: Guardar el paquete de publicación
+        if: steps.llave.outputs.hay == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: zonas-de-vida-aab
+          path: zonas-de-vida.aab
           if-no-files-found: error

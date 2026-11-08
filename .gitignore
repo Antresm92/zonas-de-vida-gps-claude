@@ -2,3 +2,8 @@ node_modules/
 android/
 dist/
 *.apk
+
+# Llaves de firma para Google Play: nunca se suben al repositorio
+*.jks
+*.keystore
+!scripts/debug.keystore

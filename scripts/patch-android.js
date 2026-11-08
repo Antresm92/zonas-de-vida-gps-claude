@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /* Prepara el proyecto Android que crea "cap add android":
  *   1. permisos de ubicación (GPS) en el manifiesto y la consulta de la cámara (fotos),
- *   2. ícono de la app (todas las densidades + ícono adaptativo).
+ *   2. versión (versionCode y versionName desde package.json) y firma de publicación del build.gradle,
+ *   3. ícono de la app (todas las densidades + ícono adaptativo).
  * Se puede ejecutar varias veces: no duplica nada. */
 const fs = require('fs');
 const path = require('path');
@@ -47,6 +48,21 @@ if (!/android\.media\.action\.IMAGE_CAPTURE/.test(xml)) {
 } else {
   console.log('patch-android: la consulta de la cámara ya estaba');
 }
+
+/* ---------- 1c. Versión y firma de publicación (build.gradle) ----------
+ * versionCode y versionName salen de la versión de package.json (la plantilla los deja en 1 y "1.0").
+ * La firma del .aab se lee de variables de entorno; sin ellas no cambia nada. Ver scripts/version-android.js. */
+const V = require('./version-android.js');
+const gradlePath = path.join(root, 'android', 'app', 'build.gradle');
+if (!fs.existsSync(gradlePath)) fail('no existe ' + gradlePath);
+let gradle = fs.readFileSync(gradlePath, 'utf8');
+const pkgVersion = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version;
+try {
+  const v = V.patchVersion(gradle, pkgVersion);
+  const s = V.patchSigning(v.text);
+  fs.writeFileSync(gradlePath, s.text);
+  console.log('patch-android: versión ' + v.name + ' → versionCode ' + v.code + (s.changed ? '; firma de publicación preparada' : '; la firma de publicación ya estaba'));
+} catch (err) { fail(err.message); }
 
 /* ---------- 2. Ícono ---------- */
 function copyDir(src, dst) {
