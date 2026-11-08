@@ -48,9 +48,11 @@ module.exports = async function (c) {
     assert.equal(await text('#tab-herramientas .lead'), 'Conversor de unidades y utilidades de campo.');
     const h3 = await page.$$eval('#tab-herramientas h3', (els) => els.map((e) => e.textContent));
     assert.deepEqual(h3, ['Conversor de unidades', 'Utilidades de campo']);
-    const tarjetas = await page.$$eval('#tab-herramientas .tcard', (els) => els.map((e) => [e.querySelector('b').textContent, e.querySelector('span').textContent, e.getAttribute('data-act')]));
-    assert.deepEqual(tarjetas, [...CATS.map((x) => [x[1], 'Convierte como quieras', 'convert']), ['Clima', 'Condiciones actuales', 'toolWeather'], ['GPS', 'Coordenadas y precisión', 'toolGps']]);
+    const tarjetas = await page.$$eval('#tab-herramientas .tcard', (els) => els.map((e) => { const s = e.querySelector('span'); return [e.querySelector('b').textContent, s ? s.textContent : null, e.getAttribute('data-act')]; }));
+    assert.deepEqual(tarjetas, [...CATS.map((x) => [x[1], null, 'convert']), ['Clima', 'Condiciones actuales', 'toolWeather'], ['GPS', 'Coordenadas y precisión', 'toolGps']]);
     assert.equal(await page.locator('#tab-herramientas .tcard svg').count(), 10, 'cada tarjeta lleva su ícono');
+    assert.equal(await page.locator('#tab-herramientas .tcard[data-act="convert"] span').count(), 0, 'las tarjetas del conversor no llevan subtítulo (2.8.1)');
+    assert.equal(await page.locator('#tab-herramientas .tcard:not([data-act="convert"]) span').count(), 2, 'Clima y GPS conservan el suyo');
     await shot('140-herramientas');
     await tab('puntos');
     assert.equal(await page.isVisible('#tab-herramientas'), false);
