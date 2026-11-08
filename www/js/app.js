@@ -5,7 +5,7 @@
   var Geo = window.Geo, H = window.Holdridge, Climate = window.Climate, A = window.Analysis, Fmt = window.Fmt,
       Gps = window.Gps, Store = window.Store, Diagram = window.Diagram, Report = window.Report,
       Gis = window.Gis, Backup = window.Backup, IO = window.IO, WL = window.WalterLieth, Mapa = window.Mapa, MapView = window.MapView, Satelite = window.Satelite, Perfil = window.Perfil, Fotos = window.Fotos, Zip = window.Zip, Units = window.Units;
-  var APP_VERSION = '2.9.1';
+  var APP_VERSION = '2.9.2';
 
   var S = Store.loadState();
   var hadSaved = Store.hasSavedState();      // ¿había datos guardados al abrir? (solo entonces se limpian las fotos sin uso)
@@ -289,7 +289,7 @@
     ui.gpsOn = true; ui.fix = null; ui.gpsAsked = false; updateChips();
     ui.stopWatch = Gps.watch(function (fix) { ui.fix = fix; updateReadout(); updateChips(); onMapFix(fix); onToolFix(); }, function (e) {
       if (e && e.code === 1) gpsStop();                                            // sin permiso no hay nada que seguir leyendo
-      if (Gps.isOff(e) && askNoGps(e)) return;                                     // GPS apagado o sin permiso: pregunta «¿Usar sin GPS?»
+      if (Gps.isOff(e, !!ui.fix) && askNoGps(e)) return;                         // GPS apagado o sin permiso: pregunta «¿Usar sin GPS?»
       toast(Gps.explain(e), { err: true });
     });
     if (ui.tab === 'puntos') renderTab('puntos');

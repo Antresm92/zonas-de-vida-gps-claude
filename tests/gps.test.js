@@ -61,15 +61,19 @@ test('sample con precisión objetivo: si se logra a tiempo, no espera de más', 
 test('explain: un mensaje claro para cada tipo de error', () => {
   assert.match(Gps.explain({ code: 1 }), /Sin permiso de ubicación/);
   assert.match(Gps.explain({ code: 2 }), /No hay señal de GPS/);
-  assert.match(Gps.explain({ code: 3 }), /tardó demasiado/);
+  assert.match(Gps.explain({ code: 3 }), /no responde.*ubicación del teléfono esté activada.*lugar abierto/);
   assert.equal(Gps.explain(new Error('algo raro')), 'No se pudo leer el GPS: algo raro');
   assert.equal(Gps.explain(null), 'No se pudo leer el GPS.');
 });
 
-test('isOff: solo el permiso negado (1) y la posición no disponible (2) cuentan como GPS apagado', () => {
+test('isOff: permiso negado (1), posición no disponible (2) o tardó demasiado (3) sin ninguna lectura cuentan como GPS apagado', () => {
   assert.equal(Gps.isOff({ code: 1 }), true);
   assert.equal(Gps.isOff({ code: 2 }), true);
-  assert.equal(Gps.isOff({ code: 3 }), false);           // tardó demasiado: es lo normal al buscar señal bajo techo
+  assert.equal(Gps.isOff({ code: 3 }), true);            // tardó demasiado sin ninguna lectura: así responde Android con la ubicación apagada
+  assert.equal(Gps.isOff({ code: 3 }, false), true);
+  assert.equal(Gps.isOff({ code: 3 }, true), false);     // ya hubo lecturas: pérdida de señal pasajera, solo se avisa
+  assert.equal(Gps.isOff({ code: 2 }, true), true);
+  assert.equal(Gps.isOff({ code: 1 }, true), true);
   assert.equal(Gps.isOff(new Error('Tiempo agotado')), false);
   assert.equal(Gps.isOff(null), false);
   assert.equal(Gps.isOff(undefined), false);

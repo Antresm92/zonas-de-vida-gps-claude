@@ -17,14 +17,16 @@
     var code = err && err.code;
     if (code === 1) return 'Sin permiso de ubicación. Actívalo en Ajustes del teléfono > Aplicaciones > Zonas de Vida > Permisos.';
     if (code === 2) return 'No hay señal de GPS. Sal a un lugar abierto y espera unos segundos.';
-    if (code === 3) return 'El GPS tardó demasiado. Sal a un lugar abierto y vuelve a intentar.';
+    if (code === 3) return 'El GPS no responde. Verifica que la ubicación del teléfono esté activada, o sal a un lugar abierto y vuelve a intentar.';
     return 'No se pudo leer el GPS' + (err && err.message ? ': ' + err.message : '.');
   }
 
   // ¿Este error quiere decir que el GPS está apagado o que la app no puede usarlo?
   // 1 = sin permiso de ubicación · 2 = posición no disponible (ubicación apagada o sin señal).
-  // El código 3 (tardó demasiado) no cuenta: es lo normal al buscar la señal en un lugar cerrado.
-  function isOff(err) { return !!err && (err.code === 1 || err.code === 2); }
+  // El código 3 (tardó demasiado) cuenta solo si todavía no llegó ninguna lectura desde que se encendió: en Android,
+  // con la ubicación apagada, el WebView entrega ese código (confirmado en un teléfono el 8 nov 2026). Si ya hubo
+  // lecturas, es una pérdida de señal pasajera (bajo techo) y basta con avisar.
+  function isOff(err, hadFix) { return !!err && (err.code === 1 || err.code === 2 || (err.code === 3 && !hadFix)); }
 
   // Textos del aviso «¿Usar sin GPS?». kind: 'permiso' (código 1) o 'senal' (cualquier otro caso).
   function offNotice(err) {

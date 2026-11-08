@@ -141,7 +141,7 @@ module.exports = async function (c) {
     await gpsPush({ lat: 4.6097, lon: -74.0817, alt: 2639.4, acc: 45 });
     assert.equal(await page.evaluate(() => document.querySelector('#gpsChip').className), 'chip chip-bad');
     await page.evaluate(() => window.__gps.error(3));
-    assert.match(await toastText(), /tardó demasiado/);                                    // buscar señal tarda: solo avisa, no pregunta nada
+    assert.match(await toastText(), /no responde.*ubicación del teléfono esté activada/);          // ya hubo lecturas: pérdida pasajera, solo avisa
     assert.equal(await sheetOpen(), false);
     await page.evaluate(() => window.__gps.error(2));                                      // posición no disponible: GPS apagado o sin señal
     await page.waitForSelector('#sheet:not([hidden])');
@@ -273,6 +273,16 @@ module.exports = async function (c) {
     await gpsPush({ lat: 4.6097, lon: -74.0817, alt: 2639.4, acc: 6 });                    // la señal llega: se recupera sola
     assert.match(await text('#gpsChipText'), /±6 m/);
     await act('gpsOff');
+  });
+
+  await step('«Tardó demasiado» sin ninguna lectura (así responde Android con la ubicación apagada) también pregunta «¿Usar sin GPS?»', async () => {
+    await act('gpsOn');
+    await page.evaluate(() => window.__gps.error(3));
+    await page.waitForSelector('#sheet:not([hidden])');
+    assert.equal(await sheetTitle(), '¿Usar sin GPS?');
+    assert.match(await text('#sheet .warn'), /apagado o no llega su señal/);
+    await act('noGpsYes'); await waitSheetClosed();
+    assert.match(await text('#gpsChipText'), /GPS apagado/);
   });
 
   await step('Marcando un punto con el GPS apagado: el aviso sale al instante y «Sí» cancela la marca sin guardar nada', async () => {
