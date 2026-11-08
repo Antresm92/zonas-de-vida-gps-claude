@@ -531,7 +531,10 @@
     var pts = (points || []).filter(function (p) { return p && validLL(p.lat, p.lon); });
     var n = pts.length, ring = n >= 3;
     function num(v, d) { if (!isNum(v)) return ''; var s = fix(v, d); return es ? s.replace('.', ',') : s; }
-    function cell(s) { s = String(s); return /[";,\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
+    // Un nombre que empieza por = + - @ (o por tabulador o retorno) lo abren Excel y Sheets como fórmula (p. ej. =HYPERLINK(…)):
+    // se le antepone un apóstrofo, como recomienda OWASP. Solo el nombre es texto libre; las demás celdas son números.
+    function safe(s) { s = String(s); return /^[=+\-@\t\r]/.test(s) ? "'" + s : s; }
+    function cell(s) { s = safe(s); return /[";,\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
     var rows = [['Punto', 'Latitud', 'Longitud', 'Altitud', 'Rumbo', 'Distancia al vértice siguiente'].join(sep)];
     pts.forEach(function (p, i) {
       var nxt = ring ? pts[(i + 1) % n] : (i + 1 < n ? pts[i + 1] : null);

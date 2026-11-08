@@ -153,8 +153,11 @@
     return out;
   }
   function text(node) { return node ? node.text.trim() : ''; }
+  // XML 1.0 no admite los caracteres de control (U+0000–U+001F salvo tabulador, salto de línea y retorno) ni U+FFFE/U+FFFF, ni siquiera escritos
+  // como &#1;: un nombre que los trajera dejaba el KML o el GPX inválido y otros programas lo rechazaban. Aquí se quitan.
+  var INVALID_XML = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]/g;
   function escape(s) {
-    return String(s === null || s === undefined ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    return String(s === null || s === undefined ? '' : s).replace(INVALID_XML, '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
   return { parse: parse, child: child, kids: kids, find: find, text: text, escape: escape, decode: decode };

@@ -29,8 +29,10 @@ jobs:
       - name: Pruebas del cálculo (área y zonas de vida)
         run: npm test
 
+      # npm ci instala exactamente las versiones de package-lock.json (y falla si no coinciden con package.json):
+      # cada compilación usa las mismas librerías que se probaron.
       - name: Instalar dependencias
-        run: npm install
+        run: npm ci
 
       - name: Crear el proyecto Android
         run: npx cap add android
