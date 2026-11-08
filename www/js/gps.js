@@ -21,6 +21,22 @@
     return 'No se pudo leer el GPS' + (err && err.message ? ': ' + err.message : '.');
   }
 
+  // ¿Este error quiere decir que el GPS está apagado o que la app no puede usarlo?
+  // 1 = sin permiso de ubicación · 2 = posición no disponible (ubicación apagada o sin señal).
+  // El código 3 (tardó demasiado) no cuenta: es lo normal al buscar la señal en un lugar cerrado.
+  function isOff(err) { return !!err && (err.code === 1 || err.code === 2); }
+
+  // Textos del aviso «¿Usar sin GPS?». kind: 'permiso' (código 1) o 'senal' (cualquier otro caso).
+  function offNotice(err) {
+    var perm = !!err && err.code === 1;
+    return {
+      kind: perm ? 'permiso' : 'senal',
+      main: perm ? explain(err) : 'El GPS parece apagado o no llega su señal. Enciende la ubicación del teléfono (Ajustes > Ubicación) o sal a un lugar abierto.',
+      yes: 'Si eliges «Sí», sigues sin GPS: puedes tocar el mapa o escribir las coordenadas.',
+      no: perm ? 'Si eliges «No», el GPS queda apagado hasta que lo vuelvas a encender aquí.' : 'Si eliges «No», la app sigue buscando la señal.'
+    };
+  }
+
   function available(geo) {
     geo = geo || (typeof navigator !== 'undefined' ? navigator.geolocation : null);
     return !!geo;
@@ -129,5 +145,5 @@
     });
   }
 
-  return { sample: sample, watch: watch, combine: combine, explain: explain, available: available, precisionState: precisionState, precisionText: precisionText };
+  return { sample: sample, watch: watch, combine: combine, explain: explain, isOff: isOff, offNotice: offNotice, available: available, precisionState: precisionState, precisionText: precisionText };
 });

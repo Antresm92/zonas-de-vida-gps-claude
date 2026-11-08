@@ -5,13 +5,13 @@
   var Geo = window.Geo, H = window.Holdridge, Climate = window.Climate, A = window.Analysis, Fmt = window.Fmt,
       Gps = window.Gps, Store = window.Store, Diagram = window.Diagram, Report = window.Report,
       Gis = window.Gis, Backup = window.Backup, IO = window.IO, WL = window.WalterLieth, Mapa = window.Mapa, MapView = window.MapView, Satelite = window.Satelite, Perfil = window.Perfil, Fotos = window.Fotos, Zip = window.Zip, Units = window.Units;
-  var APP_VERSION = '2.8.1';
+  var APP_VERSION = '2.9.0';
 
   var S = Store.loadState();
   var hadSaved = Store.hasSavedState();      // ¿había datos guardados al abrir? (solo entonces se limpian las fotos sin uso)
   var MEM = new Climate.Memory();
   MEM.add(Store.loadMemory());
-  var ui = { tab: 'puntos', gpsOn: false, fix: null, stopWatch: null, sampling: null, fetching: false, diagram: null, sheetOpen: false, undo: null, wasOn: false,
+  var ui = { tab: 'puntos', gpsOn: false, fix: null, stopWatch: null, sampling: null, fetching: false, diagram: null, sheetOpen: false, undo: null, wasOn: false, gpsAsked: false, gpsAsking: false,
              imp: null, restore: null, edit: null,
              polyView: 'croquis', polyActive: true, mapBase: Mapa.baseId(Store.loadFlag('mapBase')), mapRef: Store.loadFlag('mapRef') === true,
              map: null, mapFollow: false, mapFitKey: null, tileErrors: 0, mapMode: '', mapMenu: false, mapModeFor: null,
@@ -241,7 +241,7 @@
     var first = el.querySelector('input,textarea');
     if (first) setTimeout(function () { try { first.focus(); } catch (e) { /* nada */ } }, 60);
   }
-  function hideSheet() { var el = $('#sheet'); el.hidden = true; el.innerHTML = ''; ui.sheetOpen = false; ui.conv = null; ui.tool = null; ui.toolGpsKind = ''; }
+  function hideSheet() { var el = $('#sheet'); el.hidden = true; el.innerHTML = ''; ui.sheetOpen = false; ui.gpsAsking = false; ui.conv = null; ui.tool = null; ui.toolGpsKind = ''; }
   function closeSheet() {
     if (!ui.sheetOpen) return;
     if (history.state && history.state.sheet) history.back(); else hideSheet();
@@ -286,10 +286,11 @@
   }
   function gpsStart() {
     if (!Gps.available()) { toast('Este dispositivo no permite leer el GPS. Puedes escribir las coordenadas.', { err: true }); return; }
-    ui.gpsOn = true; ui.fix = null; updateChips();
+    ui.gpsOn = true; ui.fix = null; ui.gpsAsked = false; updateChips();
     ui.stopWatch = Gps.watch(function (fix) { ui.fix = fix; updateReadout(); updateChips(); onMapFix(fix); onToolFix(); }, function (e) {
+      if (e && e.code === 1) gpsStop();                                            // sin permiso no hay nada que seguir leyendo
+      if (Gps.isOff(e) && askNoGps(e)) return;                                     // GPS apagado o sin permiso: pregunta «¿Usar sin GPS?»
       toast(Gps.explain(e), { err: true });
-      if (e && e.code === 1) gpsStop();
     });
     if (ui.tab === 'puntos') renderTab('puntos');
   }
@@ -329,7 +330,7 @@
           toast(base + (isNum(r.alt) ? '' : '. El GPS no dio altitud: escríbela o complétala con internet.'));
         }
       })
-      .catch(function (e) { if (!st.cancelled) toast(Gps.explain(e), { err: true }); })
+      .catch(function (e) { if (!st.cancelled && !askNoGps(e)) toast(Gps.explain(e), { err: true }); })   // sin ninguna lectura a tiempo: el GPS está apagado o sin señal
       .then(function () { clearInterval(timer); ui.sampling = null; if (ui.tab === 'puntos' || ui.tab === 'area') renderTab(ui.tab); });
   }
   function updateProgress() {
@@ -353,6 +354,27 @@
       '<div class="warn">' + esc(Gps.precisionText(f.acc, S.settings.minAcc)) + '</div>' +
       '<p class="small muted">Suele mejorar si sales a un lugar abierto, lejos de edificios y árboles, y esperas unos segundos. Si marcas igual, el punto se guarda con su precisión real y queda señalado en la lista.</p>' +
       '<div class="btns"><button class="btn btn-primary" data-act="closeSheet">Esperar</button><button class="btn" data-act="markAnyway">Marcar igual</button></div>');
+  }
+  // GPS apagado o sin permiso: pregunta si se sigue sin GPS. Devuelve true si el aviso quedó en pantalla (o ya lo estaba)
+  // y false si quien llama debe avisar con el mensaje de siempre: ya se preguntó con este encendido del GPS (una sola vez,
+  // para no insistir) o hay otra ventana abierta que no se debe pisar (puede tener datos escritos).
+  function askNoGps(err) {
+    if (ui.gpsAsking) return true;
+    if (ui.gpsAsked || ui.sheetOpen) return false;
+    var n = Gps.offNotice(err);
+    ui.gpsAsked = true;
+    openSheet('¿Usar sin GPS?',
+      '<div class="warn">' + esc(n.main) + '</div>' +
+      '<p class="small muted">' + esc(n.yes) + ' ' + esc(n.no) + '</p>' +
+      '<div class="btns"><button class="btn btn-primary" data-act="noGpsYes">Sí</button><button class="btn" data-act="closeSheet">No</button></div>');
+    ui.gpsAsking = true;
+    return true;
+  }
+  function useWithoutGps() {
+    cancelMark();
+    gpsStop();
+    closeSheet();
+    toast('Sin GPS: toca el mapa o escribe las coordenadas a mano.');
   }
   function removePoint(id) {
     var p = proj(), i = p.points.map(function (x) { return x.id; }).indexOf(id);
@@ -1751,7 +1773,7 @@
     mapMode: function (t) { setMapMode(Mapa.toggleMode(ui.mapMode, t.getAttribute('data-mode'))); },
     mapMark: function () { if (!ui.gpsOn) gpsStart(); markPoint(); },
     mapMyPos: goMyPosition,
-    gpsOn: gpsStart, gpsOff: gpsStop, mark: markPoint, cancelMark: cancelMark,
+    gpsOn: gpsStart, gpsOff: gpsStop, noGpsYes: useWithoutGps, mark: markPoint, cancelMark: cancelMark,
     addCoords: openAdd, addBulk: openBulk, saveBulk: saveBulk,
     saveNew: function (t) { saveNew(t.getAttribute('data-more') === '1'); },
     editPoint: function (t) { openEdit(t.getAttribute('data-id')); },

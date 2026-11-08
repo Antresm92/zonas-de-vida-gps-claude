@@ -66,6 +66,32 @@ test('explain: un mensaje claro para cada tipo de error', () => {
   assert.equal(Gps.explain(null), 'No se pudo leer el GPS.');
 });
 
+test('isOff: solo el permiso negado (1) y la posición no disponible (2) cuentan como GPS apagado', () => {
+  assert.equal(Gps.isOff({ code: 1 }), true);
+  assert.equal(Gps.isOff({ code: 2 }), true);
+  assert.equal(Gps.isOff({ code: 3 }), false);           // tardó demasiado: es lo normal al buscar señal bajo techo
+  assert.equal(Gps.isOff(new Error('Tiempo agotado')), false);
+  assert.equal(Gps.isOff(null), false);
+  assert.equal(Gps.isOff(undefined), false);
+});
+
+test('offNotice: el aviso «¿Usar sin GPS?» explica el motivo y lo que hace cada respuesta', () => {
+  const perm = Gps.offNotice({ code: 1 });
+  assert.equal(perm.kind, 'permiso');
+  assert.equal(perm.main, Gps.explain({ code: 1 }));     // el mismo texto que ya se mostraba: cómo dar el permiso
+  assert.match(perm.main, /Ajustes del teléfono/);
+  assert.match(perm.no, /el GPS queda apagado/);
+  for (const e of [{ code: 2 }, new Error('Tiempo agotado sin lecturas del GPS.'), null]) {
+    const n = Gps.offNotice(e);
+    assert.equal(n.kind, 'senal');
+    assert.match(n.main, /apagado o no llega su señal/);
+    assert.match(n.main, /Ajustes > Ubicación/);
+    assert.match(n.no, /sigue buscando la señal/);
+  }
+  assert.match(perm.yes, /sigues sin GPS/);
+  assert.equal(Gps.offNotice({ code: 2 }).yes, perm.yes);   // «Sí» significa lo mismo en los dos casos
+});
+
 test('available: hay GPS solo si el equipo lo expone', () => {
   assert.equal(Gps.available({}), true);
   assert.equal(Gps.available(null), false);              // en Node no existe navigator.geolocation

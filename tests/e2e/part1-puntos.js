@@ -140,10 +140,18 @@ module.exports = async function (c) {
     assert.equal(await page.evaluate(() => document.querySelector('#gpsChip').className), 'chip chip-warn');
     await gpsPush({ lat: 4.6097, lon: -74.0817, alt: 2639.4, acc: 45 });
     assert.equal(await page.evaluate(() => document.querySelector('#gpsChip').className), 'chip chip-bad');
-    await page.evaluate(() => window.__gps.error(2));
-    assert.match(await toastText(), /No hay señal de GPS/);
     await page.evaluate(() => window.__gps.error(3));
-    assert.match(await toastText(), /tardó demasiado/);
+    assert.match(await toastText(), /tardó demasiado/);                                    // buscar señal tarda: solo avisa, no pregunta nada
+    assert.equal(await sheetOpen(), false);
+    await page.evaluate(() => window.__gps.error(2));                                      // posición no disponible: GPS apagado o sin señal
+    await page.waitForSelector('#sheet:not([hidden])');
+    assert.equal(await sheetTitle(), '¿Usar sin GPS?');
+    await shot('02b-usar-sin-gps');
+    await act('closeSheet'); await waitSheetClosed();                                      // «No»: el GPS sigue encendido buscando señal
+    assert.doesNotMatch(await text('#gpsChipText'), /GPS apagado/);
+    await page.evaluate(() => window.__gps.error(2));                                      // ya se preguntó con este encendido: ahora solo avisa
+    assert.match(await toastText(), /No hay señal de GPS/);
+    assert.equal(await sheetOpen(), false);
     await shot('02-gps-encendido');
   });
 
@@ -231,6 +239,70 @@ module.exports = async function (c) {
     await page.evaluate(() => window.__gps.error(1));
     assert.match(await toastText(), /Sin permiso de ubicación/);
     assert.match(await text('#gpsChipText'), /GPS apagado/);
+  });
+
+  await step('GPS apagado: pregunta «¿Usar sin GPS?» con Sí y No; sin permiso explica cómo darlo y «No» deja el GPS apagado', async () => {
+    await act('gpsOn');                                                                    // un encendido nuevo vuelve a preguntar
+    await page.evaluate(() => window.__gps.error(1, 'denegado'));
+    await page.waitForSelector('#sheet:not([hidden])');
+    assert.equal(await sheetTitle(), '¿Usar sin GPS?');
+    assert.match(await text('#sheet .warn'), /Sin permiso de ubicación/);
+    assert.match(await text('#sheet .muted'), /Si eliges «Sí», sigues sin GPS.*Si eliges «No», el GPS queda apagado/);
+    assert.deepEqual(await page.$$eval('#sheet .btns button', (b) => b.map((x) => x.textContent)), ['Sí', 'No']);
+    assert.match(await text('#gpsChipText'), /GPS apagado/);                               // sin permiso no hay lectura posible: ya quedó apagado
+    await act('closeSheet'); await waitSheetClosed();
+    assert.match(await text('#gpsChipText'), /GPS apagado/);
+    assert.equal(await page.evaluate(() => window.__gps.count()), 0);
+  });
+
+  await step('«Sí»: sigue sin GPS (lo apaga, cierra el aviso y dice qué se puede hacer); «No»: sigue buscando la señal', async () => {
+    await act('gpsOn');
+    await page.evaluate(() => window.__gps.error(2));
+    await page.waitForSelector('#sheet:not([hidden])');
+    assert.match(await text('#sheet .warn'), /apagado o no llega su señal.*Ajustes > Ubicación/);
+    assert.match(await text('#sheet .muted'), /Si eliges «No», la app sigue buscando la señal/);
+    await act('noGpsYes'); await waitSheetClosed();
+    assert.match(await text('#gpsChipText'), /GPS apagado/);
+    assert.equal(await page.evaluate(() => window.__gps.count()), 0);
+    await waitToast(/Sin GPS: toca el mapa o escribe las coordenadas/);
+    await act('gpsOn');                                                                    // vuelve a encenderlo: otra vez pregunta y «No» deja buscando
+    await page.evaluate(() => window.__gps.error(2));
+    await page.waitForSelector('#sheet:not([hidden])');
+    await act('closeSheet'); await waitSheetClosed();
+    assert.equal(await page.evaluate(() => window.__gps.count()), 1);
+    await gpsPush({ lat: 4.6097, lon: -74.0817, alt: 2639.4, acc: 6 });                    // la señal llega: se recupera sola
+    assert.match(await text('#gpsChipText'), /±6 m/);
+    await act('gpsOff');
+  });
+
+  await step('Marcando un punto con el GPS apagado: el aviso sale al instante y «Sí» cancela la marca sin guardar nada', async () => {
+    const antes = (await proj()).points.length;
+    await act('gpsOn'); await act('mark');
+    await page.waitForSelector('#progBar');
+    await page.evaluate(() => window.__gps.error(2));
+    await page.waitForSelector('#sheet:not([hidden])');
+    assert.equal(await sheetTitle(), '¿Usar sin GPS?');
+    await act('noGpsYes'); await waitSheetClosed();
+    await page.waitForSelector('#progBar', { state: 'detached', timeout: 2000 });          // al instante: sin cancelar, la marca seguiría 10 s esperando lecturas
+    assert.equal((await proj()).points.length, antes);
+    assert.match(await text('#gpsChipText'), /GPS apagado/);
+  });
+
+  await step('Marcando un punto y sin ninguna lectura a tiempo, también pregunta «¿Usar sin GPS?»; con otra ventana abierta no la pisa', async () => {
+    await act('gpsOn'); await act('mark');
+    await page.waitForSelector('#sheet:not([hidden])', { timeout: 14000 });                // a los 10 s sin lecturas
+    assert.equal(await sheetTitle(), '¿Usar sin GPS?');
+    assert.match(await text('#sheet .warn'), /apagado o no llega su señal/);
+    await act('closeSheet'); await waitSheetClosed();
+    await act('gpsOff'); await act('gpsOn');                                               // encendido nuevo, con una ventana de coordenadas abierta
+    await act('addCoords');
+    assert.equal(await sheetTitle(), 'Escribir coordenadas');
+    await page.evaluate(() => window.__gps.error(2));
+    assert.match(await toastText(), /No hay señal de GPS/);
+    assert.doesNotMatch(await sheetTitle(), /Usar sin GPS/);                               // la ventana que se estaba usando sigue ahí
+    await act('closeSheet'); await waitSheetClosed();
+    await act('gpsOff');
+    assert.deepEqual(errors, []);
   });
 
   await step('Al ocultar la app el GPS se apaga y al volver se enciende solo', async () => {
