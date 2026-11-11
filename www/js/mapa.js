@@ -260,19 +260,59 @@
     return 'a ' + f(m) + ' de ti, hacia el ' + compass(bearing(fix.lat, fix.lon, pt.lat, pt.lon));
   }
 
-  // Medir distancia: texto para 0, 1 o 2 lugares tocados.
-  function measureText(pts, fmtDist) {
-    var p = (pts || []).filter(validLL), f = typeof fmtDist === 'function' ? fmtDist : plainDist;
-    if (!p.length) return 'Medir: toca dos lugares del mapa (o dos puntos).';
-    if (p.length === 1) return 'Medir: toca el segundo lugar.';
-    var b = bearing(p[0].lat, p[0].lon, p[1].lat, p[1].lon);
-    return f(haversine(p[0].lat, p[0].lon, p[1].lat, p[1].lon)) + ' · rumbo ' + Math.round(b) % 360 + '° (' + compass(b) + ')';
+  // Medir: los lugares tocados forman tramos seguidos que se suman. Con dos lugares se da además el rumbo; con la figura cerrada
+  // (3 lugares o más), el área y el perímetro.
+  //  o: { closed, area(pts) → m², fmtArea(m²) → texto }   (sin area/fmtArea, cerrada solo da el perímetro)
+  var MEASURE_MAX = 200;
+  function measureLength(pts, closed) {
+    var p = (pts || []).filter(validLL), m = 0;
+    for (var i = 1; i < p.length; i++) m += haversine(p[i - 1].lat, p[i - 1].lon, p[i].lat, p[i].lon);
+    if (closed && p.length >= 3) m += haversine(p[p.length - 1].lat, p[p.length - 1].lon, p[0].lat, p[0].lon);
+    return m;
   }
-  // Al tocar un tercer lugar se empieza una medida nueva desde ahí
+  function measureText(pts, fmtDist, o) {
+    var p = (pts || []).filter(validLL), f = typeof fmtDist === 'function' ? fmtDist : plainDist;
+    o = o || {};
+    if (!p.length) return 'Medir: toca lugares del mapa (o puntos) para sumar tramos.';
+    if (p.length === 1) return 'Medir: toca el siguiente lugar.';
+    if (p.length === 2) {
+      var b = bearing(p[0].lat, p[0].lon, p[1].lat, p[1].lon);
+      return f(measureLength(p)) + ' · rumbo ' + Math.round(b) % 360 + '° (' + compass(b) + ')';
+    }
+    if (o.closed) {
+      var a = typeof o.area === 'function' && typeof o.fmtArea === 'function' ? o.fmtArea(o.area(p)) : '';
+      return (a ? 'Área ' + a + ' · ' : '') + 'perímetro ' + f(measureLength(p, true));
+    }
+    return f(measureLength(p)) + ' en ' + (p.length - 1) + ' tramos';
+  }
+  // Cada lugar tocado se agrega al final (hasta MEASURE_MAX)
   function measureAdd(pts, ll) {
-    if (!validLL(ll)) return (pts || []).slice();
     var p = (pts || []).filter(validLL);
-    return p.length >= 2 ? [{ lat: ll.lat, lon: ll.lon }] : p.concat([{ lat: ll.lat, lon: ll.lon }]);
+    if (!validLL(ll) || p.length >= MEASURE_MAX) return p;
+    return p.concat([{ lat: ll.lat, lon: ll.lon }]);
+  }
+
+  /* ---------- Deshacer el último cambio del mapa ---------- */
+  // Guarda cómo estaban los puntos de un proyecto antes de cada cambio (mover, insertar, borrar, reordenar…), hasta «max» pasos.
+  //  push(pid, label, json): json es el estado ANTES del cambio (texto), label lo que se va a hacer («mover P3»)
+  //  pop(pid, current): devuelve { label, json } del último cambio de ese proyecto que de verdad cambió algo, o null.
+  //    Descarta por el camino los pasos de otro proyecto y los que dejan todo igual que ahora (por ejemplo, si ya se deshizo desde el aviso).
+  //  peek(pid, current): lo mismo sin sacarlo.
+  function undoStack(max) {
+    var lim = isNum(max) && max > 0 ? Math.floor(max) : 20, items = [];
+    function trim(pid, current) { while (items.length && (items[items.length - 1].pid !== pid || items[items.length - 1].json === current)) items.pop(); }
+    return {
+      push: function (pid, label, json) {
+        if (typeof json !== 'string') return;
+        if (items.length && items[items.length - 1].pid === pid && items[items.length - 1].json === json) return;   // dos avisos seguidos del mismo estado: uno solo
+        items.push({ pid: pid, label: String(label || ''), json: json });
+        if (items.length > lim) items.shift();
+      },
+      peek: function (pid, current) { trim(pid, current); var t = items[items.length - 1]; return t ? { label: t.label, json: t.json } : null; },
+      pop: function (pid, current) { trim(pid, current); var t = items.pop(); return t ? { label: t.label, json: t.json } : null; },
+      size: function () { return items.length; },
+      clear: function () { items = []; }
+    };
   }
 
   /* ---------- Caminar el lindero ---------- */
@@ -319,7 +359,7 @@
 
   return {
     haversine: haversine, bearing: bearing, compass: compass, sides: sides, sideShows: sideShows, SIDE_LABEL_MIN_PX: SIDE_LABEL_MIN_PX, SIDE_PLUS_MIN_PX: SIDE_PLUS_MIN_PX,
-    summaryText: summaryText, relText: relText, measureText: measureText, measureAdd: measureAdd,
+    summaryText: summaryText, relText: relText, measureText: measureText, measureAdd: measureAdd, measureLength: measureLength, MEASURE_MAX: MEASURE_MAX, undoStack: undoStack,
     TRACK_STEPS: TRACK_STEPS, TRACK_STEP_DEFAULT: TRACK_STEP_DEFAULT, TRACK_MAX_ACC: TRACK_MAX_ACC, trackStep: trackStep, trackDecision: trackDecision, trackText: trackText,
     rectsOverlap: rectsOverlap, sidePlacement: sidePlacement, navInfo: navInfo, ARRIVE_M: ARRIVE_M,
     TOOLS: TOOLS, toolId: toolId, moveInOrder: moveInOrder, orderOf: orderOf,

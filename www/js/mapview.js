@@ -28,7 +28,7 @@
     var drawn = L.layerGroup().addTo(map);
     var fixGroup = L.layerGroup().addTo(map);
     var measureGroup = L.layerGroup().addTo(map);
-    var sideRefs = [], selId = null, lastFix = null, measurePts = [];
+    var sideRefs = [], selId = null, lastFix = null, measurePts = [], measureClosed = false;
     var model = { markers: [], polygon: null, layers: [], fix: null };
     var mode = '';                 // '' · 'add' (Ingresar puntos) · 'move' (Posición manual)
     var lastShapes = null, pending = null, refs = {}, polyLayer = null, drag = null, pid = null, lastTap = null;
@@ -302,11 +302,14 @@
       if (selId && refs[selId].marker.getElement()) refs[selId].marker.getElement().classList.add('mk-sel');
       drawLink();
     }
-    // Medir distancia: hasta dos lugares unidos por una línea
-    function setMeasure(pts) {
-      measurePts = (pts || []).slice(0, 2);
+    // Medir: los lugares tocados unidos por una línea; con la figura cerrada, un polígono
+    function setMeasure(pts, closed) {
+      measurePts = (pts || []).slice();
+      measureClosed = !!closed && measurePts.length >= 3;
       measureGroup.clearLayers();
-      if (measurePts.length === 2) L.polyline(measurePts.map(function (q) { return [q.lat, q.lon]; }), { color: '#B4530A', weight: 4, dashArray: '2 8', lineCap: 'round', interactive: false }).addTo(measureGroup);
+      var lls = measurePts.map(function (q) { return [q.lat, q.lon]; }), st = { color: '#B4530A', weight: 4, dashArray: '2 8', lineCap: 'round', interactive: false };
+      if (measureClosed) L.polygon(lls, Object.assign({ fillColor: '#B4530A', fillOpacity: 0.15 }, st)).addTo(measureGroup);
+      else if (lls.length >= 2) L.polyline(lls, st).addTo(measureGroup);
       measurePts.forEach(function (q) { L.circleMarker([q.lat, q.lon], { radius: 7, color: '#FFFFFF', weight: 3, fillColor: '#B4530A', fillOpacity: 1, interactive: false }).addTo(measureGroup); });
     }
 
@@ -338,7 +341,7 @@
         var c = map.getCenter();
         return { mode: mode, gesture: gesture.state(), lifted: drag ? { lat: drag.ll.lat, lon: drag.ll.lng } : null, base: state.base, reference: state.reference, zoom: map.getZoom(), center: { lat: c.lat, lon: c.lng }, errors: state.errors, loaded: state.loaded,
                  markers: model.markers.slice(), polygon: model.polygon, layers: model.layers.slice(), fix: model.fix,
-                 selected: selId, link: !!linkLine, measure: measurePts.length, scale: (el.querySelector('.leaflet-control-scale-line') || {}).textContent || '',
+                 selected: selId, link: !!linkLine, measure: measurePts.length, measureClosed: measureClosed, scale: (el.querySelector('.leaflet-control-scale-line') || {}).textContent || '',
                  sides: sideRefs.map(function (r) { return { text: r.text, label: r.label, plus: r.plus, alt: !!r.alt }; }),
                  labelsOn: !el.classList.contains('labels-off'), attribution: (el.querySelector('.leaflet-control-attribution') || {}).textContent || '' };
       }

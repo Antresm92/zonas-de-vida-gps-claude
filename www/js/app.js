@@ -5,7 +5,7 @@
   var Geo = window.Geo, H = window.Holdridge, Climate = window.Climate, A = window.Analysis, Fmt = window.Fmt,
       Gps = window.Gps, Store = window.Store, Diagram = window.Diagram, Report = window.Report,
       Gis = window.Gis, Backup = window.Backup, IO = window.IO, WL = window.WalterLieth, Mapa = window.Mapa, MapView = window.MapView, Satelite = window.Satelite, Perfil = window.Perfil, Fotos = window.Fotos, Zip = window.Zip, Units = window.Units;
-  var APP_VERSION = '2.11.0';
+  var APP_VERSION = '2.12.0';
 
   var S = Store.loadState();
   var hadSaved = Store.hasSavedState();      // ¿había datos guardados al abrir? (solo entonces se limpian las fotos sin uso)
@@ -15,7 +15,7 @@
              imp: null, restore: null, edit: null,
              polyView: 'croquis', polyActive: true, mapBase: Mapa.baseId(Store.loadFlag('mapBase')), mapRef: Store.loadFlag('mapRef') === true,
              map: null, mapFollow: false, mapFitKey: null, tileErrors: 0, mapMode: '', mapMenu: false, mapModeFor: null,
-             mapSel: null, navId: null, mapLayers: false, mapFull: false, follow: false, mapTool: '', measure: [], track: null, wake: null,
+             mapSel: null, navId: null, mapLayers: false, mapFull: false, follow: false, mapTool: '', measure: [], measureClosed: false, mapUndo: Mapa.undoStack(20), track: null, wake: null,
              croq: { satelite: { img: null, busy: false, error: null }, topo: { img: null, busy: false, error: null } }, sharing: false, nowBusy: false, nowError: '', photoBusy: false, restoring: false,
              conv: null, convMem: {}, tool: null, wx: null, wxToken: 0, toolGpsKind: '' };
 
@@ -326,6 +326,7 @@
       onProgress: function (s, n) { st.n = n; st.acc = s.acc; } })
       .then(function (r) {
         if (st.cancelled) return;
+        undoMark('marcar un punto con el GPS');
         var pt = addPoint({ lat: r.lat, lon: r.lon, alt: r.alt, altGps: r.alt, altSrc: isNum(r.alt) ? 'gps' : null, acc: r.acc, altAcc: r.altAcc, src: 'gps' });
         var base = pt.name + ' guardado' + (isNum(r.acc) ? ' (±' + Math.round(r.acc) + ' m, ' + r.n + ' lecturas)' : '');
         if (Gps.precisionState(r.acc, min).worse) {
@@ -773,6 +774,7 @@
   function doDelete(id) {
     var p = proj(), i = p.points.map(function (x) { return x.id; }).indexOf(id);
     if (i < 0) return;
+    undoMark('eliminar ' + p.points[i].name);
     var removed = p.points.splice(i, 1)[0];
     save(); closeSheet(); renderTab(ui.tab);
     toast(removed.name + ' eliminado.', { action: 'Deshacer', fn: function () { p.points.splice(i, 0, removed); save(); renderTab(ui.tab); } });
@@ -870,6 +872,7 @@
     var p = proj();
     if (p.points.length < 3) { toast('Hacen falta al menos 3 puntos para ordenarlos.'); return; }
     var before = p.points.slice();
+    undoMark('ordenar los puntos');
     var order = Geo.angularOrder(p.points);
     p.points = order.map(function (i) { return before[i]; });
     save(); renderTab('area');
@@ -903,7 +906,8 @@
     // Columna izquierda, bajo el menú ⋮: capas, ver todo el terreno y pantalla completa
     h += '<div class="mapside"><button class="mapbtn" data-act="mapLayers" aria-label="Capas del mapa" aria-haspopup="true" aria-expanded="false" aria-controls="mapLayersPanel">' + ICONS.layers + '</button>' +
       '<button class="mapbtn" data-act="mapFit" aria-label="Ver todo el terreno">' + ICONS.fit + '</button>' +
-      '<button class="mapbtn" data-act="mapFull" aria-label="Pantalla completa" aria-pressed="' + ui.mapFull + '">' + ICONS.full + '</button></div>';
+      '<button class="mapbtn" data-act="mapFull" aria-label="Pantalla completa" aria-pressed="' + ui.mapFull + '">' + ICONS.full + '</button>' +
+      '<button class="mapbtn" id="mapUndoBtn" data-act="mapUndo" aria-label="Deshacer" disabled><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 5L3.5 9.5 8 14"/><path d="M4 9.5h9.5a6 6 0 0 1 0 12H9"/></svg></button></div>';
     h += '<div id="mapLayersPanel" class="maplayers" role="group" aria-label="Capa base" hidden><b>Capa base</b>';
     ['calles', 'satelite', 'topo'].forEach(function (id) {
       h += '<button data-act="mapBase" data-b="' + id + '" aria-pressed="' + (ui.mapBase === id) + '">' + esc(Mapa.BASES[id].label) + '</button>';
@@ -965,6 +969,7 @@
   // Crea un punto a mano en ese lugar (toque con «Ingresar puntos», la mira o el «+» de un lado). after: posición tras la que se inserta; sin ella va al final.
   function addManualAt(ll, after) {
     var p = proj(), prevNext = p.nextPoint;
+    undoMark(isNum(after) ? 'insertar un punto' : 'crear un punto');
     var pt = addPoint({ lat: ll.lat, lon: ll.lon, src: 'manual' });
     var msg = pt.name + ' creado (sin altitud).';
     if (isNum(after) && after >= 0 && after < p.points.length - 1) {
@@ -987,6 +992,7 @@
     var pt = pointById(id);
     if (!pt || Geo.haversine(pt.lat, pt.lon, ll.lat, ll.lon) < 0.5) return;
     var before = { lat: pt.lat, lon: pt.lon, src: pt.src, acc: pt.acc };
+    undoMark('mover ' + pt.name);
     relocate(pt, ll.lat, ll.lon);
     ui.mapFitKey = mapKey();
     save(); renderTab('area');
@@ -1033,7 +1039,7 @@
     ui.map.setMode(ui.mapMode);
     ui.map.setBase(ui.mapBase, ui.mapRef);
     ui.map.draw(Mapa.shapes(p, { polyActive: ui.polyActive, bad: !!a.selfIntersects, fmt: function (n) { return Fmt.num(n, 0); }, dist: Geo.distance, fmtDist: Fmt.dist }));
-    ui.map.setMeasure(ui.mapTool === 'medir' ? ui.measure : []);
+    ui.map.setMeasure(ui.mapTool === 'medir' ? ui.measure : [], ui.measureClosed);
     var key = mapKey();
     if (ui.mapFitKey !== key) { ui.map.fit(Mapa.extent(p.points, p.layers), { bottom: toolsInset() }); ui.mapFitKey = key; }   // solo al cambiar de proyecto o al llegar los primeros datos
     ui.map.showFix(ui.gpsOn ? ui.fix : null);
@@ -1070,6 +1076,19 @@
     if (ui.fix) { if (ui.map) { ui.map.showFix(ui.fix); ui.map.flyTo(ui.fix.lat, ui.fix.lon, 17); } }
     else { ui.mapFollow = true; toast('Buscando tu posición…'); }
   }
+  /* ---------- Mapa: deshacer el último cambio ---------- */
+  // Antes de cada cambio en los puntos se guarda cómo estaban; el botón de la columna izquierda vuelve al estado anterior, paso a paso.
+  function pointsJson() { var p = proj(); return JSON.stringify({ points: p.points, nextPoint: p.nextPoint }); }
+  function undoMark(label) { ui.mapUndo.push(proj().id, label, pointsJson()); }
+  function mapUndo() {
+    var p = proj(), last = ui.track ? null : ui.mapUndo.pop(p.id, pointsJson());
+    if (!last) { syncMapChrome(); return; }
+    var st = JSON.parse(last.json);
+    p.points = st.points; p.nextPoint = st.nextPoint;
+    ui.mapFitKey = mapKey();
+    save(); renderTab(ui.tab);
+    toast('Se deshizo: ' + last.label + '.');
+  }
   function onUserPan() { if (ui.follow) { ui.follow = false; syncMapChrome(); } }
   function onMapView() { if (ui.mapTool === 'mira') { var el = $('#mapAimLL'); if (el && ui.map) { var c = ui.map.center(); el.textContent = Fmt.latlon(c.lat, c.lon); } } }
 
@@ -1092,6 +1111,9 @@
     $('[data-act="mapFull"]').setAttribute('aria-pressed', String(ui.mapFull));
     $('.maploc').setAttribute('aria-pressed', String(ui.follow));
     box.classList.toggle('full', ui.mapFull);
+    var ub = $('#mapUndoBtn'), last = ui.track ? null : ui.mapUndo.peek(proj().id, pointsJson());   // caminando el lindero no se deshace paso a paso: el recorrido se deshace entero al terminar
+    ub.disabled = !last;
+    ub.setAttribute('aria-label', last ? 'Deshacer: ' + last.label : 'Deshacer (no hay cambios que deshacer)');
     syncMapCard(); syncMapTool();
   }
   function applyMapFull(on) {
@@ -1181,14 +1203,18 @@
     if (t === ui.mapTool) return;
     if (ui.track) finishTrack();
     if (t && ui.mapMode) setMapMode('');
-    ui.mapTool = t; ui.measure = []; ui.mapSel = null; ui.mapMenu = false; ui.mapLayers = false;
+    ui.mapTool = t; ui.measure = []; ui.measureClosed = false; ui.mapSel = null; ui.mapMenu = false; ui.mapLayers = false;
     if (t !== 'ir') ui.navId = null;
     if (ui.map) ui.map.setMeasure([]);
     syncMapMenu(); syncMapChrome();
   }
   function addMeasure(ll) {
     ui.measure = Mapa.measureAdd(ui.measure, ll);
-    if (ui.map) ui.map.setMeasure(ui.measure);
+    drawMeasure();
+  }
+  function drawMeasure() {
+    if (ui.measure.length < 3) ui.measureClosed = false;
+    if (ui.map) ui.map.setMeasure(ui.measure, ui.measureClosed);
     syncMapTool();
   }
   function syncMapTool() {
@@ -1203,8 +1229,9 @@
       h = '<p>Mueve el mapa hasta dejar la cruz en el lugar. <b id="mapAimLL">' + (c ? esc(Fmt.latlon(c.lat, c.lon)) : '') + '</b></p>' +
         '<div class="mtb-btns"><button class="btn btn-primary" data-act="mapAimAdd">Agregar aquí</button><button class="btn" data-act="mapToolEnd">Terminar</button></div>';
     } else if (t === 'medir') {
-      h = '<p id="mapMeasureTxt">' + esc(Mapa.measureText(ui.measure, Fmt.dist)) + '</p>' +
-        '<div class="mtb-btns"><button class="btn" data-act="mapMeasureClear"' + (ui.measure.length ? '' : ' disabled') + '>Borrar</button><button class="btn btn-primary" data-act="mapToolEnd">Terminar</button></div>';
+      h = '<p id="mapMeasureTxt">' + esc(Mapa.measureText(ui.measure, Fmt.dist, { closed: ui.measureClosed, area: Geo.polygonArea, fmtArea: function (m2) { return Fmt.area(Geo.areaUnits(m2), S.settings.areaUnit || 'ha'); } })) + '</p>' +
+        '<div class="mtb-btns"><button class="btn" data-act="mapMeasureBack"' + (ui.measure.length ? '' : ' disabled') + '>Quitar último</button>' +
+        '<button class="btn" data-act="mapMeasureClose" aria-pressed="' + ui.measureClosed + '"' + (ui.measure.length >= 3 ? '' : ' disabled') + '>' + (ui.measureClosed ? 'Abrir figura' : 'Cerrar figura') + '</button><button class="btn btn-primary" data-act="mapToolEnd">Terminar</button></div>';
     } else if (t === 'ir') {
       var target = ui.navId ? pointById(ui.navId) : null, nav = Mapa.navInfo(ui.fix, target, Fmt.dist);
       if (!nav) { setMapTool(''); return; }        // el punto ya no existe
@@ -1225,6 +1252,7 @@
     if (!ui.gpsOn) gpsStart();
     if (!ui.gpsOn) return;
     setMapTool('caminar');
+    undoMark('caminar el lindero');
     ui.track = { pid: proj().id, step: Mapa.trackStep(step), ids: [], last: 'none', lastPt: null, prevNext: proj().nextPoint };
     ui.follow = true;
     wakeLock(true);
@@ -1284,9 +1312,9 @@
     var rows = [
       ['Toca un punto', 'para ver sus datos, abrir su ficha, moverlo, eliminarlo, cambiar su puesto en el recorrido o ir hasta él (con el GPS encendido te guía con una flecha y los metros que faltan). El número dentro de cada punto es su orden.'],
       ['Menú ⋮', '«Ingresar puntos» crea un punto donde toques. «Posición manual» deja mover un punto manteniéndolo pulsado e insertar uno nuevo con el «+» de cada lado.'],
-      ['Botones de la izquierda', 'bajo el menú ⋮: cambiar la capa (calles, satélite o topográfico), ver todo el terreno y pantalla completa. A la derecha, acercar y alejar.'],
+      ['Botones de la izquierda', 'bajo el menú ⋮: cambiar la capa (calles, satélite o topográfico), ver todo el terreno, pantalla completa y deshacer el último cambio (mover, crear, insertar, borrar u ordenar puntos), paso a paso. A la derecha, acercar y alejar.'],
       ['Mi posición', 'el botón redondo de abajo centra el mapa donde estás y te sigue hasta que muevas el mapa.'],
-      ['Barra de abajo', 'mostrar u ocultar el polígono, ir al último punto, medir una distancia, más opciones (mira y caminar el lindero) y marcar un punto con el GPS.'],
+      ['Barra de abajo', 'mostrar u ocultar el polígono, ir al último punto, medir (varios tramos seguidos; al cerrar la figura da el área), más opciones (mira y caminar el lindero) y marcar un punto con el GPS.'],
       ['Arriba', 'el área, el perímetro y el número de puntos se actualizan solos.']
     ];
     openSheet('Cómo usar el mapa', '<dl class="guide">' + rows.map(function (r) { return '<div><dt>' + esc(r[0]) + '</dt><dd>' + esc(r[1]) + '</dd></div>'; }).join('') + '</dl>' +
@@ -2053,11 +2081,14 @@
     mapSumTap: function () { if (analysis().selfIntersects) reorder(); },
     mapCardMove: function () { var pt = ui.mapSel && pointById(ui.mapSel); setMapMode('move'); if (pt) toast('Mantén pulsado ' + pt.name + ' ' + Mapa.HOLD_MS / 1000 + ' s y arrástralo.'); },
     mapMeasure: function () { setMapTool(ui.mapTool === 'medir' ? '' : 'medir'); },
-    mapMeasureClear: function () { ui.measure = []; if (ui.map) ui.map.setMeasure([]); syncMapTool(); },
+    mapMeasureBack: function () { ui.measure = ui.measure.slice(0, -1); drawMeasure(); },
+    mapMeasureClose: function () { ui.measureClosed = !ui.measureClosed && ui.measure.length >= 3; drawMeasure(); },
+    mapUndo: mapUndo,
     mapMore: openMapMore, mapGuide: openMapGuide,
     mapCardOrder: function (t) {
       var p = proj(), d = Number(t.getAttribute('data-d'));
       if (!ui.mapSel) return;
+      undoMark('cambiar el orden de ' + pointById(ui.mapSel).name);
       p.points = Mapa.moveInOrder(p.points, ui.mapSel, d); save();
       renderTab('area');                        // el polígono y los números se redibujan; la tarjeta sigue abierta en el mismo punto
     },

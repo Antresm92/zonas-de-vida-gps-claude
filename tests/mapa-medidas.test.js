@@ -102,23 +102,79 @@ test('relText: dónde queda un punto respecto a la posición del GPS', () => {
   assert.equal(Mapa.relText({ lat: 91, lon: 0 }, yo), '');
 });
 
-test('medir: pide dos lugares, da distancia y rumbo, y el tercer toque empieza otra medida', () => {
-  assert.match(Mapa.measureText([]), /toca dos lugares/);
-  assert.match(Mapa.measureText(null), /toca dos lugares/);
-  assert.match(Mapa.measureText([{ lat: 4.6, lon: -74.08 }]), /segundo lugar/);
-  assert.equal(Mapa.measureText([{ lat: 4.6, lon: -74.08 }, { lat: 4.601, lon: -74.08 }]), '111 m · rumbo 0° (norte)');
-  assert.equal(Mapa.measureText([{ lat: 4.6, lon: -74.08 }, { lat: 4.6, lon: -74.079 }]), '111 m · rumbo 90° (este)');
-  assert.equal(Mapa.measureText([{ lat: 4.6, lon: -74.08 }, { lat: 4.6, lon: -74.079 }], (m) => 'F'), 'F · rumbo 90° (este)');
-  assert.equal(Mapa.measureText([{ lat: 0.001, lon: 0 }, { lat: 0, lon: -0.0000001 }]).includes('rumbo 180°'), true);
+test('medir: los lugares tocados se suman en tramos; con dos da el rumbo y con la figura cerrada, el área y el perímetro', () => {
+  const A = { lat: 4.6, lon: -74.08 }, B = { lat: 4.6, lon: -74.079 }, C = { lat: 4.601, lon: -74.079 }, D = { lat: 4.601, lon: -74.08 };
+  assert.match(Mapa.measureText([]), /toca lugares del mapa/);
+  assert.match(Mapa.measureText(null), /toca lugares del mapa/);
+  assert.match(Mapa.measureText([A]), /siguiente lugar/);
+  assert.equal(Mapa.measureText([A, D]), '111 m · rumbo 0° (norte)');
+  assert.equal(Mapa.measureText([A, B]), '111 m · rumbo 90° (este)');
+  assert.equal(Mapa.measureText([A, B], (m) => 'F'), 'F · rumbo 90° (este)');
   assert.match(Mapa.measureText([{ lat: 0, lon: 0 }, { lat: 1, lon: -0.000001 }]), /rumbo 0° \(norte\)/);   // 359,99° se escribe 0°, no 360°
+  // tres o más: la suma de los tramos
+  assert.equal(Mapa.measureText([A, B, C]), '222 m en 2 tramos');
+  assert.equal(Mapa.measureText([A, B, C, D]), '333 m en 3 tramos');
+  assert.equal(Mapa.measureText([A, B, C, D], (m) => Math.round(m) + ' metros'), '333 metros en 3 tramos');
+  // cerrada: se suma el tramo de vuelta al primero y se da el área
+  assert.equal(Mapa.measureText([A, B, C, D], null, { closed: true }), 'perímetro 444 m');
+  assert.equal(Mapa.measureText([A, B, C, D], null, { closed: true, area: Geo.polygonArea, fmtArea: (m2) => (m2 / 10000).toFixed(2) + ' ha' }), 'Área 1,23 ha · perímetro 444 m'.replace(',', '.'));
+  assert.equal(Mapa.measureText([A, B], null, { closed: true }), '111 m · rumbo 90° (este)');     // con dos lugares no hay figura que cerrar
+  assert.ok(Math.abs(Mapa.measureLength([A, B, C, D]) - 3 * 111.0) < 1.5);
+  assert.ok(Math.abs(Mapa.measureLength([A, B, C, D], true) - 4 * 111.0) < 2);
+  assert.equal(Mapa.measureLength([A, B], true), Mapa.measureLength([A, B]));
+  assert.equal(Mapa.measureLength([A]), 0);
+  assert.equal(Mapa.measureLength(null), 0);
+  // agregar
   let m = Mapa.measureAdd([], { lat: 1, lon: 2 });
   assert.deepEqual(m, [{ lat: 1, lon: 2 }]);
   m = Mapa.measureAdd(m, { lat: 3, lon: 4, extra: 1 });
-  assert.deepEqual(m, [{ lat: 1, lon: 2 }, { lat: 3, lon: 4 }]);
-  assert.deepEqual(Mapa.measureAdd(m, { lat: 5, lon: 6 }), [{ lat: 5, lon: 6 }]);
+  m = Mapa.measureAdd(m, { lat: 5, lon: 6 });
+  assert.deepEqual(m, [{ lat: 1, lon: 2 }, { lat: 3, lon: 4 }, { lat: 5, lon: 6 }]);                // el tercero se suma, no empieza de nuevo
   assert.deepEqual(Mapa.measureAdd(m, { lat: 'no', lon: 6 }), m);
   assert.deepEqual(Mapa.measureAdd(null, { lat: 5, lon: 6 }), [{ lat: 5, lon: 6 }]);
   assert.deepEqual(Mapa.measureAdd(null, null), []);
+  const lleno = Array.from({ length: Mapa.MEASURE_MAX }, (_, k) => ({ lat: 4 + k / 1e5, lon: -74 }));
+  assert.equal(Mapa.measureAdd(lleno, { lat: 1, lon: 1 }).length, 200);                             // tope de 200 lugares
+  assert.equal(Mapa.measureAdd(lleno.slice(1), { lat: 1, lon: 1 }).length, 200);
+});
+
+test('undoStack: guarda el estado anterior a cada cambio y lo devuelve del más nuevo al más viejo', () => {
+  const u = Mapa.undoStack(3);
+  assert.equal(u.pop('p', 'x'), null);
+  assert.equal(u.peek('p', 'x'), null);
+  u.push('p', 'crear un punto', 'A');
+  u.push('p', 'mover P1', 'B');
+  assert.equal(u.size(), 2);
+  assert.deepEqual(u.peek('p', 'C'), { label: 'mover P1', json: 'B' });
+  assert.equal(u.size(), 2, 'peek no saca nada');
+  assert.deepEqual(u.pop('p', 'C'), { label: 'mover P1', json: 'B' });
+  assert.deepEqual(u.pop('p', 'B'), { label: 'crear un punto', json: 'A' });
+  assert.equal(u.pop('p', 'A'), null);
+  // un paso que deja todo como está ahora (ya se deshizo desde el aviso) se salta
+  u.push('p', 'crear un punto', 'A'); u.push('p', 'mover P1', 'B');
+  assert.deepEqual(u.pop('p', 'B'), { label: 'crear un punto', json: 'A' });
+  assert.equal(u.size(), 0);
+  // los pasos de otro proyecto se descartan
+  u.push('p', 'uno', 'A'); u.push('q', 'dos', 'Z');
+  assert.deepEqual(u.pop('p', 'C'), { label: 'uno', json: 'A' });
+  u.push('q', 'dos', 'Z');
+  assert.equal(u.peek('p', 'C'), null);
+  assert.equal(u.size(), 0);
+  // tope: se olvida el más viejo
+  ['A', 'B', 'C', 'D'].forEach((j, k) => u.push('p', 'paso ' + k, j));
+  assert.equal(u.size(), 3);
+  assert.deepEqual([u.pop('p', 'x').json, u.pop('p', 'x').json, u.pop('p', 'x').json, u.pop('p', 'x')], ['D', 'C', 'B', null]);
+  // dos marcas seguidas del mismo estado cuentan una vez; lo que no es texto no se guarda
+  u.push('p', 'a', 'A'); u.push('p', 'b', 'A'); u.push('p', 'c', null); u.push('p', 'd');
+  assert.equal(u.size(), 1);
+  assert.equal(u.pop('p', 'x').label, 'a');
+  u.push('p', 'a', 'A'); u.push('q', 'b', 'A');                       // mismo estado pero de otro proyecto: sí se guarda
+  assert.equal(u.size(), 2);
+  u.clear(); assert.equal(u.size(), 0);
+  assert.equal(Mapa.undoStack().pop('p', 'x'), null);
+  const d = Mapa.undoStack(0); for (let k = 0; k < 25; k++) d.push('p', 'k', 'j' + k);
+  assert.equal(d.size(), 20, 'sin tope válido, 20');
+  d.push('p', undefined, 'zz'); assert.equal(d.pop('p', 'x').label, '');
 });
 
 test('caminar el lindero: deja un punto cada tantos metros y no acepta lecturas malas', () => {

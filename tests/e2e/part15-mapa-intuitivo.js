@@ -52,7 +52,7 @@ module.exports = async function (c) {
     assert.ok(tb.every((t) => t[0] === tb[0][0]), 'todas en la misma fila');
     assert.ok(tb.every((t) => t[1]), 'se pueden tocar con el dedo');
     assert.ok(tb.every((t) => t[2]), 'ningún texto se corta');
-    assert.deepEqual(await page.$$eval('.mapside .mapbtn', (b) => b.map((x) => x.getAttribute('aria-label'))), ['Capas del mapa', 'Ver todo el terreno', 'Pantalla completa']);
+    assert.deepEqual(await page.$$eval('.mapside .mapbtn', (b) => b.map((x) => x.getAttribute('aria-label'))), ['Capas del mapa', 'Ver todo el terreno', 'Pantalla completa', 'Deshacer (no hay cambios que deshacer)']);
     await shot('150-mapa-nuevo');
   });
 
@@ -237,15 +237,15 @@ module.exports = async function (c) {
     assert.equal(await page.evaluate(() => !!(history.state && history.state.mapfull)), false);
   });
 
-  await step('Medir distancia: dos toques dan metros y rumbo sin crear puntos; el tercero empieza otra medida; tocar un punto mide desde él', async () => {
+  await step('Medir: dos toques dan metros y rumbo sin crear puntos; los siguientes suman tramos; «Cerrar figura» da el área; tocar un punto mide desde él', async () => {
     await seed();
     await act('mapMeasure');
     assert.equal((await ui()).tool, 'medir');
     assert.equal(await visible('.maptools'), false, 'la franja de la herramienta ocupa el lugar de la barra');
-    assert.equal(await text('#mapMeasureTxt'), 'Medir: toca dos lugares del mapa (o dos puntos).');
-    assert.equal(await page.isDisabled('[data-act="mapMeasureClear"]'), true);
+    assert.equal(await text('#mapMeasureTxt'), 'Medir: toca lugares del mapa (o puntos) para sumar tramos.');
+    assert.deepEqual(await page.$$eval('#mapToolBar .btn', (b) => b.map((x) => x.textContent + '|' + x.disabled)), ['Quitar último|true', 'Cerrar figura|true', 'Terminar|false']);
     await tapMap(-60, 0);
-    assert.equal(await text('#mapMeasureTxt'), 'Medir: toca el segundo lugar.');
+    assert.equal(await text('#mapMeasureTxt'), 'Medir: toca el siguiente lugar.');
     await tapMap(60, 0);
     assert.match(await text('#mapMeasureTxt'), /^\d+ m · rumbo 90° \(este\)$/);
     const i = await info();
@@ -254,14 +254,39 @@ module.exports = async function (c) {
     near(parseFloat(await text('#mapMeasureTxt')), esperado, 2, 'distancia');
     assert.equal((await pts()).length, 3, 'medir no crea puntos');
     await shot('155-medir');
-    await tapMap(0, 80);
-    assert.equal((await ui()).measure.length, 1, 'el tercer toque empieza otra medida');
+    assert.equal(await page.isDisabled('[data-act="mapMeasureClose"]'), true, 'con dos lugares no hay figura que cerrar');
+    await tapMap(60, 80);                                                  // el tercer toque suma un tramo (80 px hacia abajo)
+    assert.equal((await ui()).measure.length, 3);
+    const mpp = esperado / 120;                                            // metros por píxel
+    let t = await text('#mapMeasureTxt');
+    assert.match(t, /^\d+ m en 2 tramos$/);
+    near(parseFloat(t), 200 * mpp, 3, 'suma de los dos tramos');
+    await act('mapMeasureClose');                                          // cerrar: un triángulo rectángulo de 120 × 80 px
+    t = await text('#mapMeasureTxt');
+    assert.match(t, /^Área [\d,]+ ha · perímetro \d+ m$/);
+    near(parseFloat(t.replace('Área ', '').replace(',', '.')) * 10000, 0.5 * 120 * 80 * mpp * mpp, 0.02 * 0.5 * 120 * 80 * mpp * mpp, 'área del triángulo');
+    near(parseFloat(t.split('perímetro ')[1]), (120 + 80 + Math.hypot(120, 80)) * mpp, 4, 'perímetro');
+    assert.equal((await info()).measureClosed, true);
+    assert.equal(await page.getAttribute('[data-act="mapMeasureClose"]', 'aria-pressed'), 'true');
+    assert.equal(await text('[data-act="mapMeasureClose"]'), 'Abrir figura');
+    await shot('162-medir-area');
+    await act('mapMeasureClose');                                          // abrir de nuevo
+    assert.match(await text('#mapMeasureTxt'), /^\d+ m en 2 tramos$/);
+    assert.equal((await info()).measureClosed, false);
+    await act('mapMeasureClose'); await act('mapMeasureBack');             // con menos de 3 lugares deja de estar cerrada
+    assert.equal((await ui()).measure.length, 2); assert.equal((await info()).measureClosed, false);
+    assert.match(await text('#mapMeasureTxt'), /rumbo 90° \(este\)$/);
     const p2 = await tapPoint('P2');                                       // sobre un punto: se toma su coordenada exacta
     const m = (await ui()).measure;
-    assert.equal(m.length, 2); assert.equal(m[1].lat, p2.lat); assert.equal(m[1].lon, p2.lon);
+    assert.equal(m.length, 3); assert.equal(m[2].lat, p2.lat); assert.equal(m[2].lon, p2.lon);
+    assert.equal((await info()).measureClosed, false, 'al volver a tener 3 lugares no se cierra sola');
+    assert.match(await text('#mapMeasureTxt'), / en 2 tramos$/);
+    assert.equal(await text('[data-act="mapMeasureClose"]'), 'Cerrar figura');
     assert.equal(await visible('#mapCard'), false, 'midiendo no se abre la tarjeta');
-    await act('mapMeasureClear');
+    assert.equal((await pts()).length, 3, 'medir no crea puntos');
+    await act('mapMeasureBack'); await act('mapMeasureBack'); await act('mapMeasureBack');
     assert.equal((await ui()).measure.length, 0); assert.equal((await info()).measure, 0);
+    assert.equal(await page.isDisabled('[data-act="mapMeasureBack"]'), true);
     await tapMap(-40, 0); await tapMap(40, 0);
     await act('mapToolEnd');
     assert.equal((await ui()).tool, ''); assert.equal((await info()).measure, 0);
@@ -544,6 +569,95 @@ module.exports = async function (c) {
     await pickMode('move');
     await page.waitForTimeout(200);
     assert.equal(await pisa(), 0, 'ni con «Posición manual»');
+  });
+
+  await step('Botón fijo de deshacer: vuelve paso a paso sobre crear, insertar, mover, ordenar y eliminar, aunque el aviso «Deshacer» ya no esté', async () => {
+    await seed();
+    const estado = async () => (await pts()).map((p) => p.name + '@' + p.lat.toFixed(5) + ',' + p.lon.toFixed(5)).join(' ');
+    const label = () => page.getAttribute('#mapUndoBtn', 'aria-label');
+    const inicial = await estado();
+    assert.equal(await page.isDisabled('#mapUndoBtn'), true, 'sin cambios no hay nada que deshacer');
+    assert.equal(await label(), 'Deshacer (no hay cambios que deshacer)');
+    const ub = await box('#mapUndoBtn'); assert.ok(ub.width >= 44 && ub.height >= 44);
+    // 1) insertar con el «+»   2) ordenar con la flecha   3) eliminar   4) crear con «Ingresar puntos»
+    await pickMode('move');
+    const a = (await pts())[0], b = (await pts())[1], mid = await xyOf((a.lat + b.lat) / 2, (a.lon + b.lon) / 2);
+    await page.mouse.click(mid.x, mid.y);
+    await waitToast(/^P4 insertado/);
+    const e1 = await estado();
+    assert.equal(await page.isDisabled('#mapUndoBtn'), false);
+    assert.equal(await label(), 'Deshacer: insertar un punto');
+    await page.click('#mapMode [data-act="mapMode"]');                    // salir de «Posición manual»
+    await tapPoint('P3'); await page.waitForSelector('#mapCard:not([hidden])');
+    await page.click('[data-act="mapCardOrder"][data-d="-1"]');
+    const e2 = await estado();
+    assert.equal(await label(), 'Deshacer: cambiar el orden de P3');
+    await page.click('.mapcard-del'); await page.waitForSelector('#sheet:not([hidden])');
+    await page.click('#sheet [data-act="doDelete"]'); await waitSheetClosed();
+    const e3 = await estado();
+    assert.equal(await label(), 'Deshacer: eliminar P3');
+    await pickMode('add'); await tapMap(0, 150);
+    await waitToast(/^P5 creado/);
+    assert.equal(await label(), 'Deshacer: crear un punto');
+    await page.click('#mapMode [data-act="mapMode"]');
+    await page.waitForFunction(() => document.querySelector('#toast').hidden, null, { timeout: 9000 });   // el aviso con «Deshacer» ya se fue
+    await shot('163-boton-deshacer');
+    // hacia atrás, un paso por toque
+    await act('mapUndo'); await waitToast(/^Se deshizo: crear un punto\.$/);
+    assert.equal(await estado(), e3); assert.equal((await proj()).nextPoint, 5, 'la numeración también vuelve');
+    await act('mapUndo'); await waitToast(/^Se deshizo: eliminar P3\.$/);
+    assert.equal(await estado(), e2);
+    await act('mapUndo'); await waitToast(/^Se deshizo: cambiar el orden de P3\.$/);
+    assert.equal(await estado(), e1);
+    await act('mapUndo'); await waitToast(/^Se deshizo: insertar un punto\.$/);
+    assert.equal(await estado(), inicial); assert.equal((await proj()).nextPoint, 4);
+    assert.equal(await page.isDisabled('#mapUndoBtn'), true);
+    assert.equal((await info()).markers.length, 3, 'el mapa se redibuja');
+    // si ya se deshizo desde el aviso, el botón no repite ese paso
+    await act('mapMore'); await page.waitForSelector('#sheet:not([hidden])'); await act('mapAim'); await waitSheetClosed();
+    await act('mapAimAdd'); await waitToast(/^P4 creado/);
+    assert.equal(await page.isDisabled('#mapUndoBtn'), false);
+    await undo();                                                          // «Deshacer» del aviso
+    assert.equal(await estado(), inicial);
+    assert.equal(await page.isDisabled('#mapUndoBtn'), true, 'ya no queda nada que deshacer');
+    await act('mapToolEnd');
+    // mover un punto (mantenerlo pulsado con «Posición manual») también se deshace con el botón
+    await pickMode('move');
+    const q = (await pts())[1], qxy = await xyOf(q.lat, q.lon);
+    await page.mouse.move(qxy.x, qxy.y); await page.mouse.down();
+    await page.waitForTimeout(1200);
+    await page.mouse.move(qxy.x + 40, qxy.y + 30, { steps: 6 }); await page.mouse.up();
+    await waitToast(/^P2 movido\./);
+    assert.notEqual(await estado(), inicial);
+    assert.equal(await label(), 'Deshacer: mover P2');
+    await page.waitForFunction(() => document.querySelector('#toast').hidden, null, { timeout: 9000 });
+    await act('mapUndo'); await waitToast(/^Se deshizo: mover P2\.$/);
+    assert.equal(await estado(), inicial);
+    const q2 = (await pts())[1];
+    assert.deepEqual([q2.src, q2.alt], [q.src, q.alt], 'vuelve con sus datos de antes');
+    await page.click('#mapMode [data-act="mapMode"]');
+    // ordenar los puntos también se deshace con el botón
+    await act('mapMore'); await page.waitForSelector('#sheet:not([hidden])'); await act('mapReorder'); await waitSheetClosed();
+    await waitToast(/^Puntos reordenados/);
+    if ((await estado()) !== inicial) { assert.equal(await label(), 'Deshacer: ordenar los puntos'); await act('mapUndo'); assert.equal(await estado(), inicial); }
+  });
+
+  await step('Deshacer con el GPS: un punto marcado se deshace con el botón; caminando el lindero el botón espera y al terminar deshace el recorrido entero', async () => {
+    await fresh(); await openMap();
+    await act('mapMore'); await page.waitForSelector('#sheet:not([hidden])'); await act('mapWalk'); await waitSheetClosed();
+    const m = 1 / 111195;
+    await gpsPush({ lat: 4.6, lon: -74.08, alt: 2600, acc: 4 });
+    await gpsPush({ lat: 4.6 + 12 * m, lon: -74.08, alt: 2600, acc: 4 });
+    await gpsPush({ lat: 4.6 + 24 * m, lon: -74.08, alt: 2600, acc: 4 });
+    assert.equal((await pts()).length, 3);
+    assert.equal(await page.isDisabled('#mapUndoBtn'), true, 'caminando no se deshace paso a paso');
+    await act('mapToolEnd'); await waitToast(/^Recorrido terminado: 3 puntos/);
+    assert.equal(await page.isDisabled('#mapUndoBtn'), false);
+    assert.equal(await page.getAttribute('#mapUndoBtn', 'aria-label'), 'Deshacer: caminar el lindero');
+    await act('mapUndo'); await waitToast(/^Se deshizo: caminar el lindero\.$/);
+    assert.equal((await pts()).length, 0); assert.equal((await proj()).nextPoint, 1);
+    assert.equal(await page.isDisabled('#mapUndoBtn'), true);
+    await tab('puntos'); await act('gpsOff');
   });
 
   await step('Ayuda de primera vez: sale sola la primera vez que se abre el mapa, no vuelve a salir y se puede abrir desde «Más opciones»', async () => {

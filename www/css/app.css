@@ -173,6 +173,7 @@ main { padding: calc(var(--top-h) + 14px) 14px calc(var(--nav-h) + 24px); paddin
 .mapside { position: absolute; left: 12px; top: 68px; z-index: 5; display: flex; flex-direction: column; gap: 8px; }
 .mapbtn { display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; padding: 0; border: 1px solid var(--line); border-radius: 50%; background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
 .mapbtn svg { width: 22px; height: 22px; }
+.mapbtn:disabled { color: var(--line); box-shadow: none; }
 .mapbtn[aria-pressed="true"], .mapbtn[aria-expanded="true"] { background: var(--blue); border-color: var(--blue); color: var(--on-blue); }
 .mapa-leaflet .leaflet-touch .leaflet-bar a, .mapa-leaflet .leaflet-bar a { width: 44px; height: 44px; line-height: 44px; font-size: 24px; }
 .mapa-leaflet .leaflet-control-scale { margin-left: 10px; margin-bottom: 6px; }
@@ -200,6 +201,8 @@ main { padding: calc(var(--top-h) + 14px) 14px calc(var(--nav-h) + 24px); paddin
 .mapcard-order button { width: 44px; height: 44px; padding: 0; border: 0; background: none; color: var(--blue); font-size: 18px; }
 .mapcard-order button:disabled { color: var(--line); }
 .mapcard-btns .btn, .mtb-btns .btn { flex: 1 1 0; min-width: 0; min-height: 44px; padding: 0 6px; font-size: 14px; }
+.mtb-btns .btn { font-size: 13.5px; line-height: 1.15; }
+.mtb-btns .btn[aria-pressed="true"] { background: var(--blue); color: var(--on-blue); }
 .mapcard-btns .btn { white-space: nowrap; font-size: 13.5px; }
 .mapcard-btns .btn.mapcard-del { flex: 0 0 44px; padding: 0; color: var(--bad, #A32229); border-color: var(--bad, #A32229); }
 .mapcard-del svg { width: 20px; height: 20px; vertical-align: middle; }
