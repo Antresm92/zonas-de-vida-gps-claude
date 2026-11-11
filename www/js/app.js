@@ -5,7 +5,7 @@
   var Geo = window.Geo, H = window.Holdridge, Climate = window.Climate, A = window.Analysis, Fmt = window.Fmt,
       Gps = window.Gps, Store = window.Store, Diagram = window.Diagram, Report = window.Report,
       Gis = window.Gis, Backup = window.Backup, IO = window.IO, WL = window.WalterLieth, Mapa = window.Mapa, MapView = window.MapView, Satelite = window.Satelite, Perfil = window.Perfil, Fotos = window.Fotos, Zip = window.Zip, Units = window.Units;
-  var APP_VERSION = '2.10.0';
+  var APP_VERSION = '2.10.1';
 
   var S = Store.loadState();
   var hadSaved = Store.hasSavedState();      // ¿había datos guardados al abrir? (solo entonces se limpian las fotos sin uso)
@@ -867,6 +867,7 @@
   }
   function reorder() {
     var p = proj();
+    if (p.points.length < 3) { toast('Hacen falta al menos 3 puntos para ordenarlos.'); return; }
     var before = p.points.slice();
     var order = Geo.angularOrder(p.points);
     p.points = order.map(function (i) { return before[i]; });
@@ -1118,8 +1119,14 @@
     }
     var rel = ui.gpsOn ? Mapa.relText(ui.fix, pt, Fmt.dist) : '';
     if (relOnly) { var r = $('#mapCardRel'); if (r) { r.textContent = rel; r.hidden = !rel; } return; }
+    var ord = Mapa.orderOf(proj().points, pt.id);
     var src = pt.src === 'gps' ? 'GPS' + (isNum(pt.acc) ? ' ±' + Math.round(pt.acc) + ' m' : '') : 'a mano';
+    // Arriba a la derecha: el puesto del punto en el recorrido y dos flechas para pasarlo antes o después (así la tarjeta no crece y tapa menos mapa)
     el.innerHTML = '<button class="mapcard-x" data-act="mapCardClose" aria-label="Cerrar la tarjeta del punto">×</button>' +
+      '<div class="mapcard-order" role="group" aria-label="Orden en el recorrido">' +
+      '<button data-act="mapCardOrder" data-d="-1" aria-label="Antes: pasar este punto un puesto antes en el recorrido"' + (ord.first ? ' disabled' : '') + '>◀</button>' +
+      '<span id="mapCardOrder">' + ord.pos + ' de ' + ord.n + '</span>' +
+      '<button data-act="mapCardOrder" data-d="1" aria-label="Después: pasar este punto un puesto después en el recorrido"' + (ord.last ? ' disabled' : '') + '>▶</button></div>' +
       '<b class="mapcard-name"><i style="background:' + Mapa.pointColor(pt, proj().mainColor) + '"></i>' + esc(pt.name) + '</b>' +
       '<p class="small">' + (isNum(pt.alt) ? 'Altitud ' + Fmt.num(pt.alt, 0) + ' m' : 'Sin altitud') + ' · ' + src + ' · ' + esc(Fmt.latlon(pt.lat, pt.lon)) + '</p>' +
       '<p class="small mapcard-rel" id="mapCardRel"' + (rel ? '' : ' hidden') + '>' + esc(rel) + '</p>' +
@@ -1235,11 +1242,13 @@
       '<h3 class="sub" style="margin-top:18px">Caminar el lindero</h3><p class="small muted">Recorres el borde del terreno y el GPS va dejando los puntos en orden. Deja la pantalla encendida y la app abierta; al terminar puedes deshacer todo el recorrido.</p>' +
       '<label class="f"><span>Distancia entre puntos</span><select id="trackStep">' + opts + '</select></label>' +
       '<div class="btns"><button class="btn btn-primary" data-act="mapWalk">Empezar a caminar</button></div>' +
+      '<h3 class="sub" style="margin-top:18px">Ordenar los puntos</h3><p class="small muted">El polígono une los puntos en su orden (el número dentro de cada punto). Esto los acomoda solos alrededor del centro del terreno y se puede deshacer. En terrenos con entrantes (forma de L o de U) puede equivocarse: ahí toca un punto y usa las flechas ◀ y ▶ de su tarjeta para pasarlo antes o después.</p>' +
+      '<div class="btns"><button class="btn" data-act="mapReorder">Ordenar los puntos</button></div>' +
       '<h3 class="sub" style="margin-top:18px">Ayuda</h3><div class="btns"><button class="btn" data-act="mapGuide">Cómo usar el mapa</button></div>');
   }
   function openMapGuide() {
     var rows = [
-      ['Toca un punto', 'para ver sus datos, abrir su ficha, moverlo o ir hasta él.'],
+      ['Toca un punto', 'para ver sus datos, abrir su ficha, moverlo, ir hasta él o cambiar su puesto en el recorrido. El número dentro de cada punto es su orden.'],
       ['Menú ⋮', '«Ingresar puntos» crea un punto donde toques. «Posición manual» deja mover un punto manteniéndolo pulsado e insertar uno nuevo con el «+» de cada lado.'],
       ['Botones de la izquierda', 'bajo el menú ⋮: cambiar la capa (calles, satélite o topográfico), ver todo el terreno y pantalla completa. A la derecha, acercar y alejar.'],
       ['Mi posición', 'el botón redondo de abajo centra el mapa donde estás y te sigue hasta que muevas el mapa.'],
@@ -2010,6 +2019,13 @@
     mapMeasure: function () { setMapTool(ui.mapTool === 'medir' ? '' : 'medir'); },
     mapMeasureClear: function () { ui.measure = []; if (ui.map) ui.map.setMeasure([]); syncMapTool(); },
     mapMore: openMapMore, mapGuide: openMapGuide,
+    mapCardOrder: function (t) {
+      var p = proj(), d = Number(t.getAttribute('data-d'));
+      if (!ui.mapSel) return;
+      p.points = Mapa.moveInOrder(p.points, ui.mapSel, d); save();
+      renderTab('area');                        // el polígono y los números se redibujan; la tarjeta sigue abierta en el mismo punto
+    },
+    mapReorder: function () { closeSheet(); reorder(); },
     mapAim: function () { closeSheet(); setMapTool('mira'); },
     mapAimAdd: function () { if (ui.map) addManualAt(ui.map.center()); },
     mapWalk: function () { var step = $('#trackStep') ? $('#trackStep').value : null; closeSheet(); startTrack(step); },

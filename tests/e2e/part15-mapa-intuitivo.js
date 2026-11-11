@@ -182,7 +182,7 @@ module.exports = async function (c) {
     await waitInfo((x) => x.base === 'satelite', 'satélite');
     assert.equal(await visible('#mapLayersPanel'), true, 'sigue abierto para poder activar los nombres');
     assert.equal(await page.locator('#mapLayersPanel [data-act="mapRef"]').count(), 1);
-    await tapMap(60, 60);
+    await tapMap(0, 130);
     assert.equal(await visible('#mapLayersPanel'), false);
     await act('mapLayers');                                                // el menú ⋮ y las capas no se abren a la vez
     await page.click('.mapkebab');
@@ -190,7 +190,7 @@ module.exports = async function (c) {
     assert.equal(await visible('#mapMenuPanel'), true);
     await page.click('#mapMenuPanel input[data-mode="add"]');
     await act('mapLayers');
-    await tapMap(60, 60);
+    await tapMap(0, 130);
     assert.equal(await visible('#mapLayersPanel'), false);
     assert.equal((await pts()).length, 3, 'el toque solo cerró el panel');
     await act('mapLayers'); await page.click('[data-act="mapBase"][data-b="calles"]'); await act('mapLayers');
@@ -379,6 +379,53 @@ module.exports = async function (c) {
     await waitToast(/^Recorrido terminado sin puntos/);
     assert.equal((await pts()).length, 2);
     await tab('puntos'); await act('gpsOff');
+  });
+
+  await step('Orden del recorrido: cada punto lleva su número; «Antes» y «Después» en la tarjeta lo cambian a mano y «Ordenar los puntos» los acomoda solos', async () => {
+    // cuatro esquinas de un cuadro, guardadas cruzadas: P1 y P2 abajo, P3 arriba a la izquierda y P4 arriba a la derecha (los lados se cruzan)
+    await fresh();
+    for (const p of ['4.6000, -74.0800', '4.6000, -74.0770', '4.6027, -74.0800', '4.6027, -74.0770']) await addPointManual(p, 2600);
+    await openMap(); await waitInfo((x) => x.markers.length === 4 && x.zoom >= 15, 'cuadro'); await page.waitForTimeout(300);
+    assert.deepEqual((await info()).markers.map((m) => m.order), [1, 2, 3, 4]);
+    assert.deepEqual(await page.$$eval('.mk-dot', (d) => d.map((x) => x.textContent)), ['1', '2', '3', '4']);
+    assert.equal((await info()).polygon.bad, true, 'guardados así, los lados se cruzan');
+    const p3 = await tapPoint('P3');
+    await page.waitForSelector('#mapCard:not([hidden])');
+    assert.equal(await text('#mapCardOrder'), '3 de 4');
+    assert.deepEqual(await page.$$eval('[data-act="mapCardOrder"]', (b) => b.map((x) => x.textContent + '|' + x.disabled)), ['◀|false', '▶|false']);
+    await shot('159-orden-de-los-puntos');
+    await page.click('[data-act="mapCardOrder"][data-d="1"]');            // P3 pasa al final: P1 P2 P4 P3, que sí sigue el borde
+    assert.deepEqual(await names(), ['P1', 'P2', 'P4', 'P3']);
+    assert.equal(await text('#mapCardOrder'), '4 de 4');
+    assert.equal(await page.isDisabled('[data-act="mapCardOrder"][data-d="1"]'), true, 'el último no puede ir después');
+    assert.equal((await ui()).sel, p3.id, 'la tarjeta sigue en el mismo punto');
+    assert.equal((await info()).selected, p3.id);
+    let i = await info();
+    assert.equal(i.polygon.bad, false, 'ya no se cruzan');
+    assert.deepEqual(i.markers.map((m) => m.label.split(' ')[0] + ':' + m.order), ['P1:1', 'P2:2', 'P4:3', 'P3:4']);
+    await page.click('[data-act="mapCardOrder"][data-d="-1"]'); await page.click('[data-act="mapCardOrder"][data-d="-1"]'); await page.click('[data-act="mapCardOrder"][data-d="-1"]');
+    assert.deepEqual(await names(), ['P3', 'P1', 'P2', 'P4']);
+    assert.equal(await page.isDisabled('[data-act="mapCardOrder"][data-d="-1"]'), true, 'el primero no puede ir antes');
+    assert.equal(await text('#mapCardOrder'), '1 de 4');
+    await page.click('[data-act="mapCardOrder"][data-d="1"]');            // P1 P3 P2 P4: otra vez cruzados
+    assert.equal(await text('#mapCardOrder'), '2 de 4');
+    await page.reload(); await page.waitForSelector('#tab-puntos');       // el orden queda guardado
+    assert.deepEqual(await names(), ['P1', 'P3', 'P2', 'P4']);
+    await openMap(); await waitInfo((x) => x.markers.length === 4, 'cuadro');
+    // ordenar solos, desde «Más opciones»
+    assert.equal((await info()).polygon.bad, true);
+    await act('mapMore'); await page.waitForSelector('#sheet:not([hidden])');
+    await act('mapReorder'); await waitSheetClosed();
+    await waitToast(/^Puntos reordenados\.Deshacer$/);
+    assert.equal((await info()).polygon.bad, false, 'ordenados alrededor del centro no se cruzan');
+    assert.deepEqual((await names()).slice().sort(), ['P1', 'P2', 'P3', 'P4']);
+    await undo();
+    assert.deepEqual(await names(), ['P1', 'P3', 'P2', 'P4']);
+    // con menos de 3 puntos no hay nada que ordenar
+    await fresh(); await addPointManual('4.6, -74.08', 2600); await openMap();
+    await act('mapMore'); await page.waitForSelector('#sheet:not([hidden])');
+    await act('mapReorder'); await waitSheetClosed();
+    await waitToast(/^Hacen falta al menos 3 puntos para ordenarlos\.$/);
   });
 
   await step('Ayuda de primera vez: sale sola la primera vez que se abre el mapa, no vuelve a salir y se puede abrir desde «Más opciones»', async () => {

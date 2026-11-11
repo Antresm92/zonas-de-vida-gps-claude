@@ -103,7 +103,7 @@
     }
     if (out.polygon) out.sides = sides(pts, out.polygon.closed, opts.dist, opts.fmtDist);
     out.points = pts.map(function (q, i) {
-      return { id: q.id, name: q.name || ('P' + (i + 1)), label: pointLabel(q, opts.fmt) || ('P' + (i + 1)), lat: q.lat, lon: q.lon, color: pointColor(q, color) };
+      return { id: q.id, name: q.name || ('P' + (i + 1)), label: pointLabel(q, opts.fmt) || ('P' + (i + 1)), lat: q.lat, lon: q.lon, color: pointColor(q, color), order: i + 1 };   // order: puesto en el recorrido del polígono
     });
     out.layers = visibleLayers(p.layers).map(function (l) {
       var kind = l.kind === 'polygon' || l.kind === 'line' ? l.kind : 'points';
@@ -272,6 +272,23 @@
     return base;
   }
 
+  // Cambiar a mano el orden del recorrido: el punto pasa un puesto antes (delta −1) o después (+1). Devuelve una lista nueva;
+  // si el punto no está o ya es el primero o el último en esa dirección, la devuelve igual.
+  function moveInOrder(points, id, delta) {
+    var pts = (points || []).slice(), i = -1;
+    pts.forEach(function (q, k) { if (q && q.id === id) i = k; });
+    var j = i + (delta < 0 ? -1 : 1);
+    if (i < 0 || !delta || j < 0 || j >= pts.length) return pts;
+    var t = pts[i]; pts[i] = pts[j]; pts[j] = t;
+    return pts;
+  }
+  // Puesto del punto en el recorrido: { pos: 3, n: 7, first: false, last: false } o null si no está
+  function orderOf(points, id) {
+    var pts = points || [], i = -1;
+    pts.forEach(function (q, k) { if (q && q.id === id) i = k; });
+    return i < 0 ? null : { pos: i + 1, n: pts.length, first: i === 0, last: i === pts.length - 1 };
+  }
+
   // Herramientas del mapa que ocupan la franja de abajo (solo una a la vez): mira, medir y caminar
   var TOOLS = ['mira', 'medir', 'caminar'];
   function toolId(t) { return TOOLS.indexOf(t) >= 0 ? t : ''; }
@@ -280,7 +297,7 @@
     haversine: haversine, bearing: bearing, compass: compass, sides: sides, sideShows: sideShows, SIDE_LABEL_MIN_PX: SIDE_LABEL_MIN_PX, SIDE_PLUS_MIN_PX: SIDE_PLUS_MIN_PX,
     summaryText: summaryText, relText: relText, measureText: measureText, measureAdd: measureAdd,
     TRACK_STEPS: TRACK_STEPS, TRACK_STEP_DEFAULT: TRACK_STEP_DEFAULT, TRACK_MAX_ACC: TRACK_MAX_ACC, trackStep: trackStep, trackDecision: trackDecision, trackText: trackText,
-    TOOLS: TOOLS, toolId: toolId,
+    TOOLS: TOOLS, toolId: toolId, moveInOrder: moveInOrder, orderOf: orderOf,
     MODES: MODES, HOLD_MS: HOLD_MS, HOLD_SLOP_PX: HOLD_SLOP_PX, TAP_SLOP_PX: TAP_SLOP_PX, DOUBLE_TAP_MS: DOUBLE_TAP_MS, DOUBLE_TAP_SLOP_PX: DOUBLE_TAP_SLOP_PX,
     pointColor: pointColor, modeId: modeId, toggleMode: toggleMode, modeText: modeText, isRepeatTap: isRepeatTap, withMoved: withMoved, pointGesture: pointGesture,
     BASES: BASES, REFERENCE: REFERENCE, LABEL_MIN_ZOOM: LABEL_MIN_ZOOM, COLOMBIA: COLOMBIA, TILE_ERRORS_BEFORE_NOTICE: TILE_ERRORS_BEFORE_NOTICE,

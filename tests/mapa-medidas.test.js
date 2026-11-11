@@ -172,3 +172,35 @@ test('gesto sobre un punto: un toque corto avisa por onTap (si se pide) y el seg
   g2.down('a', 1, 1); g2.up(1, 1);
   assert.equal(g2.state(), '');
 });
+
+test('orden del recorrido: cada punto del mapa lleva su puesto (1, 2, 3…)', () => {
+  assert.deepEqual(Mapa.shapes({ points: cuadro }).points.map((m) => m.order), [1, 2, 3, 4]);
+  assert.deepEqual(Mapa.shapes({ points: [cuadro[2], cuadro[0]] }).points.map((m) => [m.name, m.order]), [['P3', 1], ['P1', 2]]);
+});
+
+test('moveInOrder: pasa un punto un puesto antes o después sin tocar la lista original; en los extremos no hace nada', () => {
+  const ids = (l) => l.map((q) => q.name).join(' ');
+  assert.equal(ids(Mapa.moveInOrder(cuadro, 'id-P3', -1)), 'P1 P3 P2 P4');
+  assert.equal(ids(Mapa.moveInOrder(cuadro, 'id-P3', 1)), 'P1 P2 P4 P3');
+  assert.equal(ids(Mapa.moveInOrder(cuadro, 'id-P3', -5)), 'P1 P3 P2 P4');     // siempre un solo puesto
+  assert.equal(ids(Mapa.moveInOrder(cuadro, 'id-P1', -1)), 'P1 P2 P3 P4');     // el primero no puede ir antes
+  assert.equal(ids(Mapa.moveInOrder(cuadro, 'id-P4', 1)), 'P1 P2 P3 P4');      // ni el último después
+  assert.equal(ids(Mapa.moveInOrder(cuadro, 'id-P1', 1)), 'P2 P1 P3 P4');
+  assert.equal(ids(Mapa.moveInOrder(cuadro, 'id-P4', -1)), 'P1 P2 P4 P3');
+  assert.equal(ids(Mapa.moveInOrder(cuadro, 'no-existe', 1)), 'P1 P2 P3 P4');
+  assert.equal(ids(Mapa.moveInOrder(cuadro, 'id-P2', 0)), 'P1 P2 P3 P4');
+  assert.equal(ids(cuadro), 'P1 P2 P3 P4');
+  assert.notEqual(Mapa.moveInOrder(cuadro, 'id-P2', 1), cuadro);
+  assert.deepEqual(Mapa.moveInOrder(null, 'x', 1), []);
+  // ir y volver deja todo como estaba
+  assert.equal(ids(Mapa.moveInOrder(Mapa.moveInOrder(cuadro, 'id-P2', 1), 'id-P2', -1)), 'P1 P2 P3 P4');
+});
+
+test('orderOf: puesto del punto en el recorrido y si es el primero o el último', () => {
+  assert.deepEqual(Mapa.orderOf(cuadro, 'id-P1'), { pos: 1, n: 4, first: true, last: false });
+  assert.deepEqual(Mapa.orderOf(cuadro, 'id-P3'), { pos: 3, n: 4, first: false, last: false });
+  assert.deepEqual(Mapa.orderOf(cuadro, 'id-P4'), { pos: 4, n: 4, first: false, last: true });
+  assert.deepEqual(Mapa.orderOf([cuadro[0]], 'id-P1'), { pos: 1, n: 1, first: true, last: true });
+  assert.equal(Mapa.orderOf(cuadro, 'otro'), null);
+  assert.equal(Mapa.orderOf(null, 'otro'), null);
+});

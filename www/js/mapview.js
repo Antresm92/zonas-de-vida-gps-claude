@@ -72,6 +72,7 @@
       var root = doc.createElement('div');
       var dot = doc.createElement('span'), lab = doc.createElement('span');
       dot.className = 'mk-dot'; dot.style.background = m.color;
+      if (m.order) dot.textContent = String(m.order);          // puesto en el recorrido: se ve aunque los nombres estén ocultos
       lab.className = 'mk-lab'; lab.textContent = m.label;
       root.appendChild(dot); root.appendChild(lab);
       if (hit) {
@@ -139,7 +140,7 @@
         var mk = L.marker([m.lat, m.lon], { icon: markerIcon(m, mode === 'move' ? 'mk-hit' : mode === '' ? 'mk-tap' : ''), interactive: mode !== 'add', keyboard: false }).addTo(drawn);
         if (mode === '') mk.on('click', function () { emit('onPointTap', m.id); });
         refs[m.id] = { marker: mk, index: i };
-        model.markers.push({ id: m.id, label: m.label, lat: m.lat, lon: m.lon, color: m.color });
+        model.markers.push({ id: m.id, label: m.label, lat: m.lat, lon: m.lon, color: m.color, order: m.order });
       });
       syncLabels(); syncSides(); drawLink();
     }
