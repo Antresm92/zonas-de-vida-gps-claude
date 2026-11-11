@@ -5,7 +5,7 @@
   var Geo = window.Geo, H = window.Holdridge, Climate = window.Climate, A = window.Analysis, Fmt = window.Fmt,
       Gps = window.Gps, Store = window.Store, Diagram = window.Diagram, Report = window.Report,
       Gis = window.Gis, Backup = window.Backup, IO = window.IO, WL = window.WalterLieth, Mapa = window.Mapa, MapView = window.MapView, Satelite = window.Satelite, Perfil = window.Perfil, Fotos = window.Fotos, Zip = window.Zip, Units = window.Units;
-  var APP_VERSION = '2.10.1';
+  var APP_VERSION = '2.11.0';
 
   var S = Store.loadState();
   var hadSaved = Store.hasSavedState();      // ¿había datos guardados al abrir? (solo entonces se limpian las fotos sin uso)
@@ -15,7 +15,7 @@
              imp: null, restore: null, edit: null,
              polyView: 'croquis', polyActive: true, mapBase: Mapa.baseId(Store.loadFlag('mapBase')), mapRef: Store.loadFlag('mapRef') === true,
              map: null, mapFollow: false, mapFitKey: null, tileErrors: 0, mapMode: '', mapMenu: false, mapModeFor: null,
-             mapSel: null, mapLayers: false, mapFull: false, follow: false, mapTool: '', measure: [], track: null, wake: null,
+             mapSel: null, navId: null, mapLayers: false, mapFull: false, follow: false, mapTool: '', measure: [], track: null, wake: null,
              croq: { satelite: { img: null, busy: false, error: null }, topo: { img: null, busy: false, error: null } }, sharing: false, nowBusy: false, nowError: '', photoBusy: false, restoring: false,
              conv: null, convMem: {}, tool: null, wx: null, wxToken: 0, toolGpsKind: '' };
 
@@ -299,6 +299,7 @@
     if (ui.stopWatch) ui.stopWatch();
     ui.stopWatch = null; ui.gpsOn = false; ui.fix = null; ui.mapFollow = false; ui.follow = false; updateChips();
     if (ui.track) finishTrack();                                                   // sin GPS no se puede seguir caminando el lindero
+    if (ui.mapTool === 'ir') setMapTool('');                                       // ni guiar hasta un punto
     syncMapChrome();
     if (ui.map) ui.map.showFix(null);
     if (ui.tab === 'puntos') renderTab('puntos');
@@ -893,7 +894,7 @@
     var p = proj(), h = '';
     h += '<div id="mapBox" class="mapbox' + (ui.mapFull ? ' full' : '') + '"><div id="mapHost" class="maphost"></div>';
     h += mapMenuHtml();
-    h += '<div class="maptop"><div id="mapSum" class="mapsum" role="status" hidden></div><div id="mapNotice" class="mapnotice" role="status" hidden></div>' +
+    h += '<div class="maptop"><button id="mapSum" class="mapsum" data-act="mapSumTap" hidden></button><div id="mapNotice" class="mapnotice" role="status" hidden></div>' +
       '<div id="mapMode" class="mapmode" hidden><span id="mapModeTxt" role="status"></span><button data-act="mapMode" data-mode="">Salir</button></div></div>' +
       '<div id="mapLive" class="maplive" hidden></div>';
     if (ui.sampling) {
@@ -1053,7 +1054,7 @@
     var seen = ui.tab === 'area' && ui.polyView === 'mapa';
     if (ui.mapFollow && seen) { ui.mapFollow = false; ui.map.flyTo(fix.lat, fix.lon, 17); }
     else if (ui.follow && seen) ui.map.flyTo(fix.lat, fix.lon, 1);       // siguiendo la posición: el mapa se mueve con la persona sin cambiar el zoom
-    if (seen) { syncMapCard(true); if (ui.mapTool === 'caminar') syncMapTool(); }
+    if (seen) { syncMapCard(true); if (ui.mapTool === 'caminar' || ui.mapTool === 'ir') syncMapTool(); }
   }
   function goLastPoint() {
     var pt = Mapa.lastPoint(proj().points);
@@ -1076,13 +1077,16 @@
   function mapSummary() {
     var a = analysis();
     if (a.empty) return '';
-    return Mapa.summaryText(a.n, a.polygon ? Fmt.area(a.area, S.settings.areaUnit || 'ha') : '', a.n >= 2 ? Fmt.dist(a.perimeter) : '');
+    return Mapa.summaryText(a.n, a.polygon ? Fmt.area(a.area, S.settings.areaUnit || 'ha') : '', a.n >= 2 ? Fmt.dist(a.perimeter) : '', !!a.selfIntersects);
   }
   function syncMapChrome() {
     var box = $('#mapBox');
     if (!box) return;
     var sum = $('#mapSum'), t = mapSummary();
+    var crossed = !!analysis().selfIntersects;
     sum.textContent = t; sum.hidden = !t;
+    sum.classList.toggle('crossed', crossed);            // con los lados cruzados el resumen es un botón que ordena los puntos
+    sum.setAttribute('aria-label', crossed ? 'Los lados se cruzan. Ordenar los puntos alrededor del centro' : 'Área, perímetro y número de puntos: ' + t);
     $('#mapLayersPanel').hidden = !ui.mapLayers;
     $('[data-act="mapLayers"]').setAttribute('aria-expanded', String(ui.mapLayers));
     $('[data-act="mapFull"]').setAttribute('aria-pressed', String(ui.mapFull));
@@ -1114,7 +1118,7 @@
     if (!pt) {
       if (relOnly) return;
       ui.mapSel = null; el.hidden = true; el.innerHTML = ''; box.classList.remove('has-card');
-      if (ui.map) ui.map.select(null);
+      if (ui.map) ui.map.select(ui.mapTool === 'ir' ? ui.navId : null);   // yendo hacia un punto, sigue marcado y unido con la posición
       return;
     }
     var rel = ui.gpsOn ? Mapa.relText(ui.fix, pt, Fmt.dist) : '';
@@ -1131,9 +1135,30 @@
       '<p class="small">' + (isNum(pt.alt) ? 'Altitud ' + Fmt.num(pt.alt, 0) + ' m' : 'Sin altitud') + ' · ' + src + ' · ' + esc(Fmt.latlon(pt.lat, pt.lon)) + '</p>' +
       '<p class="small mapcard-rel" id="mapCardRel"' + (rel ? '' : ' hidden') + '>' + esc(rel) + '</p>' +
       '<div class="mapcard-btns"><button class="btn btn-primary" data-act="editPoint" data-id="' + esc(pt.id) + '">Abrir ficha</button>' +
-      '<button class="btn" data-act="mapCardMove">Mover</button><button class="btn" data-act="mapCardGo">Ir al punto</button></div>';
+      '<button class="btn" data-act="mapCardMove">Mover</button><button class="btn" data-act="mapCardGo">Ir al punto</button>' +
+      '<button class="btn mapcard-del" data-act="askDelete" data-id="' + esc(pt.id) + '" aria-label="Eliminar ' + esc(pt.name) + '"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg></button></div>';
     el.hidden = false; box.classList.add('has-card');
     if (ui.map) ui.map.select(pt.id);
+  }
+  // «Ir al punto»: con el GPS encendido guía hasta él (distancia, rumbo y flecha, con cada lectura); sin GPS solo centra el mapa en el punto
+  function goToPoint(pt) {
+    if (!ui.gpsOn) {
+      ui.follow = false; syncMapChrome();
+      if (ui.map) ui.map.flyTo(pt.lat, pt.lon, 18);
+      toast('Mapa centrado en ' + pt.name + '. Enciende el GPS para que te guíe hasta él.');
+      return;
+    }
+    ui.navId = pt.id; ui.follow = false; ui.mapSel = null;      // el destino se fija antes de abrir la franja, que lo necesita para dibujarse
+    if (ui.mapTool === 'ir') syncMapChrome(); else setMapTool('ir');
+    navFit();
+  }
+  // Encuadra a la persona y al punto al que va (o solo el punto, si todavía no hay lectura)
+  function navFit() {
+    var pt = ui.navId ? pointById(ui.navId) : null;
+    if (!pt || !ui.map) return;
+    ui.follow = false; syncMapChrome();
+    if (ui.fix) ui.map.fit(Mapa.extent([{ lat: ui.fix.lat, lon: ui.fix.lon }, pt], []), { bottom: 170 });
+    else ui.map.flyTo(pt.lat, pt.lon, 18);
   }
   function onPointTap(id) {
     closeMapPanels();
@@ -1157,6 +1182,7 @@
     if (ui.track) finishTrack();
     if (t && ui.mapMode) setMapMode('');
     ui.mapTool = t; ui.measure = []; ui.mapSel = null; ui.mapMenu = false; ui.mapLayers = false;
+    if (t !== 'ir') ui.navId = null;
     if (ui.map) ui.map.setMeasure([]);
     syncMapMenu(); syncMapChrome();
   }
@@ -1179,6 +1205,14 @@
     } else if (t === 'medir') {
       h = '<p id="mapMeasureTxt">' + esc(Mapa.measureText(ui.measure, Fmt.dist)) + '</p>' +
         '<div class="mtb-btns"><button class="btn" data-act="mapMeasureClear"' + (ui.measure.length ? '' : ' disabled') + '>Borrar</button><button class="btn btn-primary" data-act="mapToolEnd">Terminar</button></div>';
+    } else if (t === 'ir') {
+      var target = ui.navId ? pointById(ui.navId) : null, nav = Mapa.navInfo(ui.fix, target, Fmt.dist);
+      if (!nav) { setMapTool(''); return; }        // el punto ya no existe
+      h = '<p class="navline" id="mapNavTxt"><span class="navarrow' + (nav.arrived ? ' arrived' : '') + '" aria-hidden="true"' + (isNum(nav.bearing) ? ' style="transform:rotate(' + Math.round(nav.bearing) + 'deg)"' : '') + '>' +
+        (nav.arrived ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>'
+          : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V5M5.5 11.5L12 5l6.5 6.5"/></svg>') +
+        '</span><span>' + esc(nav.text) + '</span></p>' +
+        '<div class="mtb-btns"><button class="btn" data-act="mapNavFit">Ver los dos</button><button class="btn btn-primary" data-act="mapToolEnd">Terminar</button></div>';
     } else if (t === 'caminar') {
       var tr = ui.track || {};
       h = '<p id="mapTrackTxt">' + esc(Mapa.trackText({ added: (tr.ids || []).length, step: tr.step, last: tr.last })) + (ui.fix && isNum(ui.fix.acc) ? ' · GPS ±' + Math.round(ui.fix.acc) + ' m' : '') + '</p>' +
@@ -1248,7 +1282,7 @@
   }
   function openMapGuide() {
     var rows = [
-      ['Toca un punto', 'para ver sus datos, abrir su ficha, moverlo, ir hasta él o cambiar su puesto en el recorrido. El número dentro de cada punto es su orden.'],
+      ['Toca un punto', 'para ver sus datos, abrir su ficha, moverlo, eliminarlo, cambiar su puesto en el recorrido o ir hasta él (con el GPS encendido te guía con una flecha y los metros que faltan). El número dentro de cada punto es su orden.'],
       ['Menú ⋮', '«Ingresar puntos» crea un punto donde toques. «Posición manual» deja mover un punto manteniéndolo pulsado e insertar uno nuevo con el «+» de cada lado.'],
       ['Botones de la izquierda', 'bajo el menú ⋮: cambiar la capa (calles, satélite o topográfico), ver todo el terreno y pantalla completa. A la derecha, acercar y alejar.'],
       ['Mi posición', 'el botón redondo de abajo centra el mapa donde estás y te sigue hasta que muevas el mapa.'],
@@ -2014,7 +2048,9 @@
     mapLayers: function () { ui.mapLayers = !ui.mapLayers; ui.mapMenu = false; syncMapMenu(); syncMapChrome(); },
     mapFit: fitAll, mapFull: toggleMapFull,
     mapCardClose: function () { ui.mapSel = null; syncMapCard(); },
-    mapCardGo: function () { var pt = ui.mapSel && pointById(ui.mapSel); if (pt && ui.map) { ui.follow = false; syncMapChrome(); ui.map.flyTo(pt.lat, pt.lon, 18); } },
+    mapCardGo: function () { var pt = ui.mapSel && pointById(ui.mapSel); if (pt) goToPoint(pt); },
+    mapNavFit: navFit,
+    mapSumTap: function () { if (analysis().selfIntersects) reorder(); },
     mapCardMove: function () { var pt = ui.mapSel && pointById(ui.mapSel); setMapMode('move'); if (pt) toast('Mantén pulsado ' + pt.name + ' ' + Mapa.HOLD_MS / 1000 + ' s y arrástralo.'); },
     mapMeasure: function () { setMapTool(ui.mapTool === 'medir' ? '' : 'medir'); },
     mapMeasureClear: function () { ui.measure = []; if (ui.map) ui.map.setMeasure([]); syncMapTool(); },

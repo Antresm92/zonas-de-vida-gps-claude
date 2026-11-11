@@ -221,11 +221,35 @@
   function sideShows(px) { return { label: isNum(px) && px >= SIDE_LABEL_MIN_PX, plus: isNum(px) && px >= SIDE_PLUS_MIN_PX }; }
 
   // Resumen que va arriba del mapa. n: puntos; areaTxt y distTxt ya escritos por la app ('' si no hay).
-  function summaryText(n, areaTxt, distTxt) {
+  // Corto, para que quepa en una línea en teléfonos angostos: «0,54 ha · 318 m · 7 puntos» (el segundo dato es el perímetro).
+  // crossed: los lados se cruzan; el área no sirve, así que en su lugar se dice eso (la app deja ordenar los puntos tocando el resumen).
+  function summaryText(n, areaTxt, distTxt, crossed) {
     if (!isNum(n) || n <= 0) return '';
-    if (n === 1) return '1 punto · faltan 2 para el área';
-    if (n === 2) return (distTxt ? 'Distancia ' + distTxt + ' · ' : '') + '2 puntos · falta 1 para el área';
-    return (areaTxt ? areaTxt + ' · ' : '') + (distTxt ? 'perímetro ' + distTxt + ' · ' : '') + n + ' puntos';
+    if (n === 1) return '1 punto · faltan 2';
+    if (n === 2) return (distTxt ? distTxt + ' · ' : '') + '2 puntos · falta 1';
+    if (crossed) return 'Los lados se cruzan · toca para ordenar';
+    return (areaTxt ? areaTxt + ' · ' : '') + (distTxt ? distTxt + ' · ' : '') + n + ' puntos';
+  }
+  // Dos rectángulos de pantalla { left, top, right, bottom } ¿se pisan? (para que el rótulo de un lado no tape el nombre de un punto)
+  function rectsOverlap(a, b) {
+    return !!a && !!b && a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+  }
+  // Dónde va el rótulo de un lado: en su sitio ('base'), al otro costado de la línea ('alt') si en su sitio pisa un nombre,
+  // u oculto ('off') si en los dos pisa. hitsAlt es una función: solo se mira el otro costado cuando hace falta.
+  function sidePlacement(hitsBase, hitsAlt) {
+    if (!hitsBase) return 'base';
+    return hitsAlt() ? 'off' : 'alt';
+  }
+  // Ir hasta un punto: qué decirle a la persona con cada lectura del GPS. ARRIVE_M: a esa distancia se da por llegada.
+  var ARRIVE_M = 5;
+  function navInfo(fix, pt, fmtDist) {
+    var name = (pt && pt.name) || 'el punto';
+    if (!validLL(pt)) return null;
+    if (!validLL(fix)) return { text: name + ': esperando la posición del GPS…', arrived: false, bearing: null, meters: null };
+    var m = haversine(fix.lat, fix.lon, pt.lat, pt.lon), f = typeof fmtDist === 'function' ? fmtDist : plainDist;
+    if (m <= ARRIVE_M) return { text: 'Llegaste a ' + name + ' (a ' + Math.round(m) + ' m).', arrived: true, bearing: null, meters: m };   // tan cerca, los decimales no dicen nada
+    var b = bearing(fix.lat, fix.lon, pt.lat, pt.lon);
+    return { text: name + ': a ' + f(m) + ', hacia el ' + compass(b), arrived: false, bearing: b, meters: m };
   }
 
   // «a 58 m de ti, hacia el sureste»: dónde queda un punto respecto a la posición del GPS. '' si falta alguno de los dos.
@@ -289,14 +313,15 @@
     return i < 0 ? null : { pos: i + 1, n: pts.length, first: i === 0, last: i === pts.length - 1 };
   }
 
-  // Herramientas del mapa que ocupan la franja de abajo (solo una a la vez): mira, medir y caminar
-  var TOOLS = ['mira', 'medir', 'caminar'];
+  // Herramientas del mapa que ocupan la franja de abajo (solo una a la vez): mira, medir, caminar e ir hasta un punto
+  var TOOLS = ['mira', 'medir', 'caminar', 'ir'];
   function toolId(t) { return TOOLS.indexOf(t) >= 0 ? t : ''; }
 
   return {
     haversine: haversine, bearing: bearing, compass: compass, sides: sides, sideShows: sideShows, SIDE_LABEL_MIN_PX: SIDE_LABEL_MIN_PX, SIDE_PLUS_MIN_PX: SIDE_PLUS_MIN_PX,
     summaryText: summaryText, relText: relText, measureText: measureText, measureAdd: measureAdd,
     TRACK_STEPS: TRACK_STEPS, TRACK_STEP_DEFAULT: TRACK_STEP_DEFAULT, TRACK_MAX_ACC: TRACK_MAX_ACC, trackStep: trackStep, trackDecision: trackDecision, trackText: trackText,
+    rectsOverlap: rectsOverlap, sidePlacement: sidePlacement, navInfo: navInfo, ARRIVE_M: ARRIVE_M,
     TOOLS: TOOLS, toolId: toolId, moveInOrder: moveInOrder, orderOf: orderOf,
     MODES: MODES, HOLD_MS: HOLD_MS, HOLD_SLOP_PX: HOLD_SLOP_PX, TAP_SLOP_PX: TAP_SLOP_PX, DOUBLE_TAP_MS: DOUBLE_TAP_MS, DOUBLE_TAP_SLOP_PX: DOUBLE_TAP_SLOP_PX,
     pointColor: pointColor, modeId: modeId, toggleMode: toggleMode, modeText: modeText, isRepeatTap: isRepeatTap, withMoved: withMoved, pointGesture: pointGesture,

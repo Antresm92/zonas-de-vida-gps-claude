@@ -183,8 +183,10 @@ main { padding: calc(var(--top-h) + 14px) 14px calc(var(--nav-h) + 24px); paddin
 .maplayers > button[aria-pressed="true"] { background: var(--blue); color: var(--on-blue); }
 .maplayers > .chipbtn { min-height: 44px; margin: 4px 0 0; border-radius: 10px; font-size: 13.5px; line-height: 1.2; text-align: left; }
 /* Resumen de medidas, arriba */
-.mapsum { align-self: center; max-width: 100%; padding: 6px 12px; border-radius: 16px; background: rgba(20, 48, 31, .92); color: #FFFFFF; font-size: 13px; font-weight: 700; line-height: 1.3; text-align: center; box-shadow: var(--shadow); }
-.maptop > .mapsum { pointer-events: none; }
+.mapsum { align-self: center; max-width: 100%; border: 0; font-family: inherit; padding: 6px 12px; border-radius: 16px; background: rgba(20, 48, 31, .92); color: #FFFFFF; font-size: 13px; font-weight: 700; line-height: 1.3; text-align: center; box-shadow: var(--shadow); }
+.maptop > .mapsum { pointer-events: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Lados cruzados: el resumen avisa y se puede tocar para ordenar los puntos */
+.maptop > .mapsum.crossed { pointer-events: auto; white-space: normal; line-height: 1.25; min-height: 44px; border: 0; background: var(--bad, #A32229); color: #FFFFFF; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
 /* Tarjeta del punto elegido */
 .mapcard { position: absolute; left: 8px; right: 8px; bottom: 100px; z-index: 6; padding: 10px 12px 10px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); box-shadow: 0 4px 14px rgba(0, 0, 0, .28); }
 .mapcard p { margin: 2px 0 0; color: var(--ink-soft); }
@@ -198,11 +200,19 @@ main { padding: calc(var(--top-h) + 14px) 14px calc(var(--nav-h) + 24px); paddin
 .mapcard-order button { width: 44px; height: 44px; padding: 0; border: 0; background: none; color: var(--blue); font-size: 18px; }
 .mapcard-order button:disabled { color: var(--line); }
 .mapcard-btns .btn, .mtb-btns .btn { flex: 1 1 0; min-width: 0; min-height: 44px; padding: 0 6px; font-size: 14px; }
+.mapcard-btns .btn { white-space: nowrap; font-size: 13.5px; }
+.mapcard-btns .btn.mapcard-del { flex: 0 0 44px; padding: 0; color: var(--bad, #A32229); border-color: var(--bad, #A32229); }
+.mapcard-del svg { width: 20px; height: 20px; vertical-align: middle; }
+/* Ir hasta un punto: flecha que apunta hacia él (el mapa siempre tiene el norte arriba) */
+.maptoolbar p.navline { display: flex; align-items: center; gap: 10px; }
+.navarrow { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 50%; background: var(--blue); color: var(--on-blue); }
+.navarrow svg { width: 24px; height: 24px; }
+.navarrow.arrived { background: #2E9150; }
 .mapbox.has-card .maploc { bottom: 226px; }
 /* Franja de la herramienta activa (medir, mira o caminar): ocupa el lugar de la barra */
 .maptoolbar { position: absolute; left: 8px; right: 8px; bottom: 30px; z-index: 6; padding: 10px 12px; border: 1px solid var(--line); border-left: 4px solid var(--blue); border-radius: 12px; background: var(--surface); box-shadow: var(--shadow); }
 .maptoolbar p { margin: 0; font-size: 14.5px; line-height: 1.35; font-weight: 650; }
-.mapbox.tool-mira .maploc, .mapbox.tool-medir .maploc, .mapbox.tool-caminar .maploc { bottom: 150px; }
+.mapbox.tool-mira .maploc, .mapbox.tool-medir .maploc, .mapbox.tool-caminar .maploc, .mapbox.tool-ir .maploc { bottom: 150px; }
 /* Mira: una cruz fija en el centro del mapa */
 .mapcross { display: none; position: absolute; left: 50%; top: 50%; z-index: 3; width: 44px; height: 44px; margin: -22px 0 0 -22px; pointer-events: none; }
 .mapcross::before, .mapcross::after { content: ''; position: absolute; background: #C42D34; box-shadow: 0 0 0 1.5px #FFFFFF; }
@@ -231,6 +241,9 @@ main { padding: calc(var(--top-h) + 14px) 14px calc(var(--nav-h) + 24px); paddin
 /* Rótulos de los lados y «+» para insertar un punto */
 .mk-len { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); padding: 1px 5px; border-radius: 5px; background: rgba(255, 255, 255, .88); color: #14301F; font-weight: 700; font-size: 12px; white-space: nowrap; pointer-events: none; }
 .mode-move .mk-len { transform: translate(-50%, 16px); }
+/* Rótulo corrido al otro costado de la línea, para no pisar el nombre de un punto */
+.side-alt .mk-len { transform: translate(-50%, 12px); }
+.mode-move .side-alt .mk-len { transform: translate(-50%, -40px); }
 .mk-plus { position: absolute; left: -13px; top: -13px; width: 26px; height: 26px; border-radius: 50%; border: 2px solid #FFFFFF; background: #1F3FBF; color: #FFFFFF; font-weight: 800; font-size: 18px; line-height: 22px; text-align: center; box-shadow: 0 1px 4px rgba(0, 0, 0, .45); cursor: pointer; }
 .mk-plus::after { content: ''; position: absolute; left: -11px; top: -11px; width: 44px; height: 44px; border-radius: 50%; }
 .side-off .mk-len, .plus-off .mk-plus, .dragging .mk-side { display: none; }

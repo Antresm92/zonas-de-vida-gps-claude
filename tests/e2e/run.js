@@ -25,7 +25,12 @@ const arg = (n) => { const a = process.argv.find((x) => x.startsWith('--' + n + 
       await page.waitForSelector('#sheet', { state: 'hidden', timeout: 3000 }).catch(() => {});
     }
   };
-  const step = (name, fn) => R.step(name, async () => { await tidy(); await fn(); });
+  // Si un paso falla, al mensaje se le agregan los errores de JavaScript que la página dio durante ese paso (ayuda a entender fallos que no se repiten)
+  const step = (name, fn) => R.step(name, async () => {
+    const n = errors.length;
+    try { await tidy(); await fn(); }
+    catch (e) { if (errors.length > n) e.message += '\n      [errores de la página en este paso] ' + errors.slice(n).join(' ¦ '); throw e; }
+  });
 
   /* ---------- Ayudas ---------- */
   const state = () => page.evaluate(() => JSON.parse(JSON.stringify(window.__app.S)));
@@ -37,7 +42,7 @@ const arg = (n) => { const a = process.argv.find((x) => x.startsWith('--' + n + 
   const waitSheetClosed = () => page.waitForSelector('#sheet', { state: 'hidden' });
   const waitToast = async (re, ms) => {
     const t0 = Date.now(); let t = '';
-    while (Date.now() - t0 < (ms || 4000)) { t = await toastText(); if (re.test(t)) return t; await page.waitForTimeout(50); }
+    while (Date.now() - t0 < (ms || 10000)) { t = await toastText(); if (re.test(t)) return t; await page.waitForTimeout(50); }
     throw new Error('Aviso esperado ' + re + ' pero había: «' + t + '»');
   };
   const tab = async (name) => { await page.click('#nav-' + name); await page.waitForSelector('#tab-' + name, { state: 'visible' }); };

@@ -94,15 +94,40 @@
       }
       return L.divIcon({ className: 'mk mk-side', html: root, iconSize: [0, 0] });
     }
-    // Los rótulos de los lados solo se ven cuando el lado mide lo suficiente en pantalla (si no, taparían los puntos)
+    // Los rótulos de los lados solo existen cuando el lado mide lo suficiente en pantalla (si no, taparían los puntos) y está a la vista.
+    // Se crean y se quitan al terminar cada movimiento del mapa: así un recorrido de cientos de puntos no carga cientos de rótulos que no se ven.
     function syncSides() {
+      if (!sideRefs.length) return;
+      var view = map.getBounds().pad(0.25);
       sideRefs.forEach(function (r) {
-        var node = r.marker.getElement();
-        if (!node) return;
         var show = Mapa.sideShows(map.latLngToContainerPoint(r.a).distanceTo(map.latLngToContainerPoint(r.b)));
-        r.label = show.label; r.plus = show.plus && r.hasPlus;
-        node.classList.toggle('side-off', !show.label);
-        node.classList.toggle('plus-off', !show.plus);
+        var on = show.label && view.contains(r.mid);
+        r.label = on; r.plus = on && show.plus && r.hasPlus; r.alt = false;
+        if (!on) { if (r.marker) { drawn.removeLayer(r.marker); r.marker = null; } return; }
+        if (!r.marker) {
+          r.marker = L.marker(r.mid, { icon: sideIcon(r.sd, r.hasPlus), interactive: r.hasPlus, keyboard: false, zIndexOffset: -500 }).addTo(drawn);
+          if (r.hasPlus) r.marker.on('click', function () { if (r.plus) emit('onInsert', r.sd.after, { lat: r.sd.mid[0], lon: r.sd.mid[1] }); });
+        }
+        var node = r.marker.getElement();
+        node.classList.toggle('plus-off', !r.plus);
+        node.classList.remove('side-alt');
+      });
+      avoidLabels();
+    }
+    // Si el rótulo de un lado pisa el nombre o el círculo de un punto, se pasa al otro costado de la línea; si ahí también pisa, se oculta.
+    // Con muchos lados no se hace (son lecturas de pantalla por cada rótulo) y a esa escala los rótulos ya no caben.
+    var AVOID_MAX_SIDES = 60;
+    function avoidLabels() {
+      var shown = sideRefs.filter(function (r) { return r.marker; });
+      if (!shown.length || shown.length > AVOID_MAX_SIDES) return;
+      var marks = [].slice.call(el.querySelectorAll('.mk-lab, .mk-dot')).map(function (n) { return n.getBoundingClientRect(); }).filter(function (b) { return b.width > 0; });
+      var hits = function (len) { var b = len.getBoundingClientRect(); return marks.some(function (m) { return Mapa.rectsOverlap(b, m); }); };
+      shown.forEach(function (r) {
+        var node = r.marker.getElement(), len = node.querySelector('.mk-len');
+        node.classList.remove('side-off');
+        var where = Mapa.sidePlacement(hits(len), function () { node.classList.add('side-alt'); return hits(len); });
+        r.alt = where === 'alt';
+        if (where === 'off') { node.classList.remove('side-alt'); node.classList.add('side-off'); r.label = false; }
       });
     }
 
@@ -129,11 +154,8 @@
         else polyLayer = L.polyline(shapes.polygon.latlngs, { color: col, weight: 3, interactive: false }).addTo(drawn);
         model.polygon = { vertices: shapes.polygon.latlngs.length, closed: shapes.polygon.closed, bad: bad, color: col };
       }
-      (shapes.sides || []).forEach(function (sd) {
-        var plus = mode === 'move';
-        var sm = L.marker(sd.mid, { icon: sideIcon(sd, plus), interactive: plus, keyboard: false, zIndexOffset: -500 }).addTo(drawn);
-        if (plus) sm.on('click', function () { if (!sm.getElement().classList.contains('plus-off')) emit('onInsert', sd.after, { lat: sd.mid[0], lon: sd.mid[1] }); });
-        sideRefs.push({ marker: sm, a: L.latLng(sd.a), b: L.latLng(sd.b), text: sd.text, hasPlus: plus, label: false, plus: false });
+      (shapes.sides || []).forEach(function (sd) {      // sus rótulos los pone syncSides, solo donde caben
+        sideRefs.push({ sd: sd, marker: null, a: L.latLng(sd.a), b: L.latLng(sd.b), mid: L.latLng(sd.mid), text: sd.text, hasPlus: mode === 'move', label: false, plus: false, alt: false });
       });
       if (selId && !shapes.points.some(function (m) { return m.id === selId; })) selId = null;
       shapes.points.forEach(function (m, i) {
@@ -245,7 +267,8 @@
     }
 
     function syncLabels() { el.classList.toggle('labels-off', !Mapa.labelsVisible(map.getZoom())); }
-    map.on('zoomend', function () { syncLabels(); syncSides(); });
+    map.on('zoomend', syncLabels);
+    map.on('moveend', syncSides);          // después de cada zoom o arrastre: qué lados caben y están a la vista
     map.on('dragstart', function () { emit('onUserPan'); });
     map.on('move', function () { emit('onView'); });
 
@@ -316,7 +339,7 @@
         return { mode: mode, gesture: gesture.state(), lifted: drag ? { lat: drag.ll.lat, lon: drag.ll.lng } : null, base: state.base, reference: state.reference, zoom: map.getZoom(), center: { lat: c.lat, lon: c.lng }, errors: state.errors, loaded: state.loaded,
                  markers: model.markers.slice(), polygon: model.polygon, layers: model.layers.slice(), fix: model.fix,
                  selected: selId, link: !!linkLine, measure: measurePts.length, scale: (el.querySelector('.leaflet-control-scale-line') || {}).textContent || '',
-                 sides: sideRefs.map(function (r) { return { text: r.text, label: r.label, plus: r.plus }; }),
+                 sides: sideRefs.map(function (r) { return { text: r.text, label: r.label, plus: r.plus, alt: !!r.alt }; }),
                  labelsOn: !el.classList.contains('labels-off'), attribution: (el.querySelector('.leaflet-control-attribution') || {}).textContent || '' };
       }
     };

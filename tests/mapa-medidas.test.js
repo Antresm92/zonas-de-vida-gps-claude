@@ -79,10 +79,14 @@ test('summaryText: dice lo que falta con 1 y 2 puntos y da área y perímetro de
   assert.equal(Mapa.summaryText(0, '', ''), '');
   assert.equal(Mapa.summaryText(-1), '');
   assert.equal(Mapa.summaryText(undefined), '');
-  assert.equal(Mapa.summaryText(1, '', ''), '1 punto · faltan 2 para el área');
-  assert.equal(Mapa.summaryText(2, '', '88 m'), 'Distancia 88 m · 2 puntos · falta 1 para el área');
-  assert.equal(Mapa.summaryText(2, '', ''), '2 puntos · falta 1 para el área');
-  assert.equal(Mapa.summaryText(4, '0,84 ha', '365 m'), '0,84 ha · perímetro 365 m · 4 puntos');
+  assert.equal(Mapa.summaryText(1, '', ''), '1 punto · faltan 2');
+  assert.equal(Mapa.summaryText(2, '', '88 m'), '88 m · 2 puntos · falta 1');
+  assert.equal(Mapa.summaryText(2, '', ''), '2 puntos · falta 1');
+  assert.equal(Mapa.summaryText(4, '0,84 ha', '365 m'), '0,84 ha · 365 m · 4 puntos');
+  // con los lados cruzados el área no sirve: se avisa en su lugar (solo desde 3 puntos, que es cuando puede pasar)
+  assert.equal(Mapa.summaryText(4, '0,0000 ha', '1,56 km', true), 'Los lados se cruzan · toca para ordenar');
+  assert.equal(Mapa.summaryText(2, '', '88 m', true), '88 m · 2 puntos · falta 1');
+  assert.equal(Mapa.summaryText(4, '0,84 ha', '365 m', false), '0,84 ha · 365 m · 4 puntos');
   assert.equal(Mapa.summaryText(3, '', ''), '3 puntos');
   assert.equal(Mapa.summaryText(3, '1 ha', ''), '1 ha · 3 puntos');
 });
@@ -150,7 +154,8 @@ test('caminar el lindero: el texto dice cuántos puntos van y por qué está esp
 });
 
 test('herramientas de la franja de abajo: mira, medir y caminar', () => {
-  assert.deepEqual(Mapa.TOOLS, ['mira', 'medir', 'caminar']);
+  assert.deepEqual(Mapa.TOOLS, ['mira', 'medir', 'caminar', 'ir']);
+  assert.equal(Mapa.toolId('ir'), 'ir');
   assert.equal(Mapa.toolId('medir'), 'medir');
   assert.equal(Mapa.toolId('otra'), '');
   assert.equal(Mapa.toolId(), '');
@@ -203,4 +208,51 @@ test('orderOf: puesto del punto en el recorrido y si es el primero o el último'
   assert.deepEqual(Mapa.orderOf([cuadro[0]], 'id-P1'), { pos: 1, n: 1, first: true, last: true });
   assert.equal(Mapa.orderOf(cuadro, 'otro'), null);
   assert.equal(Mapa.orderOf(null, 'otro'), null);
+});
+
+test('rectsOverlap: dos rectángulos de pantalla se pisan solo si comparten área (tocarse por el borde no cuenta)', () => {
+  const r = (left, top, right, bottom) => ({ left, top, right, bottom });
+  assert.equal(Mapa.rectsOverlap(r(0, 0, 10, 10), r(5, 5, 15, 15)), true);
+  assert.equal(Mapa.rectsOverlap(r(0, 0, 10, 10), r(2, 2, 4, 4)), true);       // uno dentro del otro
+  assert.equal(Mapa.rectsOverlap(r(0, 0, 10, 10), r(10, 0, 20, 10)), false);   // pegados por un lado
+  assert.equal(Mapa.rectsOverlap(r(0, 0, 10, 10), r(0, 10, 10, 20)), false);
+  assert.equal(Mapa.rectsOverlap(r(0, 0, 10, 10), r(11, 0, 20, 10)), false);
+  assert.equal(Mapa.rectsOverlap(r(0, 0, 10, 10), r(0, 11, 10, 20)), false);
+  assert.equal(Mapa.rectsOverlap(r(5, 5, 15, 15), r(0, 0, 10, 10)), true);     // en el otro orden
+  assert.equal(Mapa.rectsOverlap(r(20, 0, 30, 10), r(0, 0, 10, 10)), false);
+  assert.equal(Mapa.rectsOverlap(r(0, 20, 10, 30), r(0, 0, 10, 10)), false);
+  assert.equal(Mapa.rectsOverlap(null, r(0, 0, 1, 1)), false);
+  assert.equal(Mapa.rectsOverlap(r(0, 0, 1, 1), undefined), false);
+});
+
+test('navInfo: guía hasta un punto con distancia y rumbo, avisa al llegar (5 m) y espera si no hay lectura', () => {
+  const pt = { name: 'P3', lat: 4.601, lon: -74.08 };
+  let n = Mapa.navInfo({ lat: 4.6, lon: -74.08 }, pt);
+  assert.equal(n.text, 'P3: a 111 m, hacia el norte');
+  assert.equal(n.arrived, false);
+  assert.ok(Math.abs(n.bearing) < 1e-6);
+  assert.ok(Math.abs(n.meters - 111.2) < 0.5);
+  n = Mapa.navInfo({ lat: 4.601, lon: -74.079 }, pt, (m) => 'X');
+  assert.equal(n.text, 'P3: a X, hacia el oeste');
+  assert.ok(Math.abs(n.bearing - 270) < 0.01);
+  const m = 1 / 111195;
+  n = Mapa.navInfo({ lat: 4.601 - 4.9 * m, lon: -74.08 }, pt);
+  assert.deepEqual([n.text, n.arrived, n.bearing], ['Llegaste a P3 (a 5 m).', true, null]);
+  assert.equal(Mapa.navInfo({ lat: 4.601 - 5.2 * m, lon: -74.08 }, pt).arrived, false);
+  assert.equal(Mapa.navInfo({ lat: 4.601 - 3 * m, lon: -74.08 }, pt, (x) => x.toFixed(2) + ' m').text, 'Llegaste a P3 (a 3 m).');   // al llegar, metros enteros aunque la app use decimales
+  assert.equal(Mapa.ARRIVE_M, 5);
+  n = Mapa.navInfo(null, pt);
+  assert.deepEqual(n, { text: 'P3: esperando la posición del GPS…', arrived: false, bearing: null, meters: null });
+  assert.equal(Mapa.navInfo({ lat: 4.6, lon: -74.08 }, { lat: 4.601, lon: -74.08 }).text, 'el punto: a 111 m, hacia el norte');
+  assert.equal(Mapa.navInfo({ lat: 4.6, lon: -74.08 }, null), null);
+  assert.equal(Mapa.navInfo({ lat: 4.6, lon: -74.08 }, { name: 'x', lat: 'no', lon: 1 }), null);
+});
+
+test('sidePlacement: el rótulo va en su sitio, al otro costado si pisa un nombre, u oculto si en los dos pisa', () => {
+  let miradas = 0;
+  assert.equal(Mapa.sidePlacement(false, () => { miradas++; return true; }), 'base');
+  assert.equal(miradas, 0, 'si en su sitio no pisa, no se prueba el otro costado');
+  assert.equal(Mapa.sidePlacement(true, () => { miradas++; return false; }), 'alt');
+  assert.equal(Mapa.sidePlacement(true, () => { miradas++; return true; }), 'off');
+  assert.equal(miradas, 2);
 });
