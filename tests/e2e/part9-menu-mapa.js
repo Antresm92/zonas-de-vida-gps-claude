@@ -182,7 +182,7 @@ module.exports = async function (c) {
     assert.equal((await pts()).length, n, 'un arrastre no crea puntos');
     assert.ok(Math.abs((await info()).center.lon - c0.lon) > 1e-5, 'y el mapa sí se movió');
     // un toque con 5 px de temblor sigue siendo un toque (tolerancia pensada para el dedo)
-    await page.mouse.move(o.x - 150, o.y - 90); await page.mouse.down(); await page.mouse.move(o.x - 146, o.y - 87); await page.mouse.up();
+    await page.mouse.move(o.x - 100, o.y - 90); await page.mouse.down(); await page.mouse.move(o.x - 96, o.y - 87); await page.mouse.up();   // lejos de la columna de botones de la izquierda
     assert.equal((await pts()).length, n + 1);
   });
 

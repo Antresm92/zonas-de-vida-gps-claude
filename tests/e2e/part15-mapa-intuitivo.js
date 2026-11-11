@@ -1,0 +1,407 @@
+'use strict';
+/* Recorrido 15 — Polígono › Mapa (2.10.0): medidas a la vista, lados rotulados, tarjeta del punto, «+» para insertar, capas en un botón,
+ * ver todo, pantalla completa, medir, mira, caminar el lindero y la ayuda de primera vez. Los mosaicos son de mentira (harness.mockTiles). */
+module.exports = async function (c) {
+  const { page, assert, step, fresh, act, tab, text, proj, toastText, waitToast, waitSheetClosed, sheetOpen, sheetTitle, addPointManual, gpsPush, errors, shot, url } = c;
+
+  const info = () => page.evaluate(() => window.__app.ui.map.info());
+  const ui = () => page.evaluate(() => { const u = window.__app.ui; return { mode: u.mapMode, tool: u.mapTool, sel: u.mapSel, layers: u.mapLayers, full: u.mapFull, follow: u.follow, measure: u.measure, track: u.track ? { n: u.track.ids.length, last: u.track.last, step: u.track.step } : null, gpsOn: u.gpsOn }; });
+  const openMap = async () => {
+    await tab('area');
+    await page.click('[data-act="polyView"][data-v="mapa"]');
+    await page.waitForSelector('#mapHost .mapa-leaflet .leaflet-pane', { state: 'attached' });
+  };
+  // Un terreno de unos 330 m de lado: el encuadre queda en zoom 16 y los lados miden más de 96 px
+  const TERRENO = ['4.6000, -74.0800', '4.6000, -74.0770', '4.6027, -74.0785'];
+  const seed = async () => { await fresh(); for (const p of TERRENO) await addPointManual(p, 2600); await openMap(); await waitInfo((x) => x.markers.length === 3 && x.zoom >= 15, 'terreno dibujado'); await page.waitForTimeout(300); };
+  const waitInfo = async (pred, what) => { const t0 = Date.now(); let i; while (Date.now() - t0 < 4000) { i = await info(); if (i && pred(i)) return i; await page.waitForTimeout(50); } throw new Error('El mapa no llegó a: ' + what + ' ' + JSON.stringify(i).slice(0, 300)); };
+  const visible = (sel) => page.evaluate((s) => { const e = document.querySelector(s); return !!e && !e.hidden && e.offsetParent !== null; }, sel);
+  const pressed = (sel) => page.getAttribute(sel, 'aria-pressed');
+  const box = (sel) => page.locator(sel).first().boundingBox();
+  const near = (a, b, tol, msg) => assert.ok(Math.abs(a - b) <= tol, (msg || '') + ' esperado ' + b + ' y fue ' + a);
+  const toWorld = (lat, lon, z) => { const k = 256 * Math.pow(2, z), s = Math.sin(lat * Math.PI / 180); return { x: (lon + 180) / 360 * k, y: (0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * k }; };
+  // Dónde cae en la pantalla un lugar del mapa
+  const xyOf = async (lat, lon) => { const i = await info(), b = await box('#mapHost .mapa-leaflet'), o = toWorld(i.center.lat, i.center.lon, i.zoom), q = toWorld(lat, lon, i.zoom); return { x: b.x + b.width / 2 + q.x - o.x, y: b.y + b.height / 2 + q.y - o.y }; };
+  const tapPoint = async (name) => { const p = (await proj()).points.find((q) => q.name === name), xy = await xyOf(p.lat, p.lon); await page.mouse.click(xy.x, xy.y); return p; };
+  const tapMap = async (dx, dy) => { const b = await box('#mapHost .mapa-leaflet'); await page.mouse.click(b.x + b.width / 2 + dx, b.y + b.height / 2 + dy); };
+  const pts = async () => (await proj()).points;
+  const names = async () => (await pts()).map((p) => p.name);
+  const pickMode = async (mode) => { if (!(await visible('#mapMenuPanel'))) await page.click('.mapkebab'); await page.click('#mapMenuPanel input[data-mode="' + mode + '"]'); };
+  const undo = () => page.click('#toast button');
+  // Leaflet ignora el botón − mientras anima el zoom: se pulsa, se espera y, si no bajó, se repite
+  const zoomOut = async (times) => {
+    for (let k = 0; k < times; k++) {
+      const z = (await info()).zoom;
+      for (let t = 0; t < 6 && (await info()).zoom === z; t++) { await page.click('.leaflet-control-zoom-out'); await page.waitForTimeout(400); }
+      assert.equal((await info()).zoom, z - 1, 'alejar un nivel');
+    }
+  };
+
+  await step('El mapa ocupa la pantalla: sin título encima, con el resumen de área, perímetro y puntos, la escala y cinco herramientas en una fila', async () => {
+    await seed();
+    assert.equal(await page.locator('#tab-area .pagetitle').count(), 0, 'en la vista Mapa no va el título grande');
+    assert.equal(await text('#tab-area h2.sr-only'), 'Polígono del terreno: mapa');
+    const mb = await box('.mapbox'), nav = await box('nav');
+    assert.ok(mb.height >= 590, 'el mapa mide ' + mb.height + ' px de alto en un teléfono de 844');
+    assert.ok(mb.y + mb.height <= nav.y, 'y no queda detrás de la barra de pestañas');
+    assert.match(await text('#mapSum'), /^\d+,\d+ ha · perímetro [\d,]+ k?m · 3 puntos$/);
+    assert.match((await info()).scale, /^\d+ m$/);
+    assert.deepEqual(await page.$$eval('.maptools .maptool', (b) => b.map((x) => x.textContent)), ['Polígono activo', 'Último punto', 'Medir distancia', 'Más opciones', 'Marcar punto']);
+    const tb = await page.$$eval('.maptools .maptool', (b) => b.map((x) => { const r = x.getBoundingClientRect(); return [Math.round(r.top), r.height >= 44 && r.width >= 44, x.scrollWidth <= x.clientWidth + 1]; }));
+    assert.ok(tb.every((t) => t[0] === tb[0][0]), 'todas en la misma fila');
+    assert.ok(tb.every((t) => t[1]), 'se pueden tocar con el dedo');
+    assert.ok(tb.every((t) => t[2]), 'ningún texto se corta');
+    assert.deepEqual(await page.$$eval('.mapside .mapbtn', (b) => b.map((x) => x.getAttribute('aria-label'))), ['Capas del mapa', 'Ver todo el terreno', 'Pantalla completa']);
+    await shot('150-mapa-nuevo');
+  });
+
+  await step('El resumen dice lo que falta con 1 y 2 puntos y no aparece sin puntos', async () => {
+    await fresh(); await openMap();
+    assert.equal(await visible('#mapSum'), false);
+    await tab('puntos'); await addPointManual(TERRENO[0], 2600); await openMap();
+    assert.equal(await text('#mapSum'), '1 punto · faltan 2 para el área');
+    await tab('puntos'); await addPointManual(TERRENO[1], 2600); await openMap();
+    assert.match(await text('#mapSum'), /^Distancia 33\d m · 2 puntos · falta 1 para el área$/);
+  });
+
+  await step('Lados: cada uno lleva su longitud; al alejar el mapa los rótulos se quitan solos y con el polígono inactivo no hay', async () => {
+    await seed();
+    let i = await info();
+    assert.equal(i.sides.length, 3);
+    assert.ok(i.sides.every((s) => /^3\d\d m$/.test(s.text)), JSON.stringify(i.sides));
+    assert.ok(i.sides.every((s) => s.label === true), 'con el terreno encuadrado se ven los tres');
+    assert.ok(i.sides.every((s) => s.plus === false), 'el «+» solo sale con «Posición manual»');
+    assert.equal(await page.locator('.mk-plus').count(), 0);
+    assert.deepEqual(await page.$$eval('.mk-side:not(.side-off) .mk-len', (e) => e.map((x) => x.textContent)), i.sides.map((s) => s.text));
+    await zoomOut(4);
+    i = await info();
+    assert.ok(i.sides.every((s) => s.label === false), 'de lejos no se rotulan: ' + JSON.stringify(i.sides));
+    assert.equal(await page.locator('.mk-side.side-off').count(), 3);
+    await act('mapPoly');
+    assert.equal((await info()).sides.length, 0);
+    await act('mapPoly');
+    assert.equal((await info()).sides.length, 3);
+  });
+
+  await step('Tocar un punto, sin activar ningún modo, lo selecciona y abre su tarjeta; otro toque, el mapa o la × la cierran', async () => {
+    await seed();
+    assert.equal(await visible('#mapCard'), false);
+    assert.equal(await page.locator('.mk-tap').count(), 3, 'los puntos se pueden tocar');
+    assert.equal(await page.locator('.mk-hit').count(), 0, 'pero no agarrar: eso sigue siendo de «Posición manual»');
+    const p2 = await tapPoint('P2');
+    await page.waitForSelector('#mapCard:not([hidden])');
+    assert.equal(await text('.mapcard-name'), 'P2');
+    assert.match(await text('#mapCard'), /Altitud 2600 m · a mano · 4\.60000, -74\.07700/);
+    assert.equal(await visible('#mapCardRel'), false, 'sin GPS no hay distancia');
+    let u = await ui();
+    assert.equal(u.sel, p2.id); assert.equal(u.mode, '');
+    assert.equal((await info()).selected, p2.id);
+    assert.equal(await page.locator('.mk.mk-sel').count(), 1);
+    assert.deepEqual(await page.$$eval('.mapcard-btns .btn', (b) => b.map((x) => x.textContent)), ['Abrir ficha', 'Mover', 'Ir al punto']);
+    await shot('151-tarjeta-del-punto');
+    const p1 = await tapPoint('P1');                                       // otro punto: la tarjeta cambia
+    assert.equal(await text('.mapcard-name'), 'P1');
+    assert.equal((await info()).selected, p1.id);
+    await tapPoint('P1');                                                  // el mismo: se cierra
+    assert.equal(await visible('#mapCard'), false);
+    assert.equal((await info()).selected, null);
+    assert.equal(await page.locator('.mk.mk-sel').count(), 0);
+    await tapPoint('P3'); assert.equal(await visible('#mapCard'), true);
+    await tapMap(0, 10);                                                   // un toque en el mapa la cierra y no crea nada
+    assert.equal(await visible('#mapCard'), false);
+    assert.equal((await pts()).length, 3);
+    await tapPoint('P3'); await act('mapCardClose');
+    assert.equal(await visible('#mapCard'), false);
+  });
+
+  await step('Tarjeta del punto: con GPS dice a qué distancia y hacia dónde queda, y lo une con la posición; «Ir al punto», «Abrir ficha» y «Mover»', async () => {
+    await seed();
+    await tab('puntos'); await act('gpsOn'); await gpsPush({ lat: 4.6000, lon: -74.0785, alt: 2600, acc: 5 }); await openMap();
+    const p3 = await tapPoint('P3');
+    await page.waitForSelector('#mapCard:not([hidden])');
+    assert.match(await text('#mapCardRel'), /^a (29\d|30\d) m de ti, hacia el norte$/);
+    assert.equal((await info()).link, true, 'línea punteada desde la posición');
+    await gpsPush({ lat: 4.6027, lon: -74.0800, alt: 2600, acc: 5 });      // la persona se mueve: la distancia se actualiza sola
+    await page.waitForFunction(() => /hacia el este$/.test(document.querySelector('#mapCardRel').textContent));
+    assert.match(await text('#mapCardRel'), /^a 16\d m de ti, hacia el este$/);
+    await act('mapCardGo');
+    const i = await waitInfo((x) => Math.abs(x.center.lat - p3.lat) < 1e-5 && x.zoom >= 18, 'centrado en P3');
+    near(i.center.lon, p3.lon, 1e-5, 'lon');
+    assert.equal(await visible('#mapCard'), true, 'la tarjeta sigue abierta');
+    await page.click('#mapCard [data-act="editPoint"]');
+    await page.waitForSelector('#sheet:not([hidden])');
+    assert.match(await sheetTitle(), /P3/);
+    await page.click('#sheet [aria-label="Cerrar"]'); await waitSheetClosed();
+    await act('mapCardMove');
+    assert.equal((await ui()).mode, 'move');
+    await waitToast(/^Mantén pulsado P3 1 s y arrástralo\.$/);
+    assert.equal(await page.locator('.mk-hit').count(), 3);
+    await tab('puntos'); await act('gpsOff');
+  });
+
+  await step('«+» en la mitad de un lado (con «Posición manual»): inserta un punto entre los dos y «Deshacer» lo quita', async () => {
+    await seed();
+    await pickMode('move');
+    let i = await waitInfo((x) => x.mode === 'move' && x.sides.length === 3, 'posición manual');
+    assert.ok(i.sides.every((s) => s.plus === true), JSON.stringify(i.sides));
+    assert.equal(await page.locator('.mk-side:not(.plus-off) .mk-plus').count(), 3);
+    const pb = await box('.mk-plus');
+    assert.ok(pb.width >= 26 && pb.height >= 26);
+    await shot('152-insertar-punto');
+    const a = (await pts())[0], b = (await pts())[1], m = await xyOf((a.lat + b.lat) / 2, (a.lon + b.lon) / 2);
+    await page.mouse.click(m.x, m.y);
+    await waitToast(/^P4 insertado entre P1 y P2 \(sin altitud\)\.Deshacer$/);
+    assert.deepEqual(await names(), ['P1', 'P4', 'P2', 'P3']);
+    const p4 = (await pts())[1];
+    near(p4.lat, 4.6, 1e-9, 'lat'); near(p4.lon, -74.0785, 1e-9, 'lon');
+    assert.equal(p4.src, 'manual'); assert.ok(p4.alt == null, 'sin altitud');
+    assert.equal((await info()).sides.length, 4);
+    assert.match(await text('#mapSum'), /· 4 puntos$/);
+    await undo();
+    assert.deepEqual(await names(), ['P1', 'P2', 'P3']);
+    // el último lado (de P3 a P1) inserta al final de la lista
+    const c3 = (await pts())[2], m2 = await xyOf((c3.lat + a.lat) / 2, (c3.lon + a.lon) / 2);
+    await page.mouse.click(m2.x, m2.y);
+    await waitToast(/^P4 insertado entre P3 y P1/);
+    assert.deepEqual(await names(), ['P1', 'P2', 'P3', 'P4']);
+    // de lejos el «+» se quita: no se inserta nada por accidente
+    await zoomOut(3);
+    assert.equal(await page.locator('.mk-side:not(.plus-off) .mk-plus').count(), 0);
+  });
+
+  await step('Capas en un botón: el panel trae las tres capas, un toque en el mapa lo cierra y con «Ingresar puntos» ese toque no crea nada', async () => {
+    await seed();
+    assert.equal(await visible('#mapLayersPanel'), false);
+    assert.equal(await page.locator('.maprow').count(), 0, 'ya no hay fila de capas fuera del mapa');
+    await act('mapLayers');
+    assert.equal(await visible('#mapLayersPanel'), true);
+    assert.equal(await page.getAttribute('[data-act="mapLayers"]', 'aria-expanded'), 'true');
+    assert.deepEqual(await page.$$eval('#mapLayersPanel button', (b) => b.map((x) => x.textContent + '|' + x.getAttribute('aria-pressed'))), ['Calles|true', 'Satélite|false', 'Topográfico|false']);
+    await shot('153-capas');
+    await page.click('[data-act="mapBase"][data-b="satelite"]');
+    await waitInfo((x) => x.base === 'satelite', 'satélite');
+    assert.equal(await visible('#mapLayersPanel'), true, 'sigue abierto para poder activar los nombres');
+    assert.equal(await page.locator('#mapLayersPanel [data-act="mapRef"]').count(), 1);
+    await tapMap(60, 60);
+    assert.equal(await visible('#mapLayersPanel'), false);
+    await act('mapLayers');                                                // el menú ⋮ y las capas no se abren a la vez
+    await page.click('.mapkebab');
+    assert.equal(await visible('#mapLayersPanel'), false);
+    assert.equal(await visible('#mapMenuPanel'), true);
+    await page.click('#mapMenuPanel input[data-mode="add"]');
+    await act('mapLayers');
+    await tapMap(60, 60);
+    assert.equal(await visible('#mapLayersPanel'), false);
+    assert.equal((await pts()).length, 3, 'el toque solo cerró el panel');
+    await act('mapLayers'); await page.click('[data-act="mapBase"][data-b="calles"]'); await act('mapLayers');
+  });
+
+  await step('«Ver todo el terreno» vuelve a encuadrarlo desde cualquier lugar; sin nada que mostrar, lo dice', async () => {
+    await seed();
+    const antes = await info();
+    await page.evaluate(() => window.__app.ui.map.flyTo(5.5, -73.0, 9));
+    await waitInfo((x) => Math.abs(x.center.lat - 5.5) < 1e-3, 'lejos');
+    await act('mapFit');
+    const i = await waitInfo((x) => x.zoom === antes.zoom && Math.abs(x.center.lat - antes.center.lat) < 1e-4, 'encuadrado otra vez');
+    near(i.center.lon, antes.center.lon, 1e-4, 'lon');
+    await fresh(); await openMap();
+    await act('mapFit');
+    await waitToast(/^Todavía no hay puntos ni capas que mostrar\.$/);
+  });
+
+  await step('Pantalla completa: el mapa tapa el encabezado y las pestañas; se sale con el mismo botón o con «Atrás»', async () => {
+    await seed();
+    const vp = page.viewportSize();
+    await act('mapFull');
+    let b = await box('.mapbox');
+    assert.deepEqual([Math.round(b.x), Math.round(b.y), Math.round(b.width), Math.round(b.height)], [0, 0, vp.width, vp.height]);
+    assert.equal(await pressed('[data-act="mapFull"]'), 'true');
+    const tapado = await page.evaluate(() => { const hit = (sel) => { const r = document.querySelector(sel).getBoundingClientRect(), e = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return !!e && !!e.closest('.mapbox'); }; return [hit('header'), hit('nav')]; });
+    assert.deepEqual(tapado, [true, true]);
+    const i = await info();
+    assert.ok(i.markers.length === 3);
+    await shot('154-pantalla-completa');
+    await tapPoint('P1');                                                  // todo sigue funcionando a pantalla completa
+    assert.equal(await visible('#mapCard'), true);
+    await act('mapCardClose');
+    await act('mapMore');                                                  // una ventana sale encima del mapa, y «Atrás» cierra primero la ventana
+    await page.waitForSelector('#sheet:not([hidden])');
+    await page.goBack(); await waitSheetClosed();
+    assert.equal((await ui()).full, true);
+    await page.goBack();
+    await page.waitForFunction(() => !document.querySelector('.mapbox').classList.contains('full'));
+    b = await box('.mapbox');
+    assert.ok(b.y > 100 && b.height < vp.height - 150, 'vuelve a su sitio');
+    assert.equal(await pressed('[data-act="mapFull"]'), 'false');
+    await act('mapFull'); assert.equal((await ui()).full, true);
+    await act('mapFull');
+    await page.waitForFunction(() => !document.querySelector('.mapbox').classList.contains('full'));
+    assert.equal((await ui()).full, false);
+    assert.equal(await page.evaluate(() => !!(history.state && history.state.mapfull)), false);
+  });
+
+  await step('Medir distancia: dos toques dan metros y rumbo sin crear puntos; el tercero empieza otra medida; tocar un punto mide desde él', async () => {
+    await seed();
+    await act('mapMeasure');
+    assert.equal((await ui()).tool, 'medir');
+    assert.equal(await visible('.maptools'), false, 'la franja de la herramienta ocupa el lugar de la barra');
+    assert.equal(await text('#mapMeasureTxt'), 'Medir: toca dos lugares del mapa (o dos puntos).');
+    assert.equal(await page.isDisabled('[data-act="mapMeasureClear"]'), true);
+    await tapMap(-60, 0);
+    assert.equal(await text('#mapMeasureTxt'), 'Medir: toca el segundo lugar.');
+    await tapMap(60, 0);
+    assert.match(await text('#mapMeasureTxt'), /^\d+ m · rumbo 90° \(este\)$/);
+    const i = await info();
+    assert.equal(i.measure, 2);
+    const esperado = 120 * 40075016.686 * Math.cos(4.6 * Math.PI / 180) / (256 * Math.pow(2, i.zoom));   // 120 px a ese zoom
+    near(parseFloat(await text('#mapMeasureTxt')), esperado, 2, 'distancia');
+    assert.equal((await pts()).length, 3, 'medir no crea puntos');
+    await shot('155-medir');
+    await tapMap(0, 80);
+    assert.equal((await ui()).measure.length, 1, 'el tercer toque empieza otra medida');
+    const p2 = await tapPoint('P2');                                       // sobre un punto: se toma su coordenada exacta
+    const m = (await ui()).measure;
+    assert.equal(m.length, 2); assert.equal(m[1].lat, p2.lat); assert.equal(m[1].lon, p2.lon);
+    assert.equal(await visible('#mapCard'), false, 'midiendo no se abre la tarjeta');
+    await act('mapMeasureClear');
+    assert.equal((await ui()).measure.length, 0); assert.equal((await info()).measure, 0);
+    await tapMap(-40, 0); await tapMap(40, 0);
+    await act('mapToolEnd');
+    assert.equal((await ui()).tool, ''); assert.equal((await info()).measure, 0);
+    assert.equal(await visible('.maptools'), true);
+    await act('mapMeasure'); await pickMode('add');                        // elegir un modo del menú ⋮ suelta la herramienta
+    assert.deepEqual([(await ui()).tool, (await ui()).mode], ['', 'add']);
+    await act('mapMeasure');                                               // y al revés
+    assert.deepEqual([(await ui()).tool, (await ui()).mode], ['medir', '']);
+    await act('mapToolEnd');
+  });
+
+  await step('Agregar con mira: la cruz queda en el centro, se mueve el mapa y «Agregar aquí» crea el punto justo ahí', async () => {
+    await seed();
+    await act('mapMore');
+    await page.waitForSelector('#sheet:not([hidden])');
+    assert.equal(await sheetTitle(), 'Más opciones del mapa');
+    await act('mapAim'); await waitSheetClosed();
+    assert.equal((await ui()).tool, 'mira');
+    assert.equal(await visible('.mapcross'), true);
+    const cb = await box('.mapcross'), mb = await box('#mapHost .mapa-leaflet');
+    near(cb.x + cb.width / 2, mb.x + mb.width / 2, 1.5, 'cruz centrada (x)'); near(cb.y + cb.height / 2, mb.y + mb.height / 2, 1.5, 'cruz centrada (y)');
+    let i = await info();
+    assert.equal(await text('#mapAimLL'), i.center.lat.toFixed(5) + ', ' + i.center.lon.toFixed(5));
+    // mover el mapa cambia las coordenadas de la mira
+    await page.mouse.move(mb.x + mb.width / 2, mb.y + mb.height / 2); await page.mouse.down();
+    await page.mouse.move(mb.x + mb.width / 2 - 70, mb.y + mb.height / 2 - 50, { steps: 6 }); await page.mouse.up();
+    await page.waitForTimeout(400);
+    i = await info();
+    assert.equal(await text('#mapAimLL'), i.center.lat.toFixed(5) + ', ' + i.center.lon.toFixed(5));
+    assert.equal((await pts()).length, 3, 'arrastrar no crea nada');
+    await shot('156-mira');
+    await act('mapAimAdd');
+    await waitToast(/^P4 creado \(sin altitud\)\.Deshacer$/);
+    const p4 = (await pts())[3];
+    near(p4.lat, i.center.lat, 1e-9, 'lat'); near(p4.lon, i.center.lon, 1e-9, 'lon');
+    assert.equal((await ui()).tool, 'mira', 'sigue lista para otro punto');
+    assert.equal(await visible('.mapcross'), true);
+    await undo();
+    assert.equal((await pts()).length, 3);
+    await act('mapToolEnd');
+    assert.equal(await visible('.mapcross'), false);
+    assert.equal(await visible('.maptools'), true);
+  });
+
+  await step('Caminar el lindero: el GPS deja un punto cada 10 m, espera si la señal es mala, el mapa sigue a la persona y «Deshacer» quita todo el recorrido', async () => {
+    await fresh(); await openMap();
+    await act('mapMore'); await page.waitForSelector('#sheet:not([hidden])');
+    assert.deepEqual(await page.$$eval('#trackStep option', (o) => o.map((x) => x.value + (x.selected ? '*' : ''))), ['5', '10*', '20', '50']);
+    await act('mapWalk'); await waitSheetClosed();
+    let u = await ui();
+    assert.equal(u.gpsOn, true, 'enciende el GPS'); assert.equal(u.tool, 'caminar'); assert.equal(u.follow, true);
+    assert.deepEqual(u.track, { n: 0, last: 'none', step: 10 });
+    assert.equal(await text('#mapTrackTxt'), 'Caminando el lindero: 0 puntos · uno cada 10 m · esperando la primera lectura del GPS');
+    await waitToast(/^Camina por el borde del terreno/);
+    const m = 1 / 111195;                                                  // un metro en grados de latitud
+    await gpsPush({ lat: 4.6, lon: -74.08, alt: 2600, acc: 4 });
+    assert.equal((await pts()).length, 1, 'la primera lectura buena deja el primer punto');
+    assert.match(await text('#mapTrackTxt'), /^Caminando el lindero: 1 punto · uno cada 10 m · GPS ±4 m$/);
+    await gpsPush({ lat: 4.6 + 6 * m, lon: -74.08, alt: 2601, acc: 4 });
+    assert.equal((await pts()).length, 1, 'a 6 m todavía no');
+    await gpsPush({ lat: 4.6 + 11 * m, lon: -74.08, alt: 2602, acc: 4 });
+    assert.equal((await pts()).length, 2);
+    await gpsPush({ lat: 4.6 + 40 * m, lon: -74.08, alt: 2603, acc: 45 });
+    assert.equal((await pts()).length, 2, 'una lectura de ±45 m no se usa');
+    assert.match(await text('#mapTrackTxt'), /esperando mejor señal del GPS · GPS ±45 m$/);
+    await gpsPush({ lat: 4.6 + 22 * m, lon: -74.08, alt: 2604, acc: 6 });
+    let p = await pts();
+    assert.equal(p.length, 3);
+    assert.deepEqual(p.map((q) => q.name), ['P1', 'P2', 'P3']);
+    assert.deepEqual(p.map((q) => [q.src, q.alt, q.acc]), [['gps', 2600, 4], ['gps', 2602, 4], ['gps', 2604, 6]]);
+    const i = await waitInfo((x) => Math.abs(x.center.lat - (4.6 + 22 * m)) < 1e-5, 'el mapa sigue a la persona');
+    assert.equal(i.markers.length, 3);
+    assert.match(await text('#mapSum'), /· 3 puntos$/);
+    await shot('157-caminar-lindero');
+    await tab('puntos');                                                   // en otra pestaña el recorrido sigue
+    await gpsPush({ lat: 4.6 + 35 * m, lon: -74.08, alt: 2605, acc: 6 });
+    assert.equal((await pts()).length, 4);
+    assert.equal(await page.locator('#tab-puntos .prow, #tab-puntos [data-act="editPoint"]').count() > 0, true);
+    await openMap();
+    assert.equal((await ui()).tool, 'caminar');
+    assert.equal(await visible('#mapToolBar'), true);
+    await act('mapToolEnd');
+    await waitToast(/^Recorrido terminado: 4 puntos\.Deshacer$/);
+    u = await ui();
+    assert.equal(u.tool, ''); assert.equal(u.track, null); assert.equal(u.gpsOn, true, 'el GPS queda encendido');
+    await gpsPush({ lat: 4.6 + 60 * m, lon: -74.08, alt: 2606, acc: 6 });
+    assert.equal((await pts()).length, 4, 'terminado, ya no deja puntos');
+    await undo();
+    assert.equal((await pts()).length, 0);
+    assert.equal((await proj()).nextPoint, 1, 'y la numeración vuelve a empezar');
+  });
+
+  await step('Caminar el lindero: apagar el GPS cierra el recorrido; sin ninguna lectura útil lo dice; otro paso entre puntos', async () => {
+    await fresh(); await openMap();
+    await act('mapMore'); await page.waitForSelector('#sheet:not([hidden])');
+    await page.selectOption('#trackStep', '20');
+    await act('mapWalk'); await waitSheetClosed();
+    assert.equal((await ui()).track.step, 20);
+    const m = 1 / 111195;
+    await gpsPush({ lat: 4.6, lon: -74.08, alt: 2600, acc: 4 });
+    await gpsPush({ lat: 4.6 + 15 * m, lon: -74.08, alt: 2600, acc: 4 });
+    assert.equal((await pts()).length, 1, 'a 15 m todavía no, con un punto cada 20 m');
+    await gpsPush({ lat: 4.6 + 21 * m, lon: -74.08, alt: 2600, acc: 4 });
+    assert.equal((await pts()).length, 2);
+    await tab('puntos'); await act('gpsOff');
+    await waitToast(/^Recorrido terminado: 2 puntos\.Deshacer$/);
+    assert.equal((await ui()).track, null); assert.equal((await ui()).tool, '');
+    await openMap();
+    assert.equal(await visible('.maptools'), true);
+    await act('mapMore'); await page.waitForSelector('#sheet:not([hidden])'); await act('mapWalk'); await waitSheetClosed();
+    await act('mapToolEnd');
+    await waitToast(/^Recorrido terminado sin puntos/);
+    assert.equal((await pts()).length, 2);
+    await tab('puntos'); await act('gpsOff');
+  });
+
+  await step('Ayuda de primera vez: sale sola la primera vez que se abre el mapa, no vuelve a salir y se puede abrir desde «Más opciones»', async () => {
+    await page.evaluate(() => { localStorage.clear(); });
+    await page.goto(url); await page.waitForSelector('#tab-puntos');
+    await openMap();
+    await page.waitForSelector('#sheet:not([hidden])');
+    assert.equal(await sheetTitle(), 'Cómo usar el mapa');
+    assert.deepEqual(await page.$$eval('.guide dt', (d) => d.map((x) => x.textContent)), ['Toca un punto', 'Menú ⋮', 'Botones de la izquierda', 'Mi posición', 'Barra de abajo', 'Arriba']);
+    await shot('158-ayuda-del-mapa');
+    await page.click('#sheet .btn-primary'); await waitSheetClosed();
+    assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('zvg.v1.flags')).mapGuide), true);
+    await tab('puntos'); await openMap();
+    assert.equal(await sheetOpen(), false, 'la segunda vez no sale');
+    await page.reload(); await page.waitForSelector('#tab-puntos'); await openMap();
+    assert.equal(await sheetOpen(), false, 'ni al volver a abrir la app');
+    await act('mapMore'); await page.waitForSelector('#sheet:not([hidden])');
+    await act('mapGuide');
+    assert.equal(await sheetTitle(), 'Cómo usar el mapa');
+    await page.click('#sheet .btn-primary'); await waitSheetClosed();
+  });
+
+  await step('Mapa nuevo: sin errores de JavaScript en la consola', async () => {
+    assert.deepEqual(errors, []);
+  });
+};

@@ -56,18 +56,21 @@ test('app.css: nada de «inset» abreviado y toda función moderna (env, clamp, 
 test('app.css: los respaldos son los que hacen falta (se cuentan para que nadie los quite sin querer)', () => {
   const css = fs.readFileSync(path.join(__dirname, '..', 'www', 'css', 'app.css'), 'utf8');
   const decls = bloques(css).flatMap((b) => b.decls);
-  assert.equal(decls.filter((d) => /\benv\(/.test(d.valor)).length, 10);   // encabezado ×2, contenido, pestañas ×2, ventana, aviso ×2, visor ×2
-  assert.equal(decls.filter((d) => /\bclamp\(/.test(d.valor)).length, 4);   // altura del mapa: vh y dvh, con y sin franja de avisos
+  assert.equal(decls.filter((d) => /\benv\(/.test(d.valor)).length, 11);   // encabezado ×2, contenido, pestañas ×2, ventana, aviso ×2, visor ×2 y el mapa a pantalla completa
+  assert.equal(decls.filter((d) => /\bclamp\(/.test(d.valor)).length, 0);   // la altura del mapa ya no usa clamp()
+  assert.equal(decls.filter((d) => /\bmax\(/.test(d.valor)).length, 2);     // altura del mapa: vh y dvh
   assert.equal(decls.filter((d) => /\bmin\(/.test(d.valor)).length, 1);     // ancho del menú ⋮
 });
 
-test('app.css: el mapa conserva su altura mínima y máxima aunque el navegador no sepa clamp()', () => {
+test('app.css: el mapa conserva su altura y su mínimo aunque el navegador no sepa max()', () => {
   const css = fs.readFileSync(path.join(__dirname, '..', 'www', 'css', 'app.css'), 'utf8');
   const mapa = bloques(css).find((b) => b.selector === '.mapbox');
   const valor = (p) => mapa.decls.find((d) => d.prop === p).valor;
-  assert.equal(valor('min-height'), '300px');
-  assert.equal(valor('max-height'), '580px');
-  assert.match(valor('height'), /^calc\(100vh - 350px\)$/);                // la primera, la que entiende un navegador viejo
+  assert.equal(valor('min-height'), '340px');
+  assert.match(valor('height'), /^calc\(100vh - 236px\)$/);                // la primera, la que entiende un navegador viejo
+  // a pantalla completa el mínimo no debe estorbar
+  const full = bloques(css).find((b) => b.selector === '.mapbox.full');
+  assert.equal(full.decls.find((d) => d.prop === 'height').valor, 'auto');
 });
 
 test('app.css: los cuadros de color miden 44 px, como el resto de lo que se toca', () => {

@@ -97,10 +97,11 @@
   function shapes(project, opts) {
     opts = opts || {};
     var p = project || {}, pts = (p.points || []).filter(validLL), color = p.mainColor || '#2F8F4E';
-    var out = { color: color, polygon: null, points: [], layers: [] };
+    var out = { color: color, polygon: null, points: [], layers: [], sides: [] };
     if (opts.polyActive !== false && pts.length >= 2) {
       out.polygon = { latlngs: ring(pts), closed: pts.length >= 3, bad: !!opts.bad };
     }
+    if (out.polygon) out.sides = sides(pts, out.polygon.closed, opts.dist, opts.fmtDist);
     out.points = pts.map(function (q, i) {
       return { id: q.id, name: q.name || ('P' + (i + 1)), label: pointLabel(q, opts.fmt) || ('P' + (i + 1)), lat: q.lat, lon: q.lon, color: pointColor(q, color) };
     });
@@ -175,7 +176,7 @@
         if (c.lifted) { last = null; o.onDrop(c.id, x, y, c.moved); return; }
         var tap = { id: c.id, x: x, y: y, t: o.now() };
         if (last && last.id === c.id && isRepeatTap(last, tap)) { last = null; o.onDouble(c.id); }
-        else last = tap;
+        else { last = tap; if (typeof o.onTap === 'function') o.onTap(c.id); }
       },
       cancel: function () {
         stopTimer();
@@ -186,7 +187,100 @@
     };
   }
 
+  /* ---------- Medidas sobre el mapa ---------- */
+  function haversine(lat1, lon1, lat2, lon2) {
+    var R = 6371008.8, r = Math.PI / 180, dLat = (lat2 - lat1) * r, dLon = (lon2 - lon1) * r;
+    var h = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * r) * Math.cos(lat2 * r) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+  }
+  // Rumbo de a hacia b, en grados desde el norte (0 a 360)
+  function bearing(lat1, lon1, lat2, lon2) {
+    var r = Math.PI / 180, dLon = (lon2 - lon1) * r;
+    var y = Math.sin(dLon) * Math.cos(lat2 * r), x = Math.cos(lat1 * r) * Math.sin(lat2 * r) - Math.sin(lat1 * r) * Math.cos(lat2 * r) * Math.cos(dLon);
+    return (Math.atan2(y, x) / r + 360) % 360;
+  }
+  var WINDS = ['norte', 'noreste', 'este', 'sureste', 'sur', 'suroeste', 'oeste', 'noroeste'];
+  function compass(deg) { return isNum(deg) ? WINDS[Math.round((((deg % 360) + 360) % 360) / 45) % 8] : ''; }
+  function plainDist(m) { return m >= 1000 ? (Math.round(m / 10) / 100) + ' km' : Math.round(m) + ' m'; }
+
+  // Lados del polígono para rotularlos en el mapa: dónde va el rótulo (la mitad del lado), su longitud y después de qué punto
+  // habría que insertar uno nuevo (after: posición en la lista). closed: el último se une con el primero.
+  function sides(points, closed, distFn, fmtDist) {
+    var pts = (points || []).filter(validLL), n = pts.length, out = [];
+    if (n < 2) return out;
+    var d = typeof distFn === 'function' ? distFn : haversine, f = typeof fmtDist === 'function' ? fmtDist : plainDist;
+    var count = closed && n >= 3 ? n : n - 1;
+    for (var i = 0; i < count; i++) {
+      var a = pts[i], b = pts[(i + 1) % n], len = d(a.lat, a.lon, b.lat, b.lon);
+      out.push({ after: i, a: [a.lat, a.lon], b: [b.lat, b.lon], mid: [(a.lat + b.lat) / 2, (a.lon + b.lon) / 2], meters: len, text: f(len) });
+    }
+    return out;
+  }
+  // Un lado se rotula solo si en pantalla mide lo suficiente para que el rótulo no tape sus puntos; el «+» de insertar pide un poco más
+  var SIDE_LABEL_MIN_PX = 64, SIDE_PLUS_MIN_PX = 96;
+  function sideShows(px) { return { label: isNum(px) && px >= SIDE_LABEL_MIN_PX, plus: isNum(px) && px >= SIDE_PLUS_MIN_PX }; }
+
+  // Resumen que va arriba del mapa. n: puntos; areaTxt y distTxt ya escritos por la app ('' si no hay).
+  function summaryText(n, areaTxt, distTxt) {
+    if (!isNum(n) || n <= 0) return '';
+    if (n === 1) return '1 punto · faltan 2 para el área';
+    if (n === 2) return (distTxt ? 'Distancia ' + distTxt + ' · ' : '') + '2 puntos · falta 1 para el área';
+    return (areaTxt ? areaTxt + ' · ' : '') + (distTxt ? 'perímetro ' + distTxt + ' · ' : '') + n + ' puntos';
+  }
+
+  // «a 58 m de ti, hacia el sureste»: dónde queda un punto respecto a la posición del GPS. '' si falta alguno de los dos.
+  function relText(fix, pt, fmtDist) {
+    if (!validLL(fix) || !validLL(pt)) return '';
+    var m = haversine(fix.lat, fix.lon, pt.lat, pt.lon), f = typeof fmtDist === 'function' ? fmtDist : plainDist;
+    if (m < 2) return 'estás sobre este punto';
+    return 'a ' + f(m) + ' de ti, hacia el ' + compass(bearing(fix.lat, fix.lon, pt.lat, pt.lon));
+  }
+
+  // Medir distancia: texto para 0, 1 o 2 lugares tocados.
+  function measureText(pts, fmtDist) {
+    var p = (pts || []).filter(validLL), f = typeof fmtDist === 'function' ? fmtDist : plainDist;
+    if (!p.length) return 'Medir: toca dos lugares del mapa (o dos puntos).';
+    if (p.length === 1) return 'Medir: toca el segundo lugar.';
+    var b = bearing(p[0].lat, p[0].lon, p[1].lat, p[1].lon);
+    return f(haversine(p[0].lat, p[0].lon, p[1].lat, p[1].lon)) + ' · rumbo ' + Math.round(b) % 360 + '° (' + compass(b) + ')';
+  }
+  // Al tocar un tercer lugar se empieza una medida nueva desde ahí
+  function measureAdd(pts, ll) {
+    if (!validLL(ll)) return (pts || []).slice();
+    var p = (pts || []).filter(validLL);
+    return p.length >= 2 ? [{ lat: ll.lat, lon: ll.lon }] : p.concat([{ lat: ll.lat, lon: ll.lon }]);
+  }
+
+  /* ---------- Caminar el lindero ---------- */
+  // El GPS deja un punto cada cierta distancia mientras la persona recorre el borde del terreno.
+  var TRACK_STEPS = [5, 10, 20, 50], TRACK_STEP_DEFAULT = 10, TRACK_MAX_ACC = 20;
+  function trackStep(m) { m = Number(m); return TRACK_STEPS.indexOf(m) >= 0 ? m : TRACK_STEP_DEFAULT; }
+  // ¿Qué se hace con esta lectura? 'add' (dejar un punto), 'near' (todavía cerca del anterior), 'imprecise' (lectura mala) o 'invalid'.
+  //  last: último punto dejado (o null)   stepM: cada cuántos metros   maxAcc: precisión máxima aceptada (m)
+  function trackDecision(last, fix, stepM, maxAcc) {
+    if (!validLL(fix)) return 'invalid';
+    var lim = isNum(maxAcc) && maxAcc > 0 ? maxAcc : TRACK_MAX_ACC;
+    if (isNum(fix.acc) && fix.acc > lim) return 'imprecise';
+    if (!validLL(last)) return 'add';
+    return haversine(last.lat, last.lon, fix.lat, fix.lon) >= trackStep(stepM) ? 'add' : 'near';
+  }
+  function trackText(t) {
+    t = t || {};
+    var n = t.added || 0, base = 'Caminando el lindero: ' + n + (n === 1 ? ' punto' : ' puntos') + ' · uno cada ' + trackStep(t.step) + ' m';
+    if (t.last === 'imprecise') return base + ' · esperando mejor señal del GPS';
+    if (t.last === 'none') return base + ' · esperando la primera lectura del GPS';
+    return base;
+  }
+
+  // Herramientas del mapa que ocupan la franja de abajo (solo una a la vez): mira, medir y caminar
+  var TOOLS = ['mira', 'medir', 'caminar'];
+  function toolId(t) { return TOOLS.indexOf(t) >= 0 ? t : ''; }
+
   return {
+    haversine: haversine, bearing: bearing, compass: compass, sides: sides, sideShows: sideShows, SIDE_LABEL_MIN_PX: SIDE_LABEL_MIN_PX, SIDE_PLUS_MIN_PX: SIDE_PLUS_MIN_PX,
+    summaryText: summaryText, relText: relText, measureText: measureText, measureAdd: measureAdd,
+    TRACK_STEPS: TRACK_STEPS, TRACK_STEP_DEFAULT: TRACK_STEP_DEFAULT, TRACK_MAX_ACC: TRACK_MAX_ACC, trackStep: trackStep, trackDecision: trackDecision, trackText: trackText,
+    TOOLS: TOOLS, toolId: toolId,
     MODES: MODES, HOLD_MS: HOLD_MS, HOLD_SLOP_PX: HOLD_SLOP_PX, TAP_SLOP_PX: TAP_SLOP_PX, DOUBLE_TAP_MS: DOUBLE_TAP_MS, DOUBLE_TAP_SLOP_PX: DOUBLE_TAP_SLOP_PX,
     pointColor: pointColor, modeId: modeId, toggleMode: toggleMode, modeText: modeText, isRepeatTap: isRepeatTap, withMoved: withMoved, pointGesture: pointGesture,
     BASES: BASES, REFERENCE: REFERENCE, LABEL_MIN_ZOOM: LABEL_MIN_ZOOM, COLOMBIA: COLOMBIA, TILE_ERRORS_BEFORE_NOTICE: TILE_ERRORS_BEFORE_NOTICE,

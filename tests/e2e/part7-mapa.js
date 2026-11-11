@@ -45,7 +45,13 @@ module.exports = async function (c) {
     throw new Error('Lienzo del mapa: ' + what + ' (píxeles pintados: ' + n + ')');
   };
   const seed = async () => { await fresh(); for (const p of ['4.60, -74.08', '4.60, -74.07', '4.61, -74.075']) await addPointManual(p, 2600); };
-  const flags = () => page.evaluate(() => JSON.parse(localStorage.getItem('zvg.v1.flags') || '{}'));
+  // Las capas están en un panel que se abre con el botón de capas (columna derecha del mapa)
+  const layersOpen = () => page.evaluate(() => !document.querySelector('#mapLayersPanel').hidden);
+  const openLayers = async () => { if (!(await layersOpen())) await act('mapLayers'); };
+  const closeLayers = async () => { if (await layersOpen()) await act('mapLayers'); };
+  const pickBase = async (b) => { await openLayers(); await page.click('[data-act="mapBase"][data-b="' + b + '"]'); await closeLayers(); };
+  const toggleRef = async () => { await openLayers(); await page.click('[data-act="mapRef"]'); await closeLayers(); };
+  const flags = () => page.evaluate(() => { const f = JSON.parse(localStorage.getItem('zvg.v1.flags') || '{}'); delete f.mapGuide; return f; });   // la ayuda de primera vez se prueba aparte
   // Los mosaicos que fallan a propósito dejan avisos «Failed to load resource» en la consola del navegador: esos no son errores de la app
   const forgetTileNoise = () => { const keep = errors.filter((e) => !/Failed to load resource/.test(e)); errors.length = 0; keep.forEach((e) => errors.push(e)); };
 
@@ -89,16 +95,18 @@ module.exports = async function (c) {
     const geometry = () => page.evaluate(() => {
       const r = (e) => { const b = e.getBoundingClientRect(); return { l: b.left, t: b.top, r: b.right, b: b.bottom }; };
       const box = r(document.querySelector('.mapa-leaflet'));
-      const tools = [...document.querySelectorAll('.maptool, .maploc')].map(r);
+      const tools = [...document.querySelectorAll('.maptool, .maploc, .mapbtn')].map(r);
       const nav = document.querySelector('nav').getBoundingClientRect().top;
       const marks = [...document.querySelectorAll('.mk-dot, .mk-lab')].map(r);
-      const base = [...document.querySelectorAll('.maprow .seg button')].map((b) => ({ text: b.textContent, clipped: b.scrollWidth > b.clientWidth + 1, right: b.getBoundingClientRect().right }));
+      const base = [...document.querySelectorAll('.maplayers > button[data-act="mapBase"]')].map((b) => ({ text: b.textContent, clipped: b.scrollWidth > b.clientWidth + 1, right: b.getBoundingClientRect().right }));
       return { box, tools, nav, marks, base, vw: document.documentElement.clientWidth, h: box.b - box.t };
     });
     const inside = (a, b) => a.l >= b.l - 1 && a.r <= b.r + 1 && a.t >= b.t - 1 && a.b <= b.b + 1;
     const overlap = (a, b) => a.l < b.r && a.r > b.l && a.t < b.b && a.b > b.t;
     const check = async (label) => {
+      await openLayers();
       const g = await geometry();
+      await closeLayers();
       assert.ok(g.h >= 296, label + ': el mapa mide ' + g.h);   // 300 px menos el borde
       assert.deepEqual(g.base.map((b) => b.text), ['Calles', 'Satélite', 'Topográfico']);
       for (const b of g.base) { assert.equal(b.clipped, false, label + ': el texto de «' + b.text + '» no cabe en su botón'); assert.ok(b.right <= g.vw, label + ': «' + b.text + '» se sale de la pantalla'); }
@@ -131,7 +139,7 @@ module.exports = async function (c) {
 
   await step('Satélite y «Calles y nombres sobre el satélite»: pide solo lo que corresponde y se acuerda de la elección', async () => {
     tiles.reset();
-    await page.click('[data-act="mapBase"][data-b="satelite"]');
+    await pickBase('satelite');
     let i = await waitInfo((x) => x.base === 'satelite' && x.loaded > 0, 5000, 'satélite');
     assert.equal(i.reference, false);
     assert.ok(tiles.count(/server\.arcgisonline\.com\/ArcGIS\/rest\/services\/World_Imagery\/MapServer\/tile\/\d+\/\d+\/\d+$/) > 0, 'pide imágenes del satélite');
@@ -141,7 +149,7 @@ module.exports = async function (c) {
     assert.equal(await pressed('[data-act="mapRef"]'), 'false');
     assert.deepEqual(i.markers.length, 3, 'los puntos siguen sobre el satélite');
     tiles.reset();
-    await page.click('[data-act="mapRef"]');
+    await toggleRef();
     i = await waitInfo((x) => x.reference === true, 5000, 'capa de nombres');
     await page.waitForFunction(() => document.querySelectorAll('.leaflet-tile-pane img').length > 0);
     for (let k = 0; k < 40 && !(tiles.count(/World_Transportation/) && tiles.count(/World_Boundaries_and_Places/)); k++) await page.waitForTimeout(50);
@@ -156,14 +164,14 @@ module.exports = async function (c) {
     i = await waitInfo((x) => x.base === 'satelite' && x.reference === true, 5000, 'elección guardada');
     assert.equal(await pressed('[data-act="mapBase"][data-b="satelite"]'), 'true');
     // volver a «Calles» quita el botón y la capa de nombres, pero recuerda que estaba activada
-    await page.click('[data-act="mapBase"][data-b="calles"]');
+    await pickBase('calles');
     i = await waitInfo((x) => x.base === 'calles', 5000, 'calles');
     assert.equal(i.reference, false);
     assert.equal(await page.locator('[data-act="mapRef"]').count(), 0);
     assert.deepEqual(await flags(), { mapBase: 'calles', mapRef: true });
-    await page.click('[data-act="mapBase"][data-b="satelite"]');
+    await pickBase('satelite');
     i = await waitInfo((x) => x.base === 'satelite' && x.reference === true, 5000, 'satélite con nombres otra vez');
-    await page.click('[data-act="mapRef"]');
+    await toggleRef();
     i = await waitInfo((x) => x.reference === false, 5000, 'sin nombres');
     assert.deepEqual(await flags(), { mapBase: 'satelite', mapRef: false });
     const backup = await page.evaluate(() => { try { return JSON.stringify(window.Backup && window.Backup.build ? window.Backup.build(window.__app.S, window.__app.MEM) : ''); } catch (e) { return ''; } });
@@ -172,7 +180,7 @@ module.exports = async function (c) {
 
   await step('Topográfico (OpenTopoMap): pide solo sus mosaicos, no pasa del nivel 17 de mosaicos y se acuerda de la elección', async () => {
     tiles.reset();
-    await page.click('[data-act="mapBase"][data-b="topo"]');
+    await pickBase('topo');
     let i = await waitInfo((x) => x.base === 'topo' && x.loaded > 0, 5000, 'topográfico');
     assert.equal(i.reference, false);
     assert.equal(await pressed('[data-act="mapBase"][data-b="topo"]'), 'true');
@@ -198,7 +206,7 @@ module.exports = async function (c) {
   });
 
   await step('«Polígono activo»: oculta y vuelve a mostrar la figura sin quitar los puntos', async () => {
-    await page.click('[data-act="mapBase"][data-b="calles"]');
+    await pickBase('calles');
     await waitInfo((x) => x.base === 'calles', 5000, 'calles');
     assert.equal(await text('[data-act="mapPoly"]'), 'Polígono activo');
     assert.equal(await pressed('[data-act="mapPoly"]'), 'true');
@@ -381,7 +389,7 @@ module.exports = async function (c) {
     assert.equal((await proj()).points.length, 3);
   });
 
-  await step('«Mi posición»: enciende el GPS, centra en la primera lectura y después ya no persigue a la persona', async () => {
+  await step('«Mi posición»: enciende el GPS, centra en la primera lectura y sigue a la persona hasta que arrastre el mapa', async () => {
     await seed();
     await openMap();
     await waitInfo((x) => x.markers.length === 3, 3000, 'tres puntos');
@@ -392,14 +400,27 @@ module.exports = async function (c) {
     let i = await waitInfo((x) => x.fix && Math.abs(x.center.lat - 6.2442) < 1e-4, 3000, 'centrado en la primera lectura');
     near(i.center.lon, -75.5812, 1e-4, 'lon'); assert.ok(i.zoom >= 17); assert.equal(i.fix.acc, 15);
     await shot('75-mi-posicion');
-    // una lectura posterior mueve el punto azul, pero no el mapa
+    // mientras sigue a la persona, una lectura posterior mueve el punto azul y también el mapa, sin cambiar el zoom
+    assert.equal(await pressed('.maploc'), 'true');
+    const z = i.zoom;
+    await gpsPush({ lat: 6.2450, lon: -75.5820, alt: 1495, acc: 15 });
+    i = await waitInfo((x) => x.fix && Math.abs(x.center.lat - 6.2450) < 1e-5, 3000, 'el mapa sigue a la persona');
+    near(i.center.lon, -75.5820, 1e-5, 'lon'); assert.equal(i.zoom, z);
+    // al arrastrar el mapa deja de seguirla: el punto azul se mueve, el mapa no
+    const mb = await page.locator('#mapHost').boundingBox();
+    await page.mouse.move(mb.x + mb.width / 2, mb.y + mb.height / 2); await page.mouse.down();
+    await page.mouse.move(mb.x + mb.width / 2 + 60, mb.y + mb.height / 2 + 40, { steps: 6 }); await page.mouse.up();
+    await page.waitForTimeout(400);
+    assert.equal(await pressed('.maploc'), 'false');
+    const quieto = (await info()).center;
     await gpsPush({ lat: 6.3000, lon: -75.6000, alt: 1495, acc: 15 });
     i = await waitInfo((x) => x.fix && Math.abs(x.fix.lat - 6.3) < 1e-6, 3000, 'punto azul movido');
-    near(i.center.lat, 6.2442, 1e-4, 'el mapa se queda quieto');
-    // al pulsar de nuevo, vuelve a la lectura más reciente
+    near(i.center.lat, quieto.lat, 1e-6, 'el mapa se queda quieto');
+    // al pulsar de nuevo, vuelve a la lectura más reciente y sigue otra vez
     await act('mapMyPos');
     i = await waitInfo((x) => Math.abs(x.center.lat - 6.3) < 1e-4, 3000, 'vuelve a la persona');
     near(i.center.lon, -75.6, 1e-4, 'lon');
+    assert.equal(await pressed('.maploc'), 'true');
     // sin GPS, el punto azul desaparece del mapa
     await tab('puntos'); await act('gpsOff'); await tab('area');
     i = await waitInfo((x) => x.fix === null, 3000, 'sin posición');
@@ -461,7 +482,7 @@ module.exports = async function (c) {
     await openMap();
     await waitInfo((x) => x.loaded > 0, 5000, 'mosaicos');
     tiles.fail(true);
-    await page.click('[data-act="mapBase"][data-b="satelite"]');
+    await pickBase('satelite');
     await page.waitForFunction(() => { const n = document.querySelector('#mapNotice'); return n && !n.hidden && /no está cargando/.test(n.textContent); }, null, { timeout: 8000 });
     assert.match(await notice(), /Tus puntos y el polígono se ven igual|tus puntos y el polígono se ven igual/);
     let i = await info();

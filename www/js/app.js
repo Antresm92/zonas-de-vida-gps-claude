@@ -5,7 +5,7 @@
   var Geo = window.Geo, H = window.Holdridge, Climate = window.Climate, A = window.Analysis, Fmt = window.Fmt,
       Gps = window.Gps, Store = window.Store, Diagram = window.Diagram, Report = window.Report,
       Gis = window.Gis, Backup = window.Backup, IO = window.IO, WL = window.WalterLieth, Mapa = window.Mapa, MapView = window.MapView, Satelite = window.Satelite, Perfil = window.Perfil, Fotos = window.Fotos, Zip = window.Zip, Units = window.Units;
-  var APP_VERSION = '2.9.2';
+  var APP_VERSION = '2.10.0';
 
   var S = Store.loadState();
   var hadSaved = Store.hasSavedState();      // ¿había datos guardados al abrir? (solo entonces se limpian las fotos sin uso)
@@ -15,6 +15,7 @@
              imp: null, restore: null, edit: null,
              polyView: 'croquis', polyActive: true, mapBase: Mapa.baseId(Store.loadFlag('mapBase')), mapRef: Store.loadFlag('mapRef') === true,
              map: null, mapFollow: false, mapFitKey: null, tileErrors: 0, mapMode: '', mapMenu: false, mapModeFor: null,
+             mapSel: null, mapLayers: false, mapFull: false, follow: false, mapTool: '', measure: [], track: null, wake: null,
              croq: { satelite: { img: null, busy: false, error: null }, topo: { img: null, busy: false, error: null } }, sharing: false, nowBusy: false, nowError: '', photoBusy: false, restoring: false,
              conv: null, convMem: {}, tool: null, wx: null, wxToken: 0, toolGpsKind: '' };
 
@@ -246,7 +247,7 @@
     if (!ui.sheetOpen) return;
     if (history.state && history.state.sheet) history.back(); else hideSheet();
   }
-  window.addEventListener('popstate', function () { var lb = $('#lightbox'); if (lb) { lb.remove(); return; } if (ui.sheetOpen) hideSheet(); });
+  window.addEventListener('popstate', function () { var lb = $('#lightbox'); if (lb) { lb.remove(); return; } if (ui.sheetOpen) { hideSheet(); return; } if (ui.mapFull) applyMapFull(false); });
   document.addEventListener('keydown', function (e) { if (e.key !== 'Escape') return; if ($('#lightbox')) closePhoto(); else if (ui.sheetOpen) closeSheet(); });
 
   /* ---------- GPS ---------- */
@@ -287,7 +288,7 @@
   function gpsStart() {
     if (!Gps.available()) { toast('Este dispositivo no permite leer el GPS. Puedes escribir las coordenadas.', { err: true }); return; }
     ui.gpsOn = true; ui.fix = null; ui.gpsAsked = false; updateChips();
-    ui.stopWatch = Gps.watch(function (fix) { ui.fix = fix; updateReadout(); updateChips(); onMapFix(fix); onToolFix(); }, function (e) {
+    ui.stopWatch = Gps.watch(function (fix) { ui.fix = fix; updateReadout(); updateChips(); trackFix(fix); onMapFix(fix); onToolFix(); }, function (e) {
       if (e && e.code === 1) gpsStop();                                            // sin permiso no hay nada que seguir leyendo
       if (Gps.isOff(e, !!ui.fix) && askNoGps(e)) return;                         // GPS apagado o sin permiso: pregunta «¿Usar sin GPS?»
       toast(Gps.explain(e), { err: true });
@@ -296,14 +297,16 @@
   }
   function gpsStop() {
     if (ui.stopWatch) ui.stopWatch();
-    ui.stopWatch = null; ui.gpsOn = false; ui.fix = null; ui.mapFollow = false; updateChips();
+    ui.stopWatch = null; ui.gpsOn = false; ui.fix = null; ui.mapFollow = false; ui.follow = false; updateChips();
+    if (ui.track) finishTrack();                                                   // sin GPS no se puede seguir caminando el lindero
+    syncMapChrome();
     if (ui.map) ui.map.showFix(null);
     if (ui.tab === 'puntos') renderTab('puntos');
     if (ui.wx) ui.wx.wait = false;
     renderGpsTool(); renderWeatherTool();
   }
   document.addEventListener('visibilitychange', function () {
-    if (document.hidden && ui.gpsOn && !ui.sampling) { ui.wasOn = true; gpsStop(); }
+    if (document.hidden && ui.gpsOn && !ui.sampling && !ui.track) { ui.wasOn = true; gpsStop(); }   // caminando el lindero el GPS no se apaga
     else if (!document.hidden && ui.wasOn) { ui.wasOn = false; gpsStart(); }
   });
 
@@ -810,7 +813,8 @@
 
   /* ---------- Polígono (Croquis y Mapa) ---------- */
   function tabArea() {
-    var h = '<h2 class="pagetitle">Polígono del terreno</h2><div class="seg" role="group" aria-label="Vista del polígono">';
+    // En la vista Mapa no va el título: ese alto se le deja al mapa (la pestaña y el selector ya dicen dónde se está)
+    var h = (ui.polyView === 'mapa' ? '<h2 class="sr-only">Polígono del terreno: mapa</h2>' : '<h2 class="pagetitle">Polígono del terreno</h2>') + '<div class="seg" role="group" aria-label="Vista del polígono">';
     [['croquis', 'Croquis'], ['mapa', 'Mapa']].forEach(function (v) {
       h += '<button data-act="polyView" data-v="' + v[0] + '" aria-pressed="' + (ui.polyView === v[0]) + '">' + v[1] + '</button>';
     });
@@ -874,34 +878,47 @@
   // Calles o satélite, el polígono con sus puntos y cuatro herramientas. El dibujo lo hace mapview.js (Leaflet).
   var ICONS = {
     poly: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8.5 6.2-3.2 10H6.7L3.5 9.2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>',
-    last: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2.2" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+    last: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 21V4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M6 5h11l-2.5 4 2.5 4H6z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>',
     mark: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="2" fill="currentColor"/></svg>',
     more: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="2.2" fill="currentColor"/><circle cx="12" cy="12" r="2.2" fill="currentColor"/><circle cx="12" cy="19" r="2.2" fill="currentColor"/></svg>',
-    loc: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3.4" fill="currentColor"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>'
+    loc: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3.4" fill="currentColor"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+    layers: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/></svg>',
+    fit: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/><path d="M12 9l3 2.2-1.1 3.6h-3.8L9 11.2z"/></svg>',
+    full: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4H4v5M4 4l6 6M15 4h5v5M20 4l-6 6M9 20H4v-5M4 20l6-6M15 20h5v-5M20 20l-6-6"/></svg>',
+    measure: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 16L16 3l5 5L8 21z"/><path d="M7 12l2 2M10 9l2 2M13 6l2 2"/></svg>',
+    plus: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="5" cy="12" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="19" cy="12" r="1.6" fill="currentColor"/></svg>'
   };
   function mapaHtml() {
     var p = proj(), h = '';
-    h += '<div class="maprow"><span class="small muted">Capa base</span><div class="seg" role="group" aria-label="Capa base">';
-    ['calles', 'satelite', 'topo'].forEach(function (id) {
-      h += '<button data-act="mapBase" data-b="' + id + '" aria-pressed="' + (ui.mapBase === id) + '">' + esc(Mapa.BASES[id].label) + '</button>';
-    });
-    h += '</div></div>';
-    if (ui.mapBase === 'satelite') h += '<button class="chipbtn" data-act="mapRef" aria-pressed="' + ui.mapRef + '">Calles y nombres sobre el satélite</button>';
-    h += '<div class="mapbox' + (ui.mapBase === 'satelite' ? ' with-chip' : '') + '"><div id="mapHost" class="maphost"></div>';
+    h += '<div id="mapBox" class="mapbox' + (ui.mapFull ? ' full' : '') + '"><div id="mapHost" class="maphost"></div>';
     h += mapMenuHtml();
-    h += '<div class="maptop"><div id="mapNotice" class="mapnotice" role="status" hidden></div>' +
+    h += '<div class="maptop"><div id="mapSum" class="mapsum" role="status" hidden></div><div id="mapNotice" class="mapnotice" role="status" hidden></div>' +
       '<div id="mapMode" class="mapmode" hidden><span id="mapModeTxt" role="status"></span><button data-act="mapMode" data-mode="">Salir</button></div></div>' +
       '<div id="mapLive" class="maplive" hidden></div>';
     if (ui.sampling) {
       h += '<div class="mapprog" role="status"><div class="prog"><i id="mapProgBar"></i></div><p class="small" id="mapProgTxt">Esperando la primera lectura del GPS…</p><button class="btn btn-danger" data-act="cancelMark">Cancelar</button></div>';
     }
+    // Columna izquierda, bajo el menú ⋮: capas, ver todo el terreno y pantalla completa
+    h += '<div class="mapside"><button class="mapbtn" data-act="mapLayers" aria-label="Capas del mapa" aria-haspopup="true" aria-expanded="false" aria-controls="mapLayersPanel">' + ICONS.layers + '</button>' +
+      '<button class="mapbtn" data-act="mapFit" aria-label="Ver todo el terreno">' + ICONS.fit + '</button>' +
+      '<button class="mapbtn" data-act="mapFull" aria-label="Pantalla completa" aria-pressed="' + ui.mapFull + '">' + ICONS.full + '</button></div>';
+    h += '<div id="mapLayersPanel" class="maplayers" role="group" aria-label="Capa base" hidden><b>Capa base</b>';
+    ['calles', 'satelite', 'topo'].forEach(function (id) {
+      h += '<button data-act="mapBase" data-b="' + id + '" aria-pressed="' + (ui.mapBase === id) + '">' + esc(Mapa.BASES[id].label) + '</button>';
+    });
+    if (ui.mapBase === 'satelite') h += '<button class="chipbtn" data-act="mapRef" aria-pressed="' + ui.mapRef + '">Calles y nombres sobre el satélite</button>';
+    h += '</div>';
+    h += '<div class="mapcross" aria-hidden="true"></div>';
+    h += '<div id="mapCard" class="mapcard" hidden></div>';
+    h += '<div id="mapToolBar" class="maptoolbar" hidden></div>';
     h += '<div class="maptools" role="group" aria-label="Herramientas del mapa">' +
       '<button class="maptool" data-act="mapPoly" aria-pressed="' + ui.polyActive + '">' + ICONS.poly + '<span>' + (ui.polyActive ? 'Polígono activo' : 'Polígono inactivo') + '</span></button>' +
       '<button class="maptool" data-act="mapLast">' + ICONS.last + '<span>Último punto</span></button>' +
-      '<button class="maptool" data-act="mapMark"' + (ui.sampling ? ' disabled' : '') + '>' + ICONS.mark + '<span>Marcar punto</span></button></div>';
-    h += '<button class="maploc" data-act="mapMyPos" aria-label="Centrar el mapa en mi posición">' + ICONS.loc + '</button></div>';
+      '<button class="maptool" data-act="mapMeasure">' + ICONS.measure + '<span>Medir distancia</span></button>' +
+      '<button class="maptool" data-act="mapMore">' + ICONS.plus + '<span>Más opciones</span></button>' +
+      '<button class="maptool main" data-act="mapMark"' + (ui.sampling ? ' disabled' : '') + '>' + ICONS.mark + '<span>Marcar punto</span></button></div>';
+    h += '<button class="maploc" data-act="mapMyPos" aria-label="Centrar el mapa en mi posición y seguirla" aria-pressed="' + ui.follow + '">' + ICONS.loc + '</button></div>';
     if (!p.points.length && !Mapa.visibleLayers(p.layers).length) h += '<div class="tip">Todavía no hay puntos. Pulsa «Marcar punto» para guardar tu posición con el GPS, o agrégalos en la pestaña Puntos.</div>';
-    h += '<p class="small muted">«Marcar punto» guarda tu posición con el GPS, promediando lecturas, igual que en la pestaña Puntos. «Último punto» te lleva al último que marcaste. El botón de la derecha centra el mapa donde estás.</p>';
     return h;
   }
   // Menú ⋮ (arriba a la izquierda): dos casillas de las que solo una puede estar activa. El estado (ui.mapMode, ui.mapMenu) lo pinta syncMapMenu().
@@ -928,18 +945,34 @@
     $('#mapModeTxt').textContent = t;
   }
   function setMapMode(m) {
-    ui.mapMode = m; ui.mapMenu = false;
+    if (m && ui.mapTool) setMapTool('');       // un modo del menú ⋮ y una herramienta de abajo no conviven
+    ui.mapMode = m; ui.mapMenu = false; ui.mapLayers = false;
     if (ui.map) ui.map.setMode(m);
-    syncMapMenu();
+    syncMapMenu(); syncMapChrome();
   }
   // «Ingresar puntos»: un toque crea el punto al instante, sin altitud, y el mapa no se mueve (la persona está mirando justo ahí).
+  function closeMapPanels() {
+    if (!ui.mapMenu && !ui.mapLayers) return false;
+    ui.mapMenu = false; ui.mapLayers = false; syncMapMenu(); syncMapChrome();
+    return true;
+  }
   function onMapTap(ll) {
-    if (ui.mapMenu) { ui.mapMenu = false; syncMapMenu(); return false; }   // con la lista abierta, un toque en el mapa solo la cierra (false: no se creó nada)
+    if (closeMapPanels()) return false;   // con una lista abierta, un toque en el mapa solo la cierra (false: no se creó nada)
+    addManualAt(ll);
+  }
+  // Crea un punto a mano en ese lugar (toque con «Ingresar puntos», la mira o el «+» de un lado). after: posición tras la que se inserta; sin ella va al final.
+  function addManualAt(ll, after) {
     var p = proj(), prevNext = p.nextPoint;
     var pt = addPoint({ lat: ll.lat, lon: ll.lon, src: 'manual' });
+    var msg = pt.name + ' creado (sin altitud).';
+    if (isNum(after) && after >= 0 && after < p.points.length - 1) {
+      var a = p.points[after], b = p.points[(after + 1) % (p.points.length - 1)];
+      p.points.pop(); p.points.splice(after + 1, 0, pt); save();
+      msg = pt.name + ' insertado entre ' + a.name + ' y ' + b.name + ' (sin altitud).';
+    }
     ui.mapFitKey = mapKey();
     renderTab('area');
-    toast(pt.name + ' creado (sin altitud).', { action: 'Deshacer', fn: function () {
+    toast(msg, { action: 'Deshacer', fn: function () {
       var i = p.points.indexOf(pt);
       if (i < 0) return;
       p.points.splice(i, 1);
@@ -969,6 +1002,7 @@
     if (!ll) { el.hidden = true; banner.hidden = !mapModeText(); return; }
     banner.hidden = true;      // mientras se arrastra, el aviso del modo cede su sitio a las medidas en vivo
     var pts = Mapa.withMoved(proj().points, id, ll.lat, ll.lon), unit = S.settings.areaUnit || 'ha';
+    if (ui.mapSel) { ui.mapSel = null; syncMapCard(); }   // la tarjeta taparía las medidas mientras se arrastra
     var bad = Geo.selfIntersects(pts);
     var moved = pointById(id);
     el.textContent = 'Moviendo ' + (moved ? moved.name : '') + ' · ' + (pts.length >= 3 ? 'Área ' + Fmt.area(Geo.areaUnits(Geo.polygonArea(pts)), unit) + ' · Perímetro ' + Fmt.dist(Geo.perimeter(pts, true)) : 'Distancia ' + Fmt.dist(Geo.perimeter(pts, false))) +
@@ -987,17 +1021,23 @@
     if (!host) return;
     if (!window.L) { host.textContent = 'El mapa no se pudo cargar en este dispositivo.'; return; }
     var p = proj(), a = analysis();
-    if (ui.mapModeFor !== p.id) { ui.mapMode = ''; ui.mapMenu = false; ui.mapModeFor = p.id; }   // otro proyecto: se empieza sin ningún modo activo
-    if (!ui.map) ui.map = MapView.create({ onStatus: onTileStatus, onTap: onMapTap, onPointDrag: onPointDrag, onPointDrop: onPointDrop, onPointDouble: openEdit });
+    if (ui.mapModeFor !== p.id) {              // otro proyecto: se empieza sin ningún modo activo, sin herramienta y sin punto elegido
+      ui.mapMode = ''; ui.mapMenu = false; ui.mapLayers = false; ui.mapSel = null; ui.mapModeFor = p.id;
+      if (ui.mapTool && !(ui.track && ui.track.pid === p.id)) setMapTool('');
+    }
+    if (!ui.map) ui.map = MapView.create({ onStatus: onTileStatus, onTap: onMapTap, onPointDrag: onPointDrag, onPointDrop: onPointDrop, onPointDouble: openEdit,
+      onPointTap: onPointTap, onMapClick: onMapClick, onInsert: function (after, ll) { addManualAt(ll, after); }, onUserPan: onUserPan, onView: onMapView });
     ui.map.attach(host);
     ui.map.setMode(ui.mapMode);
     ui.map.setBase(ui.mapBase, ui.mapRef);
-    ui.map.draw(Mapa.shapes(p, { polyActive: ui.polyActive, bad: !!a.selfIntersects, fmt: function (n) { return Fmt.num(n, 0); } }));
+    ui.map.draw(Mapa.shapes(p, { polyActive: ui.polyActive, bad: !!a.selfIntersects, fmt: function (n) { return Fmt.num(n, 0); }, dist: Geo.distance, fmtDist: Fmt.dist }));
+    ui.map.setMeasure(ui.mapTool === 'medir' ? ui.measure : []);
     var key = mapKey();
     if (ui.mapFitKey !== key) { ui.map.fit(Mapa.extent(p.points, p.layers), { bottom: toolsInset() }); ui.mapFitKey = key; }   // solo al cambiar de proyecto o al llegar los primeros datos
     ui.map.showFix(ui.gpsOn ? ui.fix : null);
     updateMapNotice();
-    syncMapMenu();
+    syncMapMenu(); syncMapChrome();
+    if (!ui.sheetOpen && Store.loadFlag('mapGuide') !== true) { Store.saveFlag('mapGuide', true); openMapGuide(); }   // la primera vez se explica el mapa
   }
   function onTileStatus(st) { ui.tileErrors = st.errors; updateMapNotice(); }
   function updateMapNotice() {
@@ -1009,18 +1049,205 @@
   function onMapFix(fix) {
     if (!ui.map) return;
     ui.map.showFix(fix);
-    if (ui.mapFollow && ui.tab === 'area' && ui.polyView === 'mapa') { ui.mapFollow = false; ui.map.flyTo(fix.lat, fix.lon, 17); }
+    var seen = ui.tab === 'area' && ui.polyView === 'mapa';
+    if (ui.mapFollow && seen) { ui.mapFollow = false; ui.map.flyTo(fix.lat, fix.lon, 17); }
+    else if (ui.follow && seen) ui.map.flyTo(fix.lat, fix.lon, 1);       // siguiendo la posición: el mapa se mueve con la persona sin cambiar el zoom
+    if (seen) { syncMapCard(true); if (ui.mapTool === 'caminar') syncMapTool(); }
   }
   function goLastPoint() {
     var pt = Mapa.lastPoint(proj().points);
     if (!pt) { toast('Todavía no hay puntos marcados en este proyecto.'); return; }
+    ui.follow = false; syncMapChrome();
     if (ui.map) ui.map.flyTo(pt.lat, pt.lon, 18);
     toast('Último punto: ' + (pt.name || 'sin nombre') + '.');
   }
+  // «Mi posición»: centra el mapa donde está la persona y lo deja siguiéndola hasta que arrastre el mapa
   function goMyPosition() {
     if (!ui.gpsOn) { gpsStart(); if (!ui.gpsOn) return; }
+    ui.follow = true; syncMapChrome();
     if (ui.fix) { if (ui.map) { ui.map.showFix(ui.fix); ui.map.flyTo(ui.fix.lat, ui.fix.lon, 17); } }
     else { ui.mapFollow = true; toast('Buscando tu posición…'); }
+  }
+  function onUserPan() { if (ui.follow) { ui.follow = false; syncMapChrome(); } }
+  function onMapView() { if (ui.mapTool === 'mira') { var el = $('#mapAimLL'); if (el && ui.map) { var c = ui.map.center(); el.textContent = Fmt.latlon(c.lat, c.lon); } } }
+
+  /* ---------- Mapa: lo que va encima (resumen, capas, pantalla completa, tarjeta del punto, herramientas) ---------- */
+  function mapSummary() {
+    var a = analysis();
+    if (a.empty) return '';
+    return Mapa.summaryText(a.n, a.polygon ? Fmt.area(a.area, S.settings.areaUnit || 'ha') : '', a.n >= 2 ? Fmt.dist(a.perimeter) : '');
+  }
+  function syncMapChrome() {
+    var box = $('#mapBox');
+    if (!box) return;
+    var sum = $('#mapSum'), t = mapSummary();
+    sum.textContent = t; sum.hidden = !t;
+    $('#mapLayersPanel').hidden = !ui.mapLayers;
+    $('[data-act="mapLayers"]').setAttribute('aria-expanded', String(ui.mapLayers));
+    $('[data-act="mapFull"]').setAttribute('aria-pressed', String(ui.mapFull));
+    $('.maploc').setAttribute('aria-pressed', String(ui.follow));
+    box.classList.toggle('full', ui.mapFull);
+    syncMapCard(); syncMapTool();
+  }
+  function applyMapFull(on) {
+    ui.mapFull = !!on;
+    syncMapChrome();
+    if (ui.map) ui.map.refresh();
+  }
+  function toggleMapFull() {
+    if (!ui.mapFull) { try { history.pushState({ mapfull: true }, ''); } catch (e) { /* nada */ } applyMapFull(true); return; }
+    if (history.state && history.state.mapfull) history.back(); else applyMapFull(false);   // el botón Atrás del teléfono también sale
+  }
+  function fitAll() {
+    var p = proj(), ext = Mapa.extent(p.points, p.layers);
+    if (!ext) { toast('Todavía no hay puntos ni capas que mostrar.'); return; }
+    ui.follow = false; syncMapChrome();
+    if (ui.map) ui.map.fit(ext, { bottom: toolsInset() });
+  }
+
+  // Tarjeta del punto elegido (un toque sobre él). relOnly: solo se actualiza la línea de la distancia (llega con cada lectura del GPS).
+  function syncMapCard(relOnly) {
+    var el = $('#mapCard'), box = $('#mapBox');
+    if (!el) return;
+    var pt = ui.mapSel ? pointById(ui.mapSel) : null;
+    if (!pt) {
+      if (relOnly) return;
+      ui.mapSel = null; el.hidden = true; el.innerHTML = ''; box.classList.remove('has-card');
+      if (ui.map) ui.map.select(null);
+      return;
+    }
+    var rel = ui.gpsOn ? Mapa.relText(ui.fix, pt, Fmt.dist) : '';
+    if (relOnly) { var r = $('#mapCardRel'); if (r) { r.textContent = rel; r.hidden = !rel; } return; }
+    var src = pt.src === 'gps' ? 'GPS' + (isNum(pt.acc) ? ' ±' + Math.round(pt.acc) + ' m' : '') : 'a mano';
+    el.innerHTML = '<button class="mapcard-x" data-act="mapCardClose" aria-label="Cerrar la tarjeta del punto">×</button>' +
+      '<b class="mapcard-name"><i style="background:' + Mapa.pointColor(pt, proj().mainColor) + '"></i>' + esc(pt.name) + '</b>' +
+      '<p class="small">' + (isNum(pt.alt) ? 'Altitud ' + Fmt.num(pt.alt, 0) + ' m' : 'Sin altitud') + ' · ' + src + ' · ' + esc(Fmt.latlon(pt.lat, pt.lon)) + '</p>' +
+      '<p class="small mapcard-rel" id="mapCardRel"' + (rel ? '' : ' hidden') + '>' + esc(rel) + '</p>' +
+      '<div class="mapcard-btns"><button class="btn btn-primary" data-act="editPoint" data-id="' + esc(pt.id) + '">Abrir ficha</button>' +
+      '<button class="btn" data-act="mapCardMove">Mover</button><button class="btn" data-act="mapCardGo">Ir al punto</button></div>';
+    el.hidden = false; box.classList.add('has-card');
+    if (ui.map) ui.map.select(pt.id);
+  }
+  function onPointTap(id) {
+    closeMapPanels();
+    var pt = pointById(id);
+    if (!pt) return;
+    if (ui.mapTool === 'medir') { addMeasure({ lat: pt.lat, lon: pt.lon }); return; }
+    if (ui.mapTool) return;
+    ui.mapSel = ui.mapSel === id ? null : id;          // tocar otra vez el mismo punto cierra su tarjeta
+    syncMapCard();
+  }
+  function onMapClick(ll) {
+    if (closeMapPanels()) return;
+    if (ui.mapTool === 'medir') { addMeasure(ll); return; }
+    if (ui.mapSel) { ui.mapSel = null; syncMapCard(); }
+  }
+
+  /* ---------- Mapa: herramientas de la franja de abajo (medir, mira y caminar el lindero) ---------- */
+  function setMapTool(t) {
+    t = Mapa.toolId(t);
+    if (t === ui.mapTool) return;
+    if (ui.track) finishTrack();
+    if (t && ui.mapMode) setMapMode('');
+    ui.mapTool = t; ui.measure = []; ui.mapSel = null; ui.mapMenu = false; ui.mapLayers = false;
+    if (ui.map) ui.map.setMeasure([]);
+    syncMapMenu(); syncMapChrome();
+  }
+  function addMeasure(ll) {
+    ui.measure = Mapa.measureAdd(ui.measure, ll);
+    if (ui.map) ui.map.setMeasure(ui.measure);
+    syncMapTool();
+  }
+  function syncMapTool() {
+    var bar = $('#mapToolBar'), box = $('#mapBox');
+    if (!bar) return;
+    var t = ui.mapTool, h = '';
+    Mapa.TOOLS.forEach(function (k) { box.classList.toggle('tool-' + k, k === t); });
+    $('.maptools').hidden = !!t;
+    bar.hidden = !t;
+    if (t === 'mira') {
+      var c = ui.map ? ui.map.center() : null;
+      h = '<p>Mueve el mapa hasta dejar la cruz en el lugar. <b id="mapAimLL">' + (c ? esc(Fmt.latlon(c.lat, c.lon)) : '') + '</b></p>' +
+        '<div class="mtb-btns"><button class="btn btn-primary" data-act="mapAimAdd">Agregar aquí</button><button class="btn" data-act="mapToolEnd">Terminar</button></div>';
+    } else if (t === 'medir') {
+      h = '<p id="mapMeasureTxt">' + esc(Mapa.measureText(ui.measure, Fmt.dist)) + '</p>' +
+        '<div class="mtb-btns"><button class="btn" data-act="mapMeasureClear"' + (ui.measure.length ? '' : ' disabled') + '>Borrar</button><button class="btn btn-primary" data-act="mapToolEnd">Terminar</button></div>';
+    } else if (t === 'caminar') {
+      var tr = ui.track || {};
+      h = '<p id="mapTrackTxt">' + esc(Mapa.trackText({ added: (tr.ids || []).length, step: tr.step, last: tr.last })) + (ui.fix && isNum(ui.fix.acc) ? ' · GPS ±' + Math.round(ui.fix.acc) + ' m' : '') + '</p>' +
+        '<div class="mtb-btns"><button class="btn btn-primary" data-act="mapToolEnd">Terminar recorrido</button></div>';
+    }
+    if (bar.innerHTML !== h) bar.innerHTML = h;
+  }
+  // Caminar el lindero: con cada lectura buena del GPS que esté a «step» metros del último punto, se deja uno nuevo
+  function startTrack(step) {
+    if (!ui.gpsOn) gpsStart();
+    if (!ui.gpsOn) return;
+    setMapTool('caminar');
+    ui.track = { pid: proj().id, step: Mapa.trackStep(step), ids: [], last: 'none', lastPt: null, prevNext: proj().nextPoint };
+    ui.follow = true;
+    wakeLock(true);
+    if (ui.fix) trackFix(ui.fix);
+    syncMapChrome();
+    toast('Camina por el borde del terreno. Deja la pantalla encendida y la app abierta.');
+  }
+  function trackFix(fix) {
+    var t = ui.track;
+    if (!t) return;
+    if (t.pid !== proj().id) { finishTrack(); return; }      // se cambió de proyecto: el recorrido se cierra
+    if (ui.sampling) return;
+    t.last = Mapa.trackDecision(t.lastPt, fix, t.step, S.settings.minAcc);
+    if (t.last !== 'add') return;
+    var pt = addPoint({ lat: fix.lat, lon: fix.lon, alt: fix.alt, altGps: fix.alt, altSrc: isNum(fix.alt) ? 'gps' : null, acc: fix.acc, altAcc: fix.altAcc, src: 'gps' });
+    t.ids.push(pt.id); t.lastPt = { lat: fix.lat, lon: fix.lon };
+    if (ui.tab === 'puntos' || ui.tab === 'area') renderTab(ui.tab);
+  }
+  function finishTrack() {
+    var t = ui.track;
+    if (!t) return;
+    ui.track = null; ui.mapTool = '';
+    wakeLock(false);
+    syncMapChrome();
+    var n = t.ids.length, pid = t.pid;
+    if (!n) { toast('Recorrido terminado sin puntos: el GPS no dio ninguna lectura que sirviera.'); return; }
+    toast('Recorrido terminado: ' + n + (n === 1 ? ' punto.' : ' puntos.'), { action: 'Deshacer', fn: function () {
+      var p = S.projects.filter(function (x) { return x.id === pid; })[0];
+      if (!p) return;
+      p.points = p.points.filter(function (q) { return t.ids.indexOf(q.id) < 0; });
+      if (p.nextPoint === t.prevNext + n) p.nextPoint = t.prevNext;
+      save(); renderTab(ui.tab);
+    } });
+  }
+  // Mientras se camina el lindero se pide que la pantalla no se apague (si el teléfono lo permite; si no, no pasa nada)
+  function wakeLock(on) {
+    try {
+      if (!on) { if (ui.wake) { ui.wake.release(); ui.wake = null; } return; }
+      if (navigator.wakeLock && navigator.wakeLock.request) {
+        navigator.wakeLock.request('screen').then(function (l) { if (ui.track) ui.wake = l; else l.release(); }, function () { /* sin permiso: se sigue igual */ });
+      }
+    } catch (e) { /* nada */ }
+  }
+  function openMapMore() {
+    var opts = Mapa.TRACK_STEPS.map(function (m) { return '<option value="' + m + '"' + (m === Mapa.TRACK_STEP_DEFAULT ? ' selected' : '') + '>Un punto cada ' + m + ' m</option>'; }).join('');
+    openSheet('Más opciones del mapa',
+      '<h3 class="sub">Agregar con mira</h3><p class="small muted">Una cruz queda fija en el centro: mueves el mapa hasta el lugar exacto y pulsas «Agregar aquí». Es más preciso que tocar con el dedo.</p>' +
+      '<div class="btns"><button class="btn btn-primary" data-act="mapAim">Agregar con mira</button></div>' +
+      '<h3 class="sub" style="margin-top:18px">Caminar el lindero</h3><p class="small muted">Recorres el borde del terreno y el GPS va dejando los puntos en orden. Deja la pantalla encendida y la app abierta; al terminar puedes deshacer todo el recorrido.</p>' +
+      '<label class="f"><span>Distancia entre puntos</span><select id="trackStep">' + opts + '</select></label>' +
+      '<div class="btns"><button class="btn btn-primary" data-act="mapWalk">Empezar a caminar</button></div>' +
+      '<h3 class="sub" style="margin-top:18px">Ayuda</h3><div class="btns"><button class="btn" data-act="mapGuide">Cómo usar el mapa</button></div>');
+  }
+  function openMapGuide() {
+    var rows = [
+      ['Toca un punto', 'para ver sus datos, abrir su ficha, moverlo o ir hasta él.'],
+      ['Menú ⋮', '«Ingresar puntos» crea un punto donde toques. «Posición manual» deja mover un punto manteniéndolo pulsado e insertar uno nuevo con el «+» de cada lado.'],
+      ['Botones de la izquierda', 'bajo el menú ⋮: cambiar la capa (calles, satélite o topográfico), ver todo el terreno y pantalla completa. A la derecha, acercar y alejar.'],
+      ['Mi posición', 'el botón redondo de abajo centra el mapa donde estás y te sigue hasta que muevas el mapa.'],
+      ['Barra de abajo', 'mostrar u ocultar el polígono, ir al último punto, medir una distancia, más opciones (mira y caminar el lindero) y marcar un punto con el GPS.'],
+      ['Arriba', 'el área, el perímetro y el número de puntos se actualizan solos.']
+    ];
+    openSheet('Cómo usar el mapa', '<dl class="guide">' + rows.map(function (r) { return '<div><dt>' + esc(r[0]) + '</dt><dd>' + esc(r[1]) + '</dd></div>'; }).join('') + '</dl>' +
+      '<p class="small muted">Puedes volver a ver esta ayuda en «Más opciones».</p><div class="btns"><button class="btn btn-primary" data-act="closeSheet">Entendido</button></div>');
   }
 
   /* ---------- Clima ---------- */
@@ -1733,8 +1960,13 @@
     if (t === 'informe') mountDiagram();
     window.scrollTo(0, sy);
   }
+  // Al salir del mapa se sueltan la mira y la medida (caminar el lindero sigue, porque depende del GPS y no de la pantalla)
+  function leaveMap() {
+    if (ui.mapTool && ui.mapTool !== 'caminar') setMapTool('');
+    ui.mapSel = null; ui.mapLayers = false; ui.mapFull = false;
+  }
   function showTab(t) {
-    if (t !== 'area') setMapMode('');          // el modo del mapa solo vale mientras se está viendo el mapa
+    if (t !== 'area') { setMapMode(''); leaveMap(); }          // el modo del mapa solo vale mientras se está viendo el mapa
     ui.tab = t;
     ['puntos', 'area', 'clima', 'informe', 'herramientas'].forEach(function (k) {
       $('#tab-' + k).hidden = k !== t;
@@ -1763,13 +1995,25 @@
     },
     toolWxCenter: function () { weatherFetch('center'); },
     projects: openProjects,
-    polyView: function (t) { ui.polyView = t.getAttribute('data-v') === 'mapa' ? 'mapa' : 'croquis'; if (ui.polyView !== 'mapa') setMapMode(''); renderTab('area'); },
+    polyView: function (t) { ui.polyView = t.getAttribute('data-v') === 'mapa' ? 'mapa' : 'croquis'; if (ui.polyView !== 'mapa') { setMapMode(''); leaveMap(); } renderTab('area'); },
     mapBase: function (t) { ui.mapBase = Mapa.baseId(t.getAttribute('data-b')); Store.saveFlag('mapBase', ui.mapBase); renderTab('area'); },
     mapRef: function () { ui.mapRef = !ui.mapRef; Store.saveFlag('mapRef', ui.mapRef); renderTab('area'); },
     mapPoly: function () { ui.polyActive = !ui.polyActive; renderTab('area'); },
     mapLast: goLastPoint,
     pointColorDefault: pointColorDefault,
-    mapMenu: function () { ui.mapMenu = !ui.mapMenu; syncMapMenu(); },
+    mapMenu: function () { ui.mapMenu = !ui.mapMenu; ui.mapLayers = false; syncMapMenu(); syncMapChrome(); },
+    mapLayers: function () { ui.mapLayers = !ui.mapLayers; ui.mapMenu = false; syncMapMenu(); syncMapChrome(); },
+    mapFit: fitAll, mapFull: toggleMapFull,
+    mapCardClose: function () { ui.mapSel = null; syncMapCard(); },
+    mapCardGo: function () { var pt = ui.mapSel && pointById(ui.mapSel); if (pt && ui.map) { ui.follow = false; syncMapChrome(); ui.map.flyTo(pt.lat, pt.lon, 18); } },
+    mapCardMove: function () { var pt = ui.mapSel && pointById(ui.mapSel); setMapMode('move'); if (pt) toast('Mantén pulsado ' + pt.name + ' ' + Mapa.HOLD_MS / 1000 + ' s y arrástralo.'); },
+    mapMeasure: function () { setMapTool(ui.mapTool === 'medir' ? '' : 'medir'); },
+    mapMeasureClear: function () { ui.measure = []; if (ui.map) ui.map.setMeasure([]); syncMapTool(); },
+    mapMore: openMapMore, mapGuide: openMapGuide,
+    mapAim: function () { closeSheet(); setMapTool('mira'); },
+    mapAimAdd: function () { if (ui.map) addManualAt(ui.map.center()); },
+    mapWalk: function () { var step = $('#trackStep') ? $('#trackStep').value : null; closeSheet(); startTrack(step); },
+    mapToolEnd: function () { setMapTool(''); },
     mapMode: function (t) { setMapMode(Mapa.toggleMode(ui.mapMode, t.getAttribute('data-mode'))); },
     mapMark: function () { if (!ui.gpsOn) gpsStart(); markPoint(); },
     mapMyPos: goMyPosition,
