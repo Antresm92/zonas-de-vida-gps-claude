@@ -138,15 +138,20 @@
       refs = {}; polyLayer = null; sideRefs = [];
       model = { markers: [], polygon: null, layers: [], fix: model.fix };
       shapes.layers.forEach(function (l) {
-        var style = { color: l.color, weight: 3, opacity: 0.95, interactive: false };
+        var style = { color: l.color, weight: l.lot ? 2 : 3, opacity: l.lot ? 0.8 : 0.95, interactive: false };
         if (l.kind === 'polygon' && l.latlngs.length >= 3) {
-          L.polygon([l.latlngs].concat(l.holes), { color: l.color, weight: 3, fillColor: l.color, fillOpacity: 0.18, interactive: false }).addTo(drawn);
+          L.polygon([l.latlngs].concat(l.holes), { color: l.color, weight: l.lot ? 2 : 3, opacity: l.lot ? 0.8 : 1, fillColor: l.color, fillOpacity: l.lot ? 0.12 : 0.18, interactive: false }).addTo(drawn);
         } else if (l.kind === 'line' && l.latlngs.length >= 2) {
           L.polyline(l.latlngs, style).addTo(drawn);
         } else if (l.kind === 'points') {
           l.latlngs.forEach(function (ll) { L.circleMarker(ll, { radius: 6, color: '#FFFFFF', weight: 2, fillColor: l.color, fillOpacity: 1, interactive: false }).addTo(drawn); });
         }
-        model.layers.push({ id: l.id, kind: l.kind, color: l.color, vertices: l.latlngs.length });
+        if (l.lot && l.label && l.at) {          // nombre y área del otro lote, en su centro (no recibe toques: el toque lo resuelve la app)
+          var tag = document.createElement('span');
+          tag.className = 'mk-lot-tag'; tag.textContent = l.label; tag.style.borderColor = l.color;
+          L.marker(l.at, { icon: L.divIcon({ className: 'mk mk-lot', html: tag, iconSize: [0, 0] }), interactive: false, keyboard: false }).addTo(drawn);
+        }
+        model.layers.push({ id: l.id, kind: l.kind, color: l.color, vertices: l.latlngs.length, lot: !!l.lot, label: l.label || '' });
       });
       if (shapes.polygon) {
         var bad = shapes.polygon.bad, col = bad ? '#C42D34' : shapes.color;

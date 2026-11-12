@@ -303,7 +303,7 @@ test('loadState: limpia las listas de fotos y el clima actual guardados en los p
   assert.deepEqual(a.points[0].photos, [{ id: 'f1', w: 10, h: 10, n: null, at: null }]);
   for (const i of [1, 2, 3]) assert.equal('photos' in a.points[i], false, 'P' + (i + 1));
   assert.deepEqual(a.weatherNow, { T: 20 });
-  assert.equal('weatherNow' in s.projects[1], false); assert.equal('weatherNow' in s.projects[2], false);
+  assert.equal('weatherNow' in s.projects[1].lots[0], false); assert.equal('weatherNow' in s.projects[2].lots[0], false);
 });
 
 test('hasSavedState: distingue datos guardados de verdad del primer arranque', () => {

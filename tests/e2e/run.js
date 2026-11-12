@@ -33,7 +33,12 @@ const arg = (n) => { const a = process.argv.find((x) => x.startsWith('--' + n + 
   });
 
   /* ---------- Ayudas ---------- */
-  const state = () => page.evaluate(() => JSON.parse(JSON.stringify(window.__app.S)));
+  // Desde la 2.15.0 los puntos y el clima viven en los lotes del proyecto: para las pruebas se copian también arriba los del lote elegido
+  const state = () => page.evaluate(() => {
+    const S = window.__app.S, o = JSON.parse(JSON.stringify(S));
+    o.projects.forEach((p, i) => { ['points', 'climate', 'nextPoint', 'mainColor', 'weatherNow'].forEach((k) => { const v = S.projects[i][k]; if (v !== undefined) p[k] = JSON.parse(JSON.stringify(v)); }); });
+    return o;
+  });
   const proj = async () => { const s = await state(); return s.projects.find((p) => p.id === s.currentId); };
   const toastText = () => page.evaluate(() => { const t = document.querySelector('#toast'); return t.hidden ? '' : t.textContent; });
   const act = (name, extra) => page.click('[data-act="' + name + '"]' + (extra || ''));
@@ -81,7 +86,7 @@ const arg = (n) => { const a = process.argv.find((x) => x.startsWith('--' + n + 
   await page.goto(url);
   await page.waitForSelector('#tab-puntos');
   const only = (arg('parts') || '').split(',').filter(Boolean);
-  for (const part of ['part1-puntos', 'part2-area-importar', 'part3-clima', 'part4-informe-proyectos', 'part5-offline', 'part7-mapa', 'part8-perfil-satelital', 'part9-menu-mapa', 'part10-posicion-manual', 'part11-v25', 'part12-fotos', 'part13-pdf', 'part14-herramientas', 'part15-mapa-intuitivo', 'part16-guiada', 'part17-v214']) {
+  for (const part of ['part1-puntos', 'part2-area-importar', 'part3-clima', 'part4-informe-proyectos', 'part5-offline', 'part7-mapa', 'part8-perfil-satelital', 'part9-menu-mapa', 'part10-posicion-manual', 'part11-v25', 'part12-fotos', 'part13-pdf', 'part14-herramientas', 'part15-mapa-intuitivo', 'part16-guiada', 'part17-v214', 'part18-lotes']) {
     if (only.length && !only.some((o) => part.startsWith(o))) continue;
     const f = path.join(__dirname, part + '.js');
     if (fs.existsSync(f)) { console.log('\n' + part); await require(f)(ctx); }

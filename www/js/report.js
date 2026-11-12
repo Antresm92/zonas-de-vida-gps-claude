@@ -119,7 +119,7 @@
     '.note{background:#F2F5EF;border-left:4px solid #D8353C;padding:8px 12px;margin:8px 0}.small{color:#5B6F61;font-size:14px}svg{max-width:100%;height:auto}' +
     '.dot{display:inline-block;width:.75em;height:.75em;border-radius:50%;margin-right:.5em;border:1px solid rgba(0,0,0,.35);-webkit-print-color-adjust:exact;print-color-adjust:exact}' +
     '.gal{display:flex;flex-wrap:wrap;gap:10px;margin:6px 0 14px}.gal figure{margin:0;width:260px;max-width:100%;break-inside:avoid}.gal img{display:block;width:100%;height:auto;border-radius:6px;border:1px solid #D6DED8}.gal figcaption{font-size:13px;color:#5B6F61}h3.ptitle{font-size:16px;margin:14px 0 4px}' +
-    '@media (max-width:480px){.logo{max-width:96px;max-height:72px}}@media print{body{padding:0}h2{break-after:avoid}.diag{break-before:page}}';
+    '.legend{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:8px;font-size:14px}table.sum th{width:auto;font-weight:600}table.sum td:first-child{font-weight:600}table.sum .tot td{font-weight:700;border-top:2px solid #14301F}h1.lt{margin:36px 0 10px;padding-top:14px;border-top:3px solid #14301F}@media (max-width:480px){.logo{max-width:96px;max-height:72px}}@media print{body{padding:0}h2{break-after:avoid}.diag{break-before:page}}';
 
   // Punto de color delante del nombre: el color propio del punto (su ficha) o el de los puntos del proyecto
   // Coordenadas planas (Origen Nacional) de un punto, para añadir a su línea; '' fuera de Colombia
@@ -139,10 +139,77 @@
   function headLines(project, o) {
     var name = typeof project.name === 'string' || typeof project.name === 'number' ? String(project.name).trim() : '';
     var L = name ? ['Proyecto: ' + name] : [], au = authorOf(o);
+    var lote = typeof project.lotName === 'string' ? project.lotName.trim() : '';
+    if (lote) L.push('Lote: ' + lote);
     if (au.line) L.push(au.line);
     L.push('Fecha: ' + Fmt.date(o && o.date || Date.now()));
     return L;
   }
+  /* ---------- Reporte de todo el proyecto (2.15.0): resumen de los lotes y luego el reporte de cada uno ---------- */
+  // parts: [{ project (el lote como proyecto: name, lotName, points, layers, mainColor…), a, o }]
+  var HEX = /^#[0-9a-fA-F]{6}$/;
+  function summary(parts) {
+    var rows = [], total = 0, closed = 0, zones = {};
+    (parts || []).forEach(function (pt) {
+      var a = pt.a, r = a.result, m2 = a.area ? a.area.m2 : 0;
+      if (m2 > 0) { total += m2; closed++; }
+      if (r && r.ok) zones[r.zone.symbol] = r.zone.name;
+      rows.push({ name: pt.project.lotName || pt.project.name, color: HEX.test(pt.project.mainColor || '') ? pt.project.mainColor : '#2F8F4E', n: a.n || 0,
+        area: m2 > 0 ? Fmt.area(a.area, 'ha') : '—', alt: a.alt && isNum(a.alt.value) ? Fmt.num(a.alt.value, 0) + ' m' : '—',
+        zone: r && r.ok ? r.zone.name + ' (' + r.zone.symbol + ')' : 'incompleto' });
+    });
+    var nz = Object.keys(zones).length;
+    return { rows: rows, total: total, closed: closed, zones: nz,
+      totalText: (closed ? Fmt.area(Geo.areaUnits(total), 'ha') + ' · ' + Fmt.area(Geo.areaUnits(total), 'fanegadas') : '—'),
+      note: rows.length + (rows.length === 1 ? ' lote' : ' lotes') + (closed < rows.length ? ' (' + closed + ' con polígono cerrado)' : '') + ' · ' + nz + (nz === 1 ? ' zona de vida' : ' zonas de vida') };
+  }
+  // Croquis general: todos los lotes en un solo dibujo, cada uno con su color. Devuelve { svg, items: [[color, nombre]…] } o null
+  // si ningún lote tiene al menos 2 puntos. El primero con puntos va como figura principal y los demás como capas.
+  function overview(parts) {
+    var ok = (parts || []).filter(function (pt) { return pt && pt.project && (pt.project.points || []).length >= 1; });
+    if (!ok.some(function (pt) { return pt.project.points.length >= 2; })) return null;
+    function color(pt) { return HEX.test(pt.project.mainColor || '') ? pt.project.mainColor : '#2F8F4E'; }
+    function name(pt) { return pt.project.lotName || pt.project.name || 'Lote'; }
+    var main = ok[0], layers = ok.slice(1).map(function (pt) {
+      var n = pt.project.points.length;
+      return { name: name(pt), kind: n >= 3 ? 'polygon' : n === 2 ? 'line' : 'points', color: color(pt), visible: true, points: pt.project.points };
+    });
+    return { svg: Diagram.polygonSVG(main.project.points, { width: 560, height: 380, layers: layers, color: color(main) }),
+      items: [[color(main), name(main)]].concat(layers.map(function (l) { return [l.color, l.name]; })) };
+  }
+  // Cada lote lleva sus propios dibujos: para que no choquen dentro de una misma página, se le cambia el nombre interno a cada uno
+  function reid(html, sfx) {
+    return html.replace(/\bid="([^"]+)"/g, 'id="$1' + sfx + '"').replace(/url\(#([^)]+)\)/g, 'url(#$1' + sfx + ')').replace(/href="#([^"]+)"/g, 'href="#$1' + sfx + '"');
+  }
+  function htmlAll(project, parts, o) {
+    o = o || {};
+    var s = summary(parts), h = docOpen(project.name) + headHtml({ name: project.name }, o);
+    h += '<h2>Resumen del proyecto</h2><table class="sum"><tr><th>Lote</th><th>Área</th><th>Altitud</th><th>Zona de vida</th></tr>';
+    s.rows.forEach(function (x) { h += '<tr><td><span class="dot" style="background:' + x.color + '"></span>' + esc(x.name) + '</td><td>' + esc(x.area) + '</td><td>' + esc(x.alt) + '</td><td>' + esc(x.zone) + '</td></tr>'; });
+    h += '<tr class="tot"><td>Total</td><td>' + esc(s.totalText) + '</td><td colspan="2">' + esc(s.note) + '</td></tr></table>';
+    var ov = overview(parts);
+    if (ov) h += '<h2>Croquis general</h2><div style="max-width:560px;margin-top:12px">' + reid(ov.svg, '-G') + '<div class="legend">' + ov.items.map(function (it) { return '<span><span class="dot" style="background:' + it[0] + '"></span>' + esc(it[1]) + '</span>'; }).join(' ') + '</div></div>';
+    parts.forEach(function (pt, i) {
+      h += '<section class="lote"><h1 class="lt">Lote: ' + esc(pt.project.lotName || pt.project.name) + '</h1>' + reid(bodyHtml(pt.project, pt.a, pt.o), '-L' + (i + 1)) + '</section>';
+    });
+    return h + '<p class="small" style="margin-top:28px">' + esc(DISCLAIMER) + '</p></body></html>';
+  }
+  function textAll(project, parts, o) {
+    var s = summary(parts), L = ['REPORTE DE ZONA DE VIDA (HOLDRIDGE)'];
+    headLines({ name: project.name }, o).forEach(function (x) { L.push(x); });
+    L.push(''); L.push('RESUMEN DEL PROYECTO');
+    s.rows.forEach(function (x) { L.push('  ' + x.name + ': ' + x.area + ' · ' + x.alt + ' · ' + x.zone); });
+    L.push('  Total: ' + s.totalText + ' · ' + s.note);
+    parts.forEach(function (pt) {
+      var t = text(pt.project, pt.a, pt.o).split('\n');
+      L.push(''); L.push('———  LOTE: ' + (pt.project.lotName || pt.project.name) + '  ———');
+      var from = t.indexOf('');                         // sin el título ni el encabezado, que ya van arriba
+      L = L.concat(t.slice(from + 1, t.length - 2));    // ni la advertencia final, que va una sola vez
+    });
+    L.push(''); L.push(DISCLAIMER);
+    return L.join('\n');
+  }
+
   function dot(p, project) {
     var c = /^#[0-9a-fA-F]{6}$/.test(p.color || '') ? p.color : /^#[0-9a-fA-F]{6}$/.test(project.mainColor || '') ? project.mainColor : '#2F8F4E';
     return '<span class="dot" style="background:' + c + '"></span>';
@@ -192,14 +259,19 @@
     return h + '<p class="small">Altitud de cada punto contra la distancia acumulada entre ellos, en el orden de la lista y sin volver al primero. Se usaron las altitudes guardadas; no se consultó internet.</p>';
   }
 
-  function html(project, a, o) {
-    o = o || {};
-    var r = a.result;
-    var h = '<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Reporte de zona de vida · ' + esc(project.name) + '</title><style>' + CSS + '</style></head><body>';
+  function docOpen(title) {
+    return '<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Reporte de zona de vida · ' + esc(title) + '</title><style>' + CSS + '</style></head><body>';
+  }
+  function headHtml(project, o) {
     var au = authorOf(o);
-    h += '<header class="head"><div><h1>Reporte de zona de vida</h1>' + headLines(project, o).map(function (x) { return '<p class="sub hl">' + esc(x) + '</p>'; }).join('') + '</div>';
+    var h = '<header class="head"><div><h1>Reporte de zona de vida</h1>' + headLines(project, o).map(function (x) { return '<p class="sub hl">' + esc(x) + '</p>'; }).join('') + '</div>';
     if (au.logo) h += '<img class="logo" src="data:image/jpeg;base64,' + au.logo + '" alt="Logo' + (au.org ? ' de ' + esc(au.org) : '') + '">';
-    h += '</header>';
+    return h + '</header>';
+  }
+  // Todo lo que va debajo del encabezado: resultado, clima, terreno, puntos, croquis, perfil, fotos, calidad y diagramas
+  function bodyHtml(project, a, o) {
+    o = o || {};
+    var r = a.result, h = '';
     if (r && r.ok) {
       h += '<div class="zone">' + hexBadge(r.zone.symbol) + '<div><div class="zn">' + esc(r.zone.name) + '</div><div class="zs">Región latitudinal: ' + esc(r.region) + ' · Piso altitudinal: ' + esc(r.belt) + (r.humidity ? ' · Provincia de humedad: ' + esc(r.humidity.name) : '') + '</div></div></div>';
     } else {
@@ -228,7 +300,7 @@
         h += '<tr><th>' + dot(p, project) + esc(p.name || 'P' + (i + 1)) + '</th><td>' + esc(Fmt.latlon(p.lat, p.lon)) + (isNum(p.alt) ? ' · ' + esc(Fmt.num(p.alt, 0)) + ' m' : '') + planaHtml(p) + '</td></tr>';
       });
       h += '</table>' + (anyPlana(project, a) ? '<p class="small">' + esc(Fmt.PLANA_NOTE) + '</p>' : '');
-      if (a.n >= 2) h += '<h2>Croquis</h2><div style="max-width:560px;margin-top:12px">' + Diagram.polygonSVG(project.points, { width: 560, height: 380, center: a.center, bad: a.selfIntersects, layers: project.layers, color: project.mainColor }) + Diagram.legendHTML(project.layers, project.mainColor, 'Mis puntos', true) + '</div>';
+      if (a.n >= 2) h += '<h2>Croquis</h2><div style="max-width:560px;margin-top:12px">' + Diagram.polygonSVG(project.points, { width: 560, height: 380, center: a.center, bad: a.selfIntersects, layers: project.layers, color: project.mainColor }) + Diagram.legendHTML(project.layers, project.mainColor, project.lotName || 'Mis puntos', true) + '</div>';
       if (a.n >= 2) h += sketchHtml('Croquis satelital', 'croquis satelital', o.satellite) + sketchHtml('Croquis topográfico', 'croquis topográfico', o.topo) + profileHtml(project);
     }
     h += photosHtml(project, o);
@@ -252,9 +324,13 @@
       h += '<h2 class="diag">Diagrama de Holdridge</h2>' + Diagram.staticSVG({ hex: r.hex, point: r.point, vertices: (a.vertexZones || []).map(function (v) { return { point: v.point, name: v.name }; }), width: 1100 });
       h += '<p class="small">El anillo rojo marca la posición del punto de análisis; el hexágono resaltado es su zona de vida.</p>';
     }
-    h += '<p class="small" style="margin-top:28px">' + esc(DISCLAIMER) + '</p></body></html>';
     return h;
   }
+  function html(project, a, o) {
+    o = o || {};
+    return docOpen(project.name) + headHtml(project, o) + bodyHtml(project, a, o) + '<p class="small" style="margin-top:28px">' + esc(DISCLAIMER) + '</p></body></html>';
 
-  return { headLines: headLines, authorOf: authorOf, withPlana: withPlana, anyPlana: anyPlana, text: text, html: html, rows: rows, dot: dot, currentRows: currentRows, currentStamp: currentStamp, CURRENT_NOTE: CURRENT_NOTE, QUALITY: QUALITY, DISCLAIMER: DISCLAIMER, SRC_T: SRC_T, SRC_P: SRC_P };
+  }
+
+  return { overview: overview, summary: summary, htmlAll: htmlAll, textAll: textAll, bodyHtml: bodyHtml, reid: reid, headLines: headLines, authorOf: authorOf, withPlana: withPlana, anyPlana: anyPlana, text: text, html: html, rows: rows, dot: dot, currentRows: currentRows, currentStamp: currentStamp, CURRENT_NOTE: CURRENT_NOTE, QUALITY: QUALITY, DISCLAIMER: DISCLAIMER, SRC_T: SRC_T, SRC_P: SRC_P };
 });

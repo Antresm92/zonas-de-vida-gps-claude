@@ -224,7 +224,7 @@ module.exports = async function (c) {
     jsonFile = f;
     const raw = JSON.parse(f.text);
     assert.equal(raw.summary.photos, 0);
-    raw.state.projects.forEach((p) => p.points.forEach((q) => assert.equal('photos' in q, false)));
+    raw.state.projects.forEach((p) => p.lots[0].points.forEach((q) => assert.equal('photos' in q, false)));
     assert.doesNotMatch(f.text, new RegExp(ids[0]));
     assert.ok(f.bytes.length < zipFile.bytes.length, 'el .json pesa menos que el .zip');
     const v = Backup.validate(raw);

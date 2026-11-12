@@ -12,8 +12,8 @@
 })(typeof self !== 'undefined' ? self : this, function (Fotos, Zip) {
   'use strict';
 
-  var APP = 'zonas-de-vida-gps', FORMAT = 1;
-  var LIM = { projects: 500, points: 20000, layers: 500, layerPoints: 150000, memory: 100000, note: 300, photos: 20000, photoBytes: 600 * 1024 * 1024, jsonPhotoBytes: 40 * 1024 * 1024 };   // jsonPhotoBytes: tope de fotos dentro de un .json (el texto pesa un tercio más y se arma entero en memoria)
+  var APP = 'zonas-de-vida-gps', FORMAT = 2;      // 2 desde la 2.15.0 (lotes): una app anterior no la restaura y pide actualizar; las copias de formato 1 se siguen leyendo
+  var LIM = { projects: 500, lots: 30, points: 20000, layers: 500, layerPoints: 150000, memory: 100000, note: 300, photos: 20000, photoBytes: 600 * 1024 * 1024, jsonPhotoBytes: 40 * 1024 * 1024 };   // jsonPhotoBytes: tope de fotos dentro de un .json (el texto pesa un tercio más y se arma entero en memoria)
   var ALT_SRC = ['gps', 'manual', 'internet', 'archivo'];
   var PT_SRC = ['gps', 'manual', 'archivo'];
   var KINDS = ['polygon', 'line', 'points'];
@@ -145,12 +145,36 @@
   Cleaner.prototype.project = function (p, budget) {
     p = obj(p);
     if (!p) return null;
-    var self = this, pts = [], layers = [];
-    (Array.isArray(p.points) ? p.points : []).slice(0, LIM.points).forEach(function (q, i) { var c = self.point(q, i); if (c) pts.push(c); });
+    var self = this, layers = [];
     (Array.isArray(p.layers) ? p.layers : []).slice(0, LIM.layers).forEach(function (l) { var c = self.layer(l, budget); if (c) layers.push(c); });
+    var out = { id: this.id(p.id), name: str(p.name, 60, 'Proyecto sin nombre'), created: num(p.created, 0, 8.64e15) || this.now };
+    if (Array.isArray(p.lots)) {                        // desde la 2.15.0: los puntos y el clima van en los lotes
+      var lots = [], used = {}, pick = null;
+      p.lots.slice(0, LIM.lots).forEach(function (l, i) {
+        l = obj(l);
+        if (!l) return;
+        var c = self.lot(l), old = typeof l.id === 'string' ? l.id : null;
+        c.id = typeof l.id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(l.id) && !used[l.id] ? l.id : self.uid();
+        used[c.id] = true;
+        c = Object.assign({ id: c.id, name: str(l.name, 40, 'Lote ' + (i + 1)) }, c);
+        if (pick === null && old !== null && old === p.lotId) pick = c.id;      // con ids repetidos, el elegido es el primero
+        lots.push(c);
+      });
+      if (!lots.length) lots.push(Object.assign({ id: self.uid(), name: 'Lote 1' }, self.lot({})));
+      out.layers = layers; out.lots = lots; out.lotId = pick || lots[0].id;
+      return out;
+    }
+    var one = this.lot(p);
+    out.points = one.points; out.climate = one.climate; out.nextPoint = one.nextPoint; out.layers = layers; out.mainColor = one.mainColor;
+    if (one.weatherNow) out.weatherNow = one.weatherNow;
+    return out;
+  };
+  // Lo que tiene un lote (y tenía un proyecto antes de la 2.15.0): puntos, clima, numeración, color y clima actual
+  Cleaner.prototype.lot = function (p) {
+    var self = this, pts = [];
+    (Array.isArray(p.points) ? p.points : []).slice(0, LIM.points).forEach(function (q, i) { var c = self.point(q, i); if (c) pts.push(c); });
     var nxt = typeof p.nextPoint === 'number' && isFinite(p.nextPoint) && p.nextPoint >= 1 && p.nextPoint <= 1e7 ? Math.floor(p.nextPoint) : 0;
-    var out = { id: this.id(p.id), name: str(p.name, 60, 'Proyecto sin nombre'), created: num(p.created, 0, 8.64e15) || this.now, points: pts,
-             climate: cleanClimate(p.climate), nextPoint: Math.max(nxt, pts.length + 1), layers: layers, mainColor: hex(p.mainColor, MAIN_COLOR) };
+    var out = { points: pts, climate: cleanClimate(p.climate), nextPoint: Math.max(nxt, pts.length + 1), mainColor: hex(p.mainColor, MAIN_COLOR) };
     var wn = cleanWeather(p.weatherNow);
     if (wn) out.weatherNow = wn;
     return out;
@@ -179,11 +203,16 @@
   }
 
   /* ---------- Crear ---------- */
+  // Dónde están los puntos de un proyecto: en sus lotes (desde la 2.15.0) o en el propio proyecto (copias anteriores)
+  function groups(p) { return p && Array.isArray(p.lots) ? p.lots.filter(obj) : [p]; }
   function counts(projects) {
     var s = { projects: projects.length, points: 0, layers: 0, photos: 0 };
     projects.forEach(function (p) {
-      s.points += (p.points || []).length; s.layers += (p.layers || []).length;
-      (p.points || []).forEach(function (q) { s.photos += Array.isArray(q.photos) ? q.photos.length : 0; });
+      s.layers += (p.layers || []).length;
+      groups(p).forEach(function (g) {
+        s.points += (g.points || []).length;
+        (g.points || []).forEach(function (q) { s.photos += Array.isArray(q.photos) ? q.photos.length : 0; });
+      });
     });
     return s;
   }
@@ -194,10 +223,12 @@
     var projects = JSON.parse(JSON.stringify(state.projects || []));
     if (typeof meta.hasPhoto === 'function') {        // solo van las fotos cuya imagen se pudo leer del teléfono
       projects.forEach(function (p) {
-        (p.points || []).forEach(function (q) {
-          if (!Array.isArray(q.photos)) return;
-          q.photos = q.photos.filter(function (f) { return f && meta.hasPhoto(f.id); });
-          if (!q.photos.length) delete q.photos;
+        groups(p).forEach(function (g) {
+          (g.points || []).forEach(function (q) {
+            if (!Array.isArray(q.photos)) return;
+            q.photos = q.photos.filter(function (f) { return f && meta.hasPhoto(f.id); });
+            if (!q.photos.length) delete q.photos;
+          });
         });
       });
     }

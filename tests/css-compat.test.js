@@ -58,7 +58,7 @@ test('app.css: los respaldos son los que hacen falta (se cuentan para que nadie 
   const decls = bloques(css).flatMap((b) => b.decls);
   assert.equal(decls.filter((d) => /\benv\(/.test(d.valor)).length, 12);   // encabezado ×2, contenido, pestañas ×2, ventana, aviso ×2, visor ×2 el mapa a pantalla completa y «Compartir» del reporte
   assert.equal(decls.filter((d) => /\bclamp\(/.test(d.valor)).length, 0);   // la altura del mapa ya no usa clamp()
-  assert.equal(decls.filter((d) => /\bmax\(/.test(d.valor)).length, 2);     // altura del mapa: vh y dvh
+  assert.equal(decls.filter((d) => /\bmax\(/.test(d.valor)).length, 4);     // altura del mapa (sin fila de lotes y con ella): vh y dvh
   assert.equal(decls.filter((d) => /\bmin\(/.test(d.valor)).length, 1);     // ancho del menú ⋮
 });
 

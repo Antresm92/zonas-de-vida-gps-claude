@@ -5,7 +5,7 @@
   var Geo = window.Geo, H = window.Holdridge, Climate = window.Climate, A = window.Analysis, Fmt = window.Fmt,
       Gps = window.Gps, Store = window.Store, Diagram = window.Diagram, Report = window.Report,
       Gis = window.Gis, Backup = window.Backup, IO = window.IO, WL = window.WalterLieth, Mapa = window.Mapa, MapView = window.MapView, Satelite = window.Satelite, Perfil = window.Perfil, Fotos = window.Fotos, Zip = window.Zip, Units = window.Units;
-  var APP_VERSION = '2.14.1';
+  var APP_VERSION = '2.15.0';
 
   var S = Store.loadState();
   var hadSaved = Store.hasSavedState();      // ¿había datos guardados al abrir? (solo entonces se limpian las fotos sin uso)
@@ -24,6 +24,29 @@
   function esc(s) { return String(s === null || s === undefined ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
   function isNum(x) { return typeof x === 'number' && isFinite(x); }
   function proj() { return S.projects.filter(function (p) { return p.id === S.currentId; })[0] || S.projects[0]; }
+  /* ---------- Lotes (2.15.0) ----------
+   * proj().points, .climate, .mainColor… son siempre los del lote elegido (ver store.js). Los demás lotes del proyecto se dibujan
+   * como si fueran capas: así salen en el mapa, en el croquis y en el reporte sin tocar cómo se dibuja cada cosa. */
+  function lot() { return Store.activeLot(proj()); }
+  function multi(p) { return (p || proj()).lots.length > 1; }
+  function lotLayers(p) {
+    var cur = Store.activeLot(p);
+    return p.lots.filter(function (l) { return l !== cur && l.points.length; }).map(function (l) {
+      return { id: 'lote-' + l.id, lotId: l.id, lot: true, name: l.name, kind: l.points.length >= 3 ? 'polygon' : l.points.length === 2 ? 'line' : 'points', color: l.mainColor, visible: true, points: l.points,
+        areaText: l.points.length >= 3 ? Fmt.area(Geo.areaUnits(Geo.polygonArea(l.points)), S.settings.areaUnit) : '' };
+    });
+  }
+  function viewLayers(p) { p = p || proj(); return p.layers.concat(lotLayers(p)); }
+  // Lo que se dibuja y se reporta del lote elegido: sus puntos y su clima, con las capas importadas y los demás lotes como capas
+  function view(p) {
+    p = p || proj();
+    var l = Store.activeLot(p);
+    var v = { id: p.id + ':' + l.id, name: p.name, lotName: multi(p) ? l.name : '', points: l.points, climate: l.climate, layers: viewLayers(p), mainColor: l.mainColor, nextPoint: l.nextPoint };
+    if (l.weatherNow) v.weatherNow = l.weatherNow;
+    return v;
+  }
+  function ownLabel() { return multi() ? lot().name : 'Mis puntos'; }
+  function lotArea(l) { return l.points.length >= 3 ? Geo.polygonArea(l.points) : 0; }
   function save() { var r = Store.saveState(S); if (!r.ok) toast(r.error, { err: true }); }
   function saveMemory() { var r = Store.saveMemory(MEM.all()); if (!r.ok) toast(r.error, { err: true }); }
 
@@ -484,6 +507,116 @@
       return '<button class="sw" style="background:' + c + '" data-act="pickColor" data-color="' + c + '" aria-pressed="' + (c.toLowerCase() === String(current).toLowerCase()) + '" aria-label="Color ' + c + '"></button>';
     }).join('') + '</div>';
   }
+  /* ---------- Lotes (2.15.0): la fila de lotes, la lista y sus acciones ---------- */
+  var LOT_COLORS = Gis.COLORS;      // los mismos colores de la paleta, para que el elegido quede marcado
+  function lotSub(l) {
+    var m2 = lotArea(l), n = l.points.length;
+    return (m2 ? Fmt.area(Geo.areaUnits(m2), S.settings.areaUnit) + ' · ' : '') + n + (n === 1 ? ' punto' : ' puntos') + (!m2 && n ? ' · falta cerrar el polígono' : '');
+  }
+  function lotsBar() {
+    var p = proj(), cur = lot(), h = '<div class="lots" role="group" aria-label="Lotes del proyecto">';
+    p.lots.forEach(function (l) {
+      var m2 = lotArea(l);
+      h += '<button class="lotchip" data-act="lotPick" data-id="' + esc(l.id) + '" aria-pressed="' + (l === cur) + '"><i style="background:' + esc(l.mainColor) + '"></i>' + esc(l.name) +
+        (m2 ? ' <small>· ' + esc(Fmt.area(Geo.areaUnits(m2), S.settings.areaUnit)) + '</small>' : '') + '</button>';
+    });
+    if (p.lots.length < Store.LOT_MAX) h += '<button class="lotchip add" data-act="lotAdd" aria-label="Agregar un lote al proyecto">＋ Lote</button>';
+    return h + '</div>';
+  }
+  // La fila va en Puntos, Información, Reporte y el croquis; en el mapa solo si hay más de un lote (para dejarle el alto al mapa)
+  function hasLots(t) { return t === 'puntos' || t === 'clima' || t === 'informe' || (t === 'area' && (ui.polyView !== 'mapa' || multi())); }
+  function pickLot(id, quiet) {
+    var p = proj();
+    if (p.lotId === id || !p.lots.some(function (l) { return l.id === id; })) return false;
+    if (ui.track) finishTrack();
+    if (ui.mapTool) setMapTool('');
+    p.lotId = id;
+    ui.mapSel = null; ui.navId = null; ui.unfolded = {};
+    save();
+    if (!quiet) { renderTab(ui.tab); toast('Lote elegido: ' + lot().name + '.'); }
+    return true;
+  }
+  function openLots() {
+    var p = proj(), cur = lot(), total = 0, closed = 0, h = '';
+    p.lots.forEach(function (l) {
+      var m2 = lotArea(l);
+      if (m2) { total += m2; closed++; }
+      h += '<div class="lotrow' + (l === cur ? ' on' : '') + '"><i style="background:' + esc(l.mainColor) + '"></i>' +
+        '<button class="lotpick" data-act="lotPickClose" data-id="' + esc(l.id) + '"><b>' + esc(l.name) + '</b><small>' + esc(lotSub(l)) + '</small></button>' +
+        '<button class="lotmore" data-act="lotEdit" data-id="' + esc(l.id) + '" aria-label="Editar ' + esc(l.name) + ': nombre, color o eliminar">⋮</button></div>';
+    });
+    h += '<p class="small muted" id="lotTotal">' + (closed ? 'Total del proyecto: <b>' + esc(Fmt.area(Geo.areaUnits(total), S.settings.areaUnit)) + '</b> en ' + closed + (closed === 1 ? ' lote cerrado' : ' lotes cerrados') + '.' : 'Todavía no hay ningún lote con polígono cerrado.') +
+      ' Cada lote tiene sus propios puntos, su clima y su zona de vida.</p>';
+    if (p.lots.length < Store.LOT_MAX) h += '<div class="btns"><button class="btn btn-primary" data-act="lotAdd">＋ Agregar lote</button></div>';
+    hideSheet();
+    openSheet('Lotes de ' + p.name, h);
+  }
+  function lotForm(id) {
+    var p = proj(), l = id ? p.lots.filter(function (x) { return x.id === id; })[0] : null;
+    if (id && !l) return;
+    var used = {}, color = l ? l.mainColor : '';
+    p.lots.forEach(function (x) { used[x.mainColor.toUpperCase()] = true; });
+    if (!l) color = LOT_COLORS.filter(function (c) { return !used[c]; })[0] || LOT_COLORS[p.lots.length % LOT_COLORS.length];   // el primer color que ningún lote usa
+    ui.edit = { kind: 'lot', id: id || '', color: color };
+    hideSheet();
+    openSheet(l ? 'Editar lote' : 'Nuevo lote',
+      '<label class="f"><span>Nombre del lote</span><input type="text" id="lotName" value="' + esc(l ? l.name : 'Lote ' + (p.lots.length + 1)) + '" maxlength="' + Store.LOT_NAME_MAX + '" autocomplete="off"></label>' +
+      '<div class="f"><span style="display:block;margin-bottom:6px;font-weight:650">Color</span>' + colorPalette(color) + '</div>' +
+      (l ? '<p class="small muted">' + esc(lotSub(l)) + '</p>' : '<p class="small muted">El lote nuevo empieza vacío y queda elegido: los puntos que marques después se guardan en él.</p>') +
+      '<div class="btns"><button class="btn btn-primary" data-act="lotSave">' + (l ? 'Guardar' : 'Crear lote') + '</button>' +
+      (l && p.lots.length > 1 ? '<button class="btn btn-danger" data-act="lotDelete" data-id="' + esc(l.id) + '">Eliminar lote</button>' : '') + '</div>');
+  }
+  function lotSave() {
+    var e = ui.edit, p = proj();
+    if (!e || e.kind !== 'lot') return;
+    var name = Store.lotName($('#lotName') ? $('#lotName').value : '', p.lots.length);
+    if (e.id) {
+      var l = p.lots.filter(function (x) { return x.id === e.id; })[0];
+      if (!l) return;
+      l.name = name; l.mainColor = e.color;
+      save(); closeSheet(); renderTab(ui.tab); toast('Lote guardado.');
+      return;
+    }
+    if (p.lots.length >= Store.LOT_MAX) { toast('Un proyecto admite hasta ' + Store.LOT_MAX + ' lotes.', { err: true }); return; }
+    var nl = Store.newLot(name, e.color), prev = p.lotId;
+    p.lots.push(nl);
+    pickLot(nl.id, true);
+    save(); closeSheet(); renderTab(ui.tab);
+    toast('«' + nl.name + '» creado y elegido.', { action: 'Deshacer', fn: function () {
+      if (nl.points.length) { toast('El lote ya tiene puntos: elimínalo desde la lista de lotes.', { err: true }); return; }
+      p.lots = p.lots.filter(function (x) { return x !== nl; }); p.lotId = prev; save(); renderTab(ui.tab);
+    } });
+  }
+  function lotDelete(id) {
+    var p = proj(), i = -1;
+    p.lots.forEach(function (x, k) { if (x.id === id) i = k; });
+    if (i < 0 || p.lots.length < 2) return;
+    var gone = p.lots[i], prev = p.lotId;
+    if (ui.track) finishTrack();
+    p.lots.splice(i, 1);
+    if (prev === gone.id) { p.lotId = p.lots[Math.max(0, i - 1)].id; ui.mapSel = null; ui.navId = null; }
+    save(); closeSheet(); renderTab(ui.tab);
+    toast('«' + gone.name + '» eliminado' + (gone.points.length ? ' con sus ' + gone.points.length + ' puntos' : '') + '.', { action: 'Deshacer', fn: function () {
+      if (p.lots.indexOf(gone) >= 0 || S.projects.indexOf(p) < 0) return;
+      p.lots.splice(Math.min(i, p.lots.length), 0, gone); p.lotId = prev; save(); renderTab(ui.tab);
+    } });
+  }
+  // Copia el clima del lote elegido a los demás (la altitud escrita a mano no se copia: cada lote tiene la suya)
+  function climateToAll() {
+    var p = proj(), cur = lot(), n = 0, before = p.lots.map(function (l) { return JSON.stringify(l.climate); });
+    p.lots.forEach(function (l) {
+      if (l === cur) return;
+      var c = JSON.parse(JSON.stringify(cur.climate)), own = l.climate.altOverride;
+      delete c.altOverride;
+      if (own !== undefined) c.altOverride = own;
+      l.climate = c; n++;
+    });
+    save(); renderTab(ui.tab);
+    toast('Clima copiado a ' + n + (n === 1 ? ' lote' : ' lotes') + '. La temperatura de cada uno se ajusta con su altitud.', { action: 'Deshacer', fn: function () {
+      p.lots.forEach(function (l, k) { if (before[k] !== undefined) l.climate = JSON.parse(before[k]); }); save(); renderTab(ui.tab);
+    } });
+  }
+
   function editMain() {
     var p = proj();
     ui.edit = { kind: 'main', color: p.mainColor };
@@ -518,6 +651,7 @@
   function saveEdit2() {
     var e = ui.edit, p = proj();
     if (!e) return;
+    if (e.kind === 'lot') { lotSave(); return; }
     if (e.kind === 'main') p.mainColor = e.color;
     else {
       var l = layerById(e.id); if (!l) return;
@@ -652,14 +786,18 @@
     h += '</div><p class="small muted">KML, GeoJSON y GPX llevan tus puntos y las capas visibles. El CSV trae solo tus puntos: Punto, Latitud, Longitud, Altitud, Rumbo, Distancia al vértice siguiente y las coordenadas planas Este y Norte (Origen Nacional), ' + (S.settings.csvStyle === 'es' ? 'separado por «;» y con coma decimal' : 'separado por «,» y con punto decimal') + '. El Shapefile es un .zip con dos capas, tus puntos y el polígono, en grados WGS84.</p></div>';
     return h;
   }
+  function exportLots(p) { return p.lots.filter(function (l) { return l.points.length; }).map(function (l) { return { name: l.name, points: l.points }; }); }
   function exportAs(fmt) {
     var p = proj(), spec = EXPORTS[fmt];
     if (!spec) return;
     if (fmt === 'shp') { exportShp(p, spec); return; }
-    if (!p.points.length && !(fmt !== 'csv' && p.layers.some(function (l) { return l.visible !== false; }))) { toast('Todavía no hay puntos para exportar.', { err: true }); return; }
-    var model = { name: p.name, points: p.points, layers: p.layers, mainColor: p.mainColor, date: Date.now() }, text;
+    var any = p.lots.some(function (l) { return l.points.length; });
+    if (!any && !(fmt !== 'csv' && p.layers.some(function (l) { return l.visible !== false; }))) { toast('Todavía no hay puntos para exportar.', { err: true }); return; }
+    // Con varios lotes van todos: el elegido como polígono principal y los demás como capas con su nombre; en el CSV, con una columna «Lote»
+    var model = { name: p.name, points: p.points, layers: viewLayers(p), mainColor: p.mainColor, date: Date.now() }, text;
     try {
-      text = fmt === 'kml' ? Gis.toKML(model) : fmt === 'geojson' ? Gis.toGeoJSON(model) : fmt === 'gpx' ? Gis.toGPX(model) : Gis.toCSV(p.points, { style: S.settings.csvStyle });
+      text = fmt === 'kml' ? Gis.toKML(model) : fmt === 'geojson' ? Gis.toGeoJSON(model) : fmt === 'gpx' ? Gis.toGPX(model) :
+        Gis.toCSV(p.points, multi(p) ? { style: S.settings.csvStyle, lots: exportLots(p) } : { style: S.settings.csvStyle });
     } catch (e) { toast('No se pudo preparar el archivo: ' + (e && e.message || e), { err: true }); return; }
     var name = IO.slug(p.name, spec.ext);
     IO.saveText(name, spec.mime, text, { title: p.name + ' (' + spec.label + ')', dialogTitle: 'Exportar ' + spec.label }).then(function (r) {
@@ -670,9 +808,10 @@
 
   // El Shapefile son varios archivos: se entregan juntos en un .zip (QGIS y ArcGIS lo abren así)
   function exportShp(p, spec) {
-    if (!p.points.length) { toast('Todavía no hay puntos para exportar.', { err: true }); return; }
-    var name = IO.slug(p.name) + '-shapefile.zip', bytes;
-    try { bytes = Shp.zip({ name: p.name, base: IO.slug(p.name).replace(/-/g, '_'), points: p.points }, Date.now()); }
+    if (!p.lots.some(function (l) { return l.points.length; })) { toast('Todavía no hay puntos para exportar.', { err: true }); return; }
+    var name = IO.slug(p.name) + '-shapefile.zip', bytes, m = { name: p.name, base: IO.slug(p.name).replace(/-/g, '_') };
+    if (multi(p)) m.lots = exportLots(p); else m.points = p.points;
+    try { bytes = Shp.zip(m, Date.now()); }
     catch (e) { toast('No se pudo preparar el archivo: ' + (e && e.message || e), { err: true }); return; }
     IO.saveBytes(name, spec.mime, bytes, { title: p.name + ' (' + spec.label + ')', dialogTitle: 'Exportar ' + spec.label }).then(function (r) {
       if (r.how === 'download') toast('Archivo descargado: ' + name);
@@ -839,16 +978,16 @@
   }
   function croquisHtml() {
     var p = proj(), a = analysis(), h = '';
-    var shown = p.layers.filter(function (l) { return l.visible !== false && l.points.length; });
+    var VL = viewLayers(p), shown = VL.filter(function (l) { return l.visible !== false && l.points.length; });
     if (a.empty) {
       if (!shown.length) return '<div class="empty"><b>Sin puntos todavía</b>Agrega al menos 3 puntos en la pestaña Puntos para calcular un área.</div>';
       h += '<div class="tip">Tu proyecto no tiene puntos propios, solo capas importadas. Para calcular el área y la zona de vida, abre una capa en la pestaña Puntos y elige «Usar como polígono del proyecto».</div>';
-      h += '<div class="plot">' + Diagram.polygonSVG([], { layers: p.layers, color: p.mainColor }) + '</div>' + Diagram.legendHTML(p.layers, p.mainColor, 'Mis puntos', false);
+      h += '<div class="plot">' + Diagram.polygonSVG([], { layers: VL, color: p.mainColor }) + '</div>' + Diagram.legendHTML(VL, p.mainColor, ownLabel(), false);
       return h + exportBlock();
     }
     var unit = S.settings.areaUnit || 'ha';
-    var plotOpts = { center: a.center, layers: p.layers, color: p.mainColor };
-    var legend = Diagram.legendHTML(p.layers, p.mainColor, 'Mis puntos', true);
+    var plotOpts = { center: a.center, layers: VL, color: p.mainColor };
+    var legend = Diagram.legendHTML(VL, p.mainColor, ownLabel(), true);
     if (!a.polygon) {
       h += '<div class="tip">Hay ' + a.n + ' punto' + (a.n > 1 ? 's' : '') + '. Con 3 o más se calcula el área.</div>';
       h += '<div class="plot">' + Diagram.polygonSVG(p.points, plotOpts) + '</div>' + legend;
@@ -862,13 +1001,18 @@
     if (a.selfIntersects) {
       h += '<div class="warn"><b>Los lados se cruzan.</b> Los puntos no siguen el contorno en orden, y el área puede estar mal. <div class="btns"><button class="btn btn-block" data-act="reorder">Ordenar los puntos alrededor del centro</button></div></div>';
     }
-    h += '<div class="plot">' + Diagram.polygonSVG(p.points, { center: a.center, bad: a.selfIntersects, layers: p.layers, color: p.mainColor }) + '</div>' + legend;
+    h += '<div class="plot">' + Diagram.polygonSVG(p.points, { center: a.center, bad: a.selfIntersects, layers: VL, color: p.mainColor }) + '</div>' + legend;
     h += '<p class="small muted">Los puntos se unen en el orden en que están en la lista y el último se une con el primero. El círculo rojo es el centro.</p></div>';
 
     h += '<div class="block"><h2>Medidas</h2><dl class="kv">';
     ['ha', 'm2', 'km2', 'fanegadas'].forEach(function (u) { h += '<div><dt>' + Fmt.UNITS[u].long + '</dt><dd>' + Fmt.area(a.area, u) + '</dd></div>'; });
     h += '<div><dt>Perímetro</dt><dd>' + Fmt.dist(a.perimeter) + '</dd></div>';
     h += '<div><dt>Vértices</dt><dd>' + a.n + '</dd></div>';
+    if (multi(p)) {
+      var tot = 0, nc = 0;
+      p.lots.forEach(function (l) { var m2 = lotArea(l); if (m2) { tot += m2; nc++; } });
+      h += '<div><dt>Total del proyecto (' + nc + (nc === 1 ? ' lote cerrado' : ' lotes cerrados') + ')</dt><dd id="areaTotal">' + Fmt.area(Geo.areaUnits(tot), unit) + '</dd></div>';
+    }
     h += '<div><dt>Centro</dt><dd>' + Fmt.latlon(a.center.lat, a.center.lon) + '</dd></div>';
     var cpl = Fmt.plana(a.center.lat, a.center.lon);
     if (cpl) h += '<div><dt>Centro en planas (Origen Nacional)</dt><dd id="areaPlana">' + esc(cpl) + '</dd></div>';
@@ -911,7 +1055,7 @@
   };
   function mapaHtml() {
     var p = proj(), h = '';
-    h += '<div id="mapBox" class="mapbox' + (ui.mapFull ? ' full' : '') + '"><div id="mapHost" class="maphost"></div>';
+    h += '<div id="mapBox" class="mapbox' + (ui.mapFull ? ' full' : '') + (multi() ? ' haslots' : '') + '"><div id="mapHost" class="maphost"></div>';
     h += mapMenuHtml();
     h += '<div class="maptop"><button id="mapSum" class="mapsum" data-act="mapSumTap" hidden></button><div id="mapNotice" class="mapnotice" role="status" hidden></div>' +
       '<div id="mapMode" class="mapmode" hidden><span id="mapModeTxt" role="status"></span><button data-act="mapMode" data-mode="">Salir</button></div></div>' +
@@ -940,7 +1084,7 @@
       '<button class="maptool" data-act="mapMore">' + ICONS.plus + '<span>Más opciones</span></button>' +
       '<button class="maptool main" data-act="mapMark"' + (ui.sampling ? ' disabled' : '') + '>' + ICONS.mark + '<span>Marcar punto</span></button></div>';
     h += '<button class="maploc" data-act="mapMyPos" aria-label="Centrar el mapa en mi posición y seguirla" aria-pressed="' + ui.follow + '">' + ICONS.loc + '</button></div>';
-    if (!p.points.length && !Mapa.visibleLayers(p.layers).length) h += '<div class="tip">Todavía no hay puntos. Pulsa «Marcar punto» para guardar tu posición con el GPS, o agrégalos en la pestaña Puntos.</div>';
+    if (!p.points.length && !Mapa.visibleLayers(viewLayers(p)).length) h += '<div class="tip">Todavía no hay puntos. Pulsa «Marcar punto» para guardar tu posición con el GPS, o agrégalos en la pestaña Puntos.</div>';
     return h;
   }
   // Menú ⋮ (arriba a la izquierda): dos casillas de las que solo una puede estar activa. El estado (ui.mapMode, ui.mapMenu) lo pinta syncMapMenu().
@@ -1039,7 +1183,12 @@
 
   // Alto que tapan las herramientas de abajo (más su separación del borde): el encuadre deja ese espacio libre para que no cubran los puntos
   function toolsInset() { var t = $('.maptools'); return t ? t.offsetHeight + 44 : 100; }
-  function mapKey() { var p = proj(); return p.id + ':' + (Mapa.extent(p.points, p.layers) ? 'con-datos' : 'vacio'); }
+  // El mapa se encuadra solo al cambiar de proyecto, al llegar los primeros datos o cuando cambia cuántos lotes tienen puntos
+  // (así un lote nuevo entra en la vista); elegir otro lote no lo mueve.
+  function mapKey() {
+    var p = proj(), n = p.lots.filter(function (l) { return l.points.length; }).length;
+    return p.id + ':' + (Mapa.extent(p.points, viewLayers(p)) ? 'con-datos' : 'vacio') + (n > 1 ? ':' + n : '');
+  }
   function mountMap() {
     var host = $('#mapHost');
     if (!host) return;
@@ -1054,10 +1203,10 @@
     ui.map.attach(host);
     ui.map.setMode(ui.mapMode);
     ui.map.setBase(ui.mapBase, ui.mapRef);
-    ui.map.draw(Mapa.shapes(p, { polyActive: ui.polyActive, bad: !!a.selfIntersects, fmt: function (n) { return Fmt.num(n, 0); }, dist: Geo.distance, fmtDist: Fmt.dist }));
+    ui.map.draw(Mapa.shapes(view(p), { polyActive: ui.polyActive, bad: !!a.selfIntersects, fmt: function (n) { return Fmt.num(n, 0); }, dist: Geo.distance, fmtDist: Fmt.dist }));
     ui.map.setMeasure(ui.mapTool === 'medir' ? ui.measure : [], ui.measureClosed);
     var key = mapKey();
-    if (ui.mapFitKey !== key) { ui.map.fit(Mapa.extent(p.points, p.layers), { bottom: toolsInset() }); ui.mapFitKey = key; }   // solo al cambiar de proyecto o al llegar los primeros datos
+    if (ui.mapFitKey !== key) { ui.map.fit(Mapa.extent(p.points, viewLayers(p)), { bottom: toolsInset() }); ui.mapFitKey = key; }   // solo al cambiar de proyecto o al llegar los primeros datos
     ui.map.showFix(ui.gpsOn ? ui.fix : null);
     updateMapNotice();
     syncMapMenu(); syncMapChrome();
@@ -1095,9 +1244,10 @@
   /* ---------- Mapa: deshacer el último cambio ---------- */
   // Antes de cada cambio en los puntos se guarda cómo estaban; el botón de la columna izquierda vuelve al estado anterior, paso a paso.
   function pointsJson() { var p = proj(); return JSON.stringify({ points: p.points, nextPoint: p.nextPoint }); }
-  function undoMark(label) { ui.mapUndo.push(proj().id, label, pointsJson()); }
+  function undoKey() { var p = proj(); return p.id + ':' + p.lotId; }
+  function undoMark(label) { ui.mapUndo.push(undoKey(), label, pointsJson()); }
   function mapUndo() {
-    var p = proj(), last = ui.track ? null : ui.mapUndo.pop(p.id, pointsJson());
+    var p = proj(), last = ui.track ? null : ui.mapUndo.pop(undoKey(), pointsJson());
     if (!last) { syncMapChrome(); return; }
     var st = JSON.parse(last.json);
     p.points = st.points; p.nextPoint = st.nextPoint;
@@ -1127,7 +1277,7 @@
     $('[data-act="mapFull"]').setAttribute('aria-pressed', String(ui.mapFull));
     $('.maploc').setAttribute('aria-pressed', String(ui.follow));
     box.classList.toggle('full', ui.mapFull);
-    var ub = $('#mapUndoBtn'), last = ui.track ? null : ui.mapUndo.peek(proj().id, pointsJson());   // caminando el lindero no se deshace paso a paso: el recorrido se deshace entero al terminar
+    var ub = $('#mapUndoBtn'), last = ui.track ? null : ui.mapUndo.peek(undoKey(), pointsJson());   // caminando el lindero no se deshace paso a paso: el recorrido se deshace entero al terminar
     ub.disabled = !last;
     ub.setAttribute('aria-label', last ? 'Deshacer: ' + last.label : 'Deshacer (no hay cambios que deshacer)');
     syncMapCard(); syncMapTool();
@@ -1142,7 +1292,7 @@
     if (history.state && history.state.mapfull) history.back(); else applyMapFull(false);   // el botón Atrás del teléfono también sale
   }
   function fitAll() {
-    var p = proj(), ext = Mapa.extent(p.points, p.layers);
+    var p = proj(), ext = Mapa.extent(p.points, viewLayers(p));
     if (!ext) { toast('Todavía no hay puntos ni capas que mostrar.'); return; }
     ui.follow = false; syncMapChrome();
     if (ui.map) ui.map.fit(ext, { bottom: toolsInset() });
@@ -1210,7 +1360,8 @@
   function onMapClick(ll) {
     if (closeMapPanels()) return;
     if (ui.mapTool === 'medir') { addMeasure(ll); return; }
-    if (ui.mapSel) { ui.mapSel = null; syncMapCard(); }
+    if (ui.mapSel) { ui.mapSel = null; syncMapCard(); return; }
+    if (!ui.mapMode && !ui.track) { var other = Mapa.lotAt(ll, lotLayers(proj())); if (other) pickLot(other); }   // tocar otro lote lo elige
   }
 
   /* ---------- Mapa: herramientas de la franja de abajo (medir, mira y caminar el lindero) ---------- */
@@ -1361,6 +1512,7 @@
     var offline = navigator.onLine === false;
     h += '<button class="btn btn-primary btn-block" data-act="fetchOnline"' + (ui.fetching ? ' disabled' : '') + '>' + (ui.fetching ? 'Consultando…' : 'Completar con internet') + '</button>';
     if (offline) h += '<p class="small muted">Ahora no hay conexión. Tus puntos quedan guardados; completa cuando tengas internet.</p>';
+    if (multi()) h += '<button class="btn btn-block" style="margin-top:10px" data-act="climateToAll">Usar este clima en todos los lotes</button><p class="small muted">Cada lote guarda su propio clima, tomado desde su centro. La lluvia de internet viene en cuadros de unos 50 km, así que en una misma finca suele ser igual; la temperatura cambia con la altitud de cada lote.</p>';
     h += '</div>';
 
 
@@ -1669,9 +1821,22 @@
     topo: { block: 'topoBlock', act: 'topoPrepare', title: 'Croquis topográfico', noun: 'topográfico', busy: 'Descargando la imagen topográfica…',
       note: 'Se baja una sola vez, con internet, y queda guardado dentro del reporte que compartes (mapa de OpenTopoMap con datos de OpenStreetMap y SRTM, licencia CC-BY-SA). Las curvas de nivel son aproximadas. Sin internet, el reporte sale sin esta sección.' }
   };
-  function croqCurrent(kind) { var c = ui.croq[kind]; return c.img && c.img.sig === Satelite.signature(proj()) ? c.img : null; }
+  // Además del último croquis preparado se recuerdan los de otros lotes (hasta 12 por tipo), para no bajarlos otra vez al cambiar de lote
+  function croqCurrent(kind) {
+    var c = ui.croq[kind], sig = Satelite.signature(view());
+    if (c.img && c.img.sig === sig) return c.img;
+    return c.cache && Object.prototype.hasOwnProperty.call(c.cache, sig) ? c.cache[sig] : null;
+  }
+  function croqKeep(kind, img) {
+    var c = ui.croq[kind];
+    c.img = img;
+    c.cache = c.cache || {}; c.order = c.order || [];
+    if (!Object.prototype.hasOwnProperty.call(c.cache, img.sig)) c.order.push(img.sig);
+    c.cache[img.sig] = img;
+    while (c.order.length > 12) delete c.cache[c.order.shift()];
+  }
   function croqBlock(kind) {
-    var cfg = CROQ[kind], c = ui.croq[kind], s = croqCurrent(kind), err = c.error && c.error.sig === Satelite.signature(proj()) ? c.error.msg : '';
+    var cfg = CROQ[kind], c = ui.croq[kind], s = croqCurrent(kind), err = c.error && c.error.sig === Satelite.signature(view()) ? c.error.msg : '';
     var h = '<h2>' + cfg.title + '</h2>';
     if (c.busy) h += '<p class="small" role="status">' + cfg.busy + '</p>';
     else if (s) h += '<div class="plot">' + s.svg + '</div><p class="small muted">' + esc(Satelite.KINDS[kind].caption) + '</p>';
@@ -1682,7 +1847,7 @@
   function refreshCroqBlock(kind) { var el = $('#' + CROQ[kind].block); if (el) { el.innerHTML = croqBlock(kind); foldReport(); } }
   // Resuelve siempre con { svg, caption } o { unavailable: motivo }; nunca rechaza. force: volver a bajar aunque ya esté preparado.
   function prepareCroquis(kind, force) {
-    var p = proj(), a = analysis(), sig = Satelite.signature(p), cur = croqCurrent(kind), c = ui.croq[kind], caption = Satelite.KINDS[kind].caption;
+    var p = view(), a = analysis(), sig = Satelite.signature(p), cur = croqCurrent(kind), c = ui.croq[kind], caption = Satelite.KINDS[kind].caption;
     if (cur && !force) return Promise.resolve({ svg: cur.svg, caption: caption });
     function fail(msg) { c.error = { sig: sig, msg: msg }; c.busy = false; refreshCroqBlock(kind); return { unavailable: msg }; }
     if (navigator.onLine === false) return Promise.resolve(fail('no hay conexión a internet en este momento'));
@@ -1692,7 +1857,7 @@
     return Satelite.render(pl).then(function (uri) {
       var svg = Satelite.svg(pl, uri, { points: p.points, layers: p.layers, center: a.center, bad: !!a.selfIntersects });
       if (!svg) return fail('la imagen recibida no es válida');
-      c.img = { sig: sig, svg: svg }; c.busy = false; refreshCroqBlock(kind);
+      croqKeep(kind, { sig: sig, svg: svg }); c.busy = false; refreshCroqBlock(kind);
       return { svg: svg, caption: caption };
     }, function (e) { return fail(e && e.message || 'error desconocido'); });
   }
@@ -1718,38 +1883,60 @@
   function shareReport() {
     if (ui.sharing) return;
     openSheet('Compartir reporte',
+      (multi() ? '<p class="lead">¿Qué va en el reporte?</p><div class="seg" role="group" aria-label="Qué lotes van en el reporte" id="repScope" style="margin-bottom:6px">' +
+        '<button data-act="repScope" data-s="all" aria-pressed="' + (ui.repAll !== false) + '">Todo el proyecto</button><button data-act="repScope" data-s="one" aria-pressed="' + (ui.repAll === false) + '">Solo «' + esc(lot().name) + '»</button></div>' +
+        '<p class="small muted" style="margin-bottom:14px">«Todo el proyecto» trae primero el resumen de los lotes (área, altitud y zona de vida de cada uno, y el total) y después el reporte completo de cada lote que tenga puntos.</p>' : '') +
       '<p class="lead">¿En qué formato quieres el reporte?</p>' +
       '<div class="btns"><button class="btn btn-primary" data-act="shareReportPdf">PDF (hoja A4)</button><button class="btn" data-act="shareReportHtml">HTML</button></div>' +
       '<p class="small muted" style="margin-top:12px"><b>PDF:</b> una hoja A4 lista para imprimir o enviar; se ve igual en cualquier teléfono. <b>HTML:</b> una página web con los gráficos que se acerca bien en pantalla.</p>');
   }
   // Prepara lo que los dos formatos comparten (croquis satelital y topográfico, fotos); entrega { p, a, o, name base }
-  function prepareReport(build) {
-    var p = proj(), a = analysis();
-    ui.sharing = true;
+  // Lo del lote elegido: resuelve con { project, a, o }
+  function preparePart() {
+    var p = view(), a = analysis();
     var kinds = a.n >= 2 ? CROQ_KINDS : [];
     var need = kinds.filter(function (k) { return !croqCurrent(k); });
-    if (need.length && navigator.onLine !== false) busyStep(need.length > 1 ? 'Preparando los croquis satelital y topográfico para el reporte…' : 'Preparando el croquis ' + CROQ[need[0]].noun + ' para el reporte…');
-    else if (Fotos.countAll(p.points).photos) busyStep('Preparando las fotos para el reporte…');
+    if (need.length && navigator.onLine !== false) busyStep((need.length > 1 ? 'Preparando los croquis satelital y topográfico' : 'Preparando el croquis ' + CROQ[need[0]].noun) + (p.lotName ? ' de «' + p.lotName + '»' : ' para el reporte') + '…');
+    else if (Fotos.countAll(p.points).photos) busyStep('Preparando las fotos' + (p.lotName ? ' de «' + p.lotName + '»' : ' para el reporte') + '…');
     return Promise.all([Promise.all(kinds.map(function (k) { return prepareCroquis(k, false); })), reportPhotos(p)]).then(function (all) {
       var res = all[0];
       var o = reportOpts(a); o.satellite = res[0] || null; o.topo = res[1] || null; o.photos = all[1];
-      return build(p, a, o);
-    }).then(function (r) { ui.sharing = false; return r; }, function (e) { ui.sharing = false; throw e; });
+      return { project: p, a: a, o: o };
+    });
   }
+  // Reúne las partes del reporte y llama a build(parts, P). P es el proyecto cuando el reporte es de todos los lotes; si no, null.
+  // Para el reporte de todo el proyecto se pasa por cada lote con puntos, uno tras otro (se elige por un momento y al final se vuelve al que estaba).
+  function prepareReport(build) {
+    var P = proj(), home = P.lotId, all = multi(P) && ui.repAll !== false;
+    var ids = all ? P.lots.filter(function (l) { return l.points.length; }).map(function (l) { return l.id; }) : [home];
+    if (!ids.length) ids = [home];
+    var parts = [];
+    ui.sharing = true;
+    function back() { P.lotId = home; ui.sharing = false; CROQ_KINDS.forEach(refreshCroqBlock); }
+    return ids.reduce(function (chain, id) {
+      return chain.then(function () { P.lotId = id; return preparePart(); }).then(function (pt) { parts.push(pt); });
+    }, Promise.resolve()).then(function () {
+      back();
+      return build(parts, parts.length > 1 ? P : null);
+    }, function (e) { back(); throw e; });
+  }
+  function reportName(parts, P, ext) { return IO.slug('reporte zona de vida ' + proj().name + (!P && parts[0].project.lotName ? ' ' + parts[0].project.lotName : ''), ext); }
   function shareReportPdf() {
     if (ui.sharing || busy.on) return;
     closeSheet();
-    var name = IO.slug('reporte zona de vida ' + proj().name, 'pdf');
+    var name = '';
     busyRun('Elaborando el reporte en PDF', 'Reuniendo los datos del reporte…', function () {
-      return prepareReport(function (p, a, o) {
+      return prepareReport(function (parts, P) {
+        var p = parts[0].project, a = parts[0].a, o = parts[0].o, oAll = { author: o.author };
+        name = reportName(parts, P, 'pdf');
         busyStep('Dibujando los gráficos…');                                // los croquis y las fotos ya están: falta dibujar las gráficas en imágenes y armar la hoja
-        return ReportPdf.rasterizeAll(ReportPdf.sketches(p, a, o), ReportPdf.PX, window).then(function (images) {
+        return ReportPdf.rasterizeAll(P ? ReportPdf.sketchesAll(parts) : ReportPdf.sketches(p, a, o), ReportPdf.PX, window).then(function (images) {
           busyStep('Armando las hojas del PDF…');
           return busyPaint().then(function () {
-            var bytes = ReportPdf.build(p, a, o, images);
+            var bytes = P ? ReportPdf.buildAll(P, parts, oAll, images) : ReportPdf.build(p, a, o, images);
             busyStep('Guardando el archivo…');
             return busyMin().then(function () {
-              return IO.saveBytes(name, 'application/pdf', bytes, { title: 'Reporte de zona de vida', text: Report.text(p, a, o), dialogTitle: 'Compartir reporte', onReady: busyHide });
+              return IO.saveBytes(name, 'application/pdf', bytes, { title: 'Reporte de zona de vida', text: P ? Report.textAll(P, parts, oAll) : Report.text(p, a, o), dialogTitle: 'Compartir reporte', onReady: busyHide });
             });
           });
         });
@@ -1761,13 +1948,15 @@
   function shareReportHtml() {
     if (ui.sharing || busy.on) return;
     closeSheet();
-    var name = IO.slug('reporte zona de vida ' + proj().name, 'html');
+    var name = '';
     busyRun('Elaborando el reporte en HTML', 'Reuniendo los datos del reporte…', function () {
-      return prepareReport(function (p, a, o) {
+      return prepareReport(function (parts, P) {
+        var p = parts[0].project, a = parts[0].a, o = parts[0].o, oAll = { author: o.author };
+        name = reportName(parts, P, 'html');
         busyStep('Armando la página del reporte…');
-        var html = Report.html(p, a, o);
+        var html = P ? Report.htmlAll(P, parts, oAll) : Report.html(p, a, o);
         return busyMin().then(function () {
-          return IO.saveText(name, 'text/html', html, { title: 'Reporte de zona de vida', text: Report.text(p, a, o), dialogTitle: 'Compartir reporte', onReady: busyHide });
+          return IO.saveText(name, 'text/html', html, { title: 'Reporte de zona de vida', text: P ? Report.textAll(P, parts, oAll) : Report.text(p, a, o), dialogTitle: 'Compartir reporte', onReady: busyHide });
         });
       });
     }).then(function (r) {
@@ -1786,14 +1975,14 @@
   }
   function copySummary() {
     var a = analysis();
-    copyText(Report.text(proj(), a, reportOpts(a)), 'Resumen copiado.');
+    copyText(Report.text(view(), a, reportOpts(a)), 'Resumen copiado.');
   }
 
   /* ---------- Proyectos ---------- */
   function openProjects() {
     var h = '<ul class="list">';
     S.projects.forEach(function (p) {
-      h += '<li><button class="row" style="grid-template-columns:1fr auto" data-act="pickProject" data-id="' + esc(p.id) + '"><span><span class="pname">' + esc(p.name) + '</span><span class="psub">' + p.points.length + ' punto' + (p.points.length === 1 ? '' : 's') + '</span></span>' + (p.id === S.currentId ? '<span class="alt alt-gps">actual</span>' : '') + '</button></li>';
+      h += '<li><button class="row" style="grid-template-columns:1fr auto" data-act="pickProject" data-id="' + esc(p.id) + '"><span><span class="pname">' + esc(p.name) + '</span><span class="psub">' + projSub(p) + '</span></span>' + (p.id === S.currentId ? '<span class="alt alt-gps">actual</span>' : '') + '</button></li>';
     });
     h += '</ul><div class="btns"><button class="btn btn-primary" data-act="newProject">Nuevo proyecto</button><button class="btn" data-act="renameProject">Cambiar nombre</button>' + (S.projects.length > 1 ? '<button class="btn btn-danger" data-act="askDeleteProject">Eliminar este proyecto</button>' : '') + '</div>';
     h += '<h3 class="sub">Copia de seguridad</h3><p class="small muted">Guarda todos tus proyectos, puntos, capas, datos de clima y ajustes en un archivo, para no perderlos si cambias de teléfono o desinstalas la app. Elige el formato:</p>';
@@ -1882,20 +2071,26 @@
     // primero las imágenes (en el teléfono); si ya hay otra foto con el mismo id, la de la copia se guarda con un id nuevo
     ui.restoring = true;
     Fotos.importAll(photoStore, ids.map(function (id) { return { id: id, bytes: v.photoBytes[id] }; })).then(function (r) {
-      v.data.projects.forEach(function (p) { p.points.forEach(function (pt) { photosOf(pt).forEach(function (f) { if (r.map[f.id]) f.id = r.map[f.id]; }); }); });
+      v.data.projects.forEach(function (p) { (Array.isArray(p.lots) ? p.lots : [p]).forEach(function (g) { g.points.forEach(function (pt) { photosOf(pt).forEach(function (f) { if (r.map[f.id]) f.id = r.map[f.id]; }); }); }); });
       ui.restoring = false;
       finishRestore(mode, v);
     }).catch(function (e) { ui.restoring = false; toast('No se pudieron guardar las fotos de la copia: ' + (e && e.message || e), { err: true }); });
   }
   function finishRestore(mode, v) {
     var before = JSON.parse(JSON.stringify({ state: S, memory: MEM.all() }));
-    var r = Backup.apply({ state: S, memory: MEM.all() }, v.data, mode, { uid: Store.uid });
-    S.projects = r.state.projects; S.currentId = r.state.currentId; S.settings = Object.assign({}, S.settings, mode === 'merge' ? {} : r.state.settings);
+    v.data.projects.forEach(Store.toLots);                 // una copia anterior a la 2.15.0 trae cada proyecto sin lotes: pasa a tener un «Lote 1»
+    var r = Backup.apply({ state: JSON.parse(JSON.stringify(S)), memory: MEM.all() }, v.data, mode, { uid: Store.uid });
+    S.projects = r.state.projects.map(Store.lotify); S.currentId = r.state.currentId; S.settings = Object.assign({}, S.settings, mode === 'merge' ? {} : r.state.settings);
     MEM.clear(); MEM.add(r.memory);
     ui.restore = null;
     save(); saveMemory(); closeSheet(); renderAll();
     toast(mode === 'merge' ? r.added + (r.added === 1 ? ' proyecto agregado' : ' proyectos agregados') + (r.skipped ? ' · ' + r.skipped + ' ya estaban' : '') + '.' : 'Copia restaurada: ' + r.added + (r.added === 1 ? ' proyecto.' : ' proyectos.'),
-      { action: 'Deshacer', fn: function () { S.projects = before.state.projects; S.currentId = before.state.currentId; S.settings = before.state.settings; MEM.clear(); MEM.add(before.memory); save(); saveMemory(); renderAll(); } });
+      { action: 'Deshacer', fn: function () { S.projects = before.state.projects.map(Store.lotify); S.currentId = before.state.currentId; S.settings = before.state.settings; MEM.clear(); MEM.add(before.memory); save(); saveMemory(); renderAll(); } });
+  }
+  function projSub(p) {
+    var n = 0;
+    p.lots.forEach(function (l) { n += l.points.length; });
+    return n + (n === 1 ? ' punto' : ' puntos') + (p.lots.length > 1 ? ' · ' + p.lots.length + ' lotes' : '');
   }
   function nameForm(title, value, act) {
     hideSheet();
@@ -2164,7 +2359,7 @@
     var el = $('#tab-' + t);
     if (!el) return;
     var sy = window.scrollY;
-    el.innerHTML = (hasSteps(t) ? stepsHtml() : '') + TABS[t]();
+    el.innerHTML = (hasLots(t) ? lotsBar() : '') + (hasSteps(t) ? stepsHtml() : '') + TABS[t]();
     hydratePhotos(el);
     if (t === 'puntos') { updateReadout(); updateProgress(); }
     if (t === 'area') { mountMap(); updateProgress(); }
@@ -2284,6 +2479,11 @@
     deleteLayer: function (t) { deleteLayer(t.getAttribute('data-id')); },
     layerToMain: function (t) { layerToMain(t.getAttribute('data-id')); },
     export: function (t) { exportAs(t.getAttribute('data-fmt')); },
+    lotPick: function (t) { var id = t.getAttribute('data-id'); if (id === proj().lotId) openLots(); else pickLot(id); },
+    lotPickClose: function (t) { var ch = pickLot(t.getAttribute('data-id'), true); closeSheet(); if (ch) { renderTab(ui.tab); toast('Lote elegido: ' + lot().name + '.'); } },
+    repScope: function (t) { ui.repAll = t.getAttribute('data-s') !== 'one'; Array.prototype.forEach.call(document.querySelectorAll('#repScope button'), function (b) { b.setAttribute('aria-pressed', String(b === t)); }); },
+    lotAdd: function () { lotForm(''); }, lotEdit: function (t) { lotForm(t.getAttribute('data-id')); }, lotSave: lotSave,
+    lotDelete: function (t) { lotDelete(t.getAttribute('data-id')); }, climateToAll: climateToAll,
     authorEdit: function () { openAuthor(false); },
     authorLogo: function () { readAuthorInputs(); $('#logoFile').click(); },
     authorLogoDel: function () { ui.authorDraft.logo = ''; refreshAuthor(); },

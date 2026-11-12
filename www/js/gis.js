@@ -528,19 +528,25 @@
   function toCSV(points, opts) {
     opts = opts || {};
     var es = opts.style !== 'std', sep = es ? ';' : ',';
-    var pts = (points || []).filter(function (p) { return p && validLL(p.lat, p.lon); });
-    var n = pts.length, ring = n >= 3;
+    // opts.lots = [{ name, points }]: varios lotes en un solo archivo, con una primera columna «Lote» (2.15.0)
+    var lots = Array.isArray(opts.lots) ? opts.lots : null;
     function num(v, d) { if (!isNum(v)) return ''; var s = fix(v, d); return es ? s.replace('.', ',') : s; }
     // Un nombre que empieza por = + - @ (o por tabulador o retorno) lo abren Excel y Sheets como fórmula (p. ej. =HYPERLINK(…)):
-    // se le antepone un apóstrofo, como recomienda OWASP. Solo el nombre es texto libre; las demás celdas son números.
+    // se le antepone un apóstrofo, como recomienda OWASP. Solo los nombres son texto libre; las demás celdas son números.
     function safe(s) { s = String(s); return /^[=+\-@\t\r]/.test(s) ? "'" + s : s; }
     function cell(s) { s = safe(s); return /[";,\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
-    var rows = [['Punto', 'Latitud', 'Longitud', 'Altitud', 'Rumbo', 'Distancia al vértice siguiente', 'Este (Origen Nacional)', 'Norte (Origen Nacional)'].join(sep)];
-    pts.forEach(function (p, i) {
-      var nxt = ring ? pts[(i + 1) % n] : (i + 1 < n ? pts[i + 1] : null);
-      var brg = nxt ? Geo.bearing(p.lat, p.lon, nxt.lat, nxt.lon) : null, dist = nxt ? Geo.distance(p.lat, p.lon, nxt.lat, nxt.lon) : null;
-      var on = Geo.origenNacional(p.lat, p.lon);      // coordenadas planas de Colombia; vacías fuera del país
-      rows.push([cell(p.name || ('P' + (i + 1))), num(p.lat, 7), num(p.lon, 7), num(p.alt, 1), num(brg, 1), num(dist, 2), num(on ? on.e : null, 2), num(on ? on.n : null, 2)].join(sep));
+    var head = ['Punto', 'Latitud', 'Longitud', 'Altitud', 'Rumbo', 'Distancia al vértice siguiente', 'Este (Origen Nacional)', 'Norte (Origen Nacional)'];
+    var rows = [(lots ? ['Lote'].concat(head) : head).join(sep)];
+    (lots || [{ points: points }]).forEach(function (g, gi) {
+      var pts = ((g && g.points) || []).filter(function (p) { return p && validLL(p.lat, p.lon); });
+      var n = pts.length, ring = n >= 3;
+      pts.forEach(function (p, i) {
+        var nxt = ring ? pts[(i + 1) % n] : (i + 1 < n ? pts[i + 1] : null);
+        var brg = nxt ? Geo.bearing(p.lat, p.lon, nxt.lat, nxt.lon) : null, dist = nxt ? Geo.distance(p.lat, p.lon, nxt.lat, nxt.lon) : null;
+        var on = Geo.origenNacional(p.lat, p.lon);      // coordenadas planas de Colombia; vacías fuera del país
+        var r = [cell(p.name || ('P' + (i + 1))), num(p.lat, 7), num(p.lon, 7), num(p.alt, 1), num(brg, 1), num(dist, 2), num(on ? on.e : null, 2), num(on ? on.n : null, 2)];
+        rows.push((lots ? [cell(g.name || ('Lote ' + (gi + 1)))].concat(r) : r).join(sep));
+      });
     });
     return '﻿' + rows.join('\r\n') + '\r\n';
   }

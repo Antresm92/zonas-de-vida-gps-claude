@@ -133,7 +133,7 @@ module.exports = async function (c) {
     assert.deepEqual(await projectNames(), ['Mi primer proyecto']);
     await act('projects');
     assert.equal(await page.locator('[data-act="askDeleteProject"]').count(), 0, 'no se puede eliminar el único proyecto');
-    assert.match(await text('#sheet'), /versión 2\.14\.1/);
+    assert.match(await text('#sheet'), /versión 2\.15\.0/);
     await act('closeSheet'); await waitSheetClosed();
     // nombre vacío al crear → nombre por defecto
     await act('projects'); await act('newProject'); await fill('#pName', '   '); await act('saveNewProject'); await waitSheetClosed();
@@ -218,9 +218,9 @@ module.exports = async function (c) {
   await step('Copia manipulada: se limpian los datos peligrosos y los dañados se omiten con aviso', async () => {
     const raw = JSON.parse(backup);
     raw.state.projects[0].name = '<img src=x onerror=window.__pwned=1>';
-    raw.state.projects[0].points[0].lat = 999;
-    raw.state.projects[0].points[1].name = '<script>window.__pwned=2</script>';
-    raw.state.projects[0].mainColor = 'red;background:url(x)';
+    raw.state.projects[0].lots[0].points[0].lat = 999;
+    raw.state.projects[0].lots[0].points[1].name = '<script>window.__pwned=2</script>';
+    raw.state.projects[0].lots[0].mainColor = 'red;background:url(x)';
     raw.state.projects[0].layers[0].color = '"><b>';
     raw.state.settings = { minAcc: 77, csvStyle: 'otro', areaUnit: 'parsecs' };
     await setFile('#backupFile', 'manipulada.json', JSON.stringify(raw), 'application/json');

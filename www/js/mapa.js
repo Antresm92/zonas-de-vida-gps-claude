@@ -109,9 +109,35 @@
       var kind = l.kind === 'polygon' || l.kind === 'line' ? l.kind : 'points';
       var o = { id: l.id, name: l.name || '', kind: kind, color: l.color || '#2980B9', latlngs: ring(l.points), holes: [] };
       if (kind === 'polygon' && Array.isArray(l.holes)) o.holes = l.holes.map(ring).filter(function (h) { return h.length >= 3; });
+      if (l.lot && o.latlngs.length) {          // otro lote del proyecto (2.15.0): más tenue, con su nombre y su área en el centro
+        var la = 0, lo = 0;
+        o.latlngs.forEach(function (q) { la += q[0]; lo += q[1]; });
+        o.lot = true; o.lotId = l.lotId; o.label = (l.name || 'Lote') + (l.areaText ? ' · ' + l.areaText : '');
+        o.at = [la / o.latlngs.length, lo / o.latlngs.length];
+      }
       return o;
     });
     return out;
+  }
+
+  // ¿Dentro de qué otro lote cayó el toque? Devuelve su lotId o null. Solo cuentan los lotes con polígono (3 puntos o más).
+  function inRing(lat, lon, pts) {
+    var inside = false;
+    for (var i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+      var a = pts[i], b = pts[j];
+      if ((a.lat > lat) !== (b.lat > lat) && lon < (b.lon - a.lon) * (lat - a.lat) / (b.lat - a.lat) + a.lon) inside = !inside;
+    }
+    return inside;
+  }
+  function lotAt(ll, layers) {
+    if (!ll || !isNum(ll.lat) || !isNum(ll.lon)) return null;
+    var hit = null;
+    (layers || []).forEach(function (l) {
+      if (hit || !l || !l.lot || l.kind !== 'polygon') return;
+      var pts = (l.points || []).filter(validLL);
+      if (pts.length >= 3 && inRing(ll.lat, ll.lon, pts)) hit = l.lotId;
+    });
+    return hit;
   }
 
   function labelsVisible(zoom) { return isNum(zoom) && zoom >= LABEL_MIN_ZOOM; }
@@ -358,7 +384,7 @@
   function toolId(t) { return TOOLS.indexOf(t) >= 0 ? t : ''; }
 
   return {
-    haversine: haversine, bearing: bearing, compass: compass, sides: sides, sideShows: sideShows, SIDE_LABEL_MIN_PX: SIDE_LABEL_MIN_PX, SIDE_PLUS_MIN_PX: SIDE_PLUS_MIN_PX,
+    lotAt: lotAt, haversine: haversine, bearing: bearing, compass: compass, sides: sides, sideShows: sideShows, SIDE_LABEL_MIN_PX: SIDE_LABEL_MIN_PX, SIDE_PLUS_MIN_PX: SIDE_PLUS_MIN_PX,
     summaryText: summaryText, relText: relText, measureText: measureText, measureAdd: measureAdd, measureLength: measureLength, MEASURE_MAX: MEASURE_MAX, undoStack: undoStack,
     TRACK_STEPS: TRACK_STEPS, TRACK_STEP_DEFAULT: TRACK_STEP_DEFAULT, TRACK_MAX_ACC: TRACK_MAX_ACC, trackStep: trackStep, trackDecision: trackDecision, trackText: trackText,
     rectsOverlap: rectsOverlap, sidePlacement: sidePlacement, navInfo: navInfo, ARRIVE_M: ARRIVE_M,

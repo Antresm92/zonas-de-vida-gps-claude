@@ -152,10 +152,10 @@ module.exports = async function (c) {
     await act('projects');
     const b = await download(() => page.click('[data-act="backupJson"]'));
     const raw = JSON.parse(b.text);
-    assert.equal(raw.state.projects[0].weatherNow.T, 24.3, 'la copia lleva el clima actual');
-    assert.equal(raw.state.projects[0].weatherNow.source, 'Open-Meteo');
+    assert.equal(raw.state.projects[0].lots[0].weatherNow.T, 24.3, 'la copia lleva el clima actual');
+    assert.equal(raw.state.projects[0].lots[0].weatherNow.source, 'Open-Meteo');
     assert.equal(Backup.validate(raw).ok, true);
-    assert.equal(Backup.validate(raw).data.projects[0].weatherNow.sunset, '17:42', 'y al restaurar se conserva');
+    assert.equal(Backup.validate(raw).data.projects[0].lots[0].weatherNow.sunset, '17:42', 'y al restaurar se conserva');
     await act('closeSheet'); await waitSheetClosed();
   });
 

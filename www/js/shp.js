@@ -138,19 +138,36 @@
       { name: base + '.prj', bytes: utf8(PRJ) }, { name: base + '.cpg', bytes: utf8('UTF-8') }
     ];
   }
+  // model.lots = [{ name, points }] (2.15.0): todos los lotes en las mismas dos capas, con una columna LOTE. Sin lots: un solo terreno (model.points).
   function files(model, now) {
     model = model || {};
-    var pts = (model.points || []).filter(validLL);
-    if (!pts.length) throw new Error('No hay puntos para exportar.');
-    var base = String(model.base || 'terreno'), box = bbox(pts);
-    var out = set(base + '_puntos', shapeFiles(POINT, pts.map(pointContent), box), dbf(POINT_FIELDS, pts.map(function (p, i) {
-      var on = Geo.origenNacional(p.lat, p.lon);
-      return [p.name || ('P' + (i + 1)), i + 1, p.lat, p.lon, isNum(p.alt) ? p.alt : null, on ? on.e : null, on ? on.n : null];
-    }), now));
-    if (pts.length >= 3) {
-      var m2 = Geo.polygonArea(pts);
-      out = out.concat(set(base + '_poligono', shapeFiles(POLYGON, [polygonContent(pts)], box),
-        dbf(POLY_FIELDS, [[model.name || 'Terreno', m2 / 10000, m2, Geo.perimeter(pts, true), pts.length]], now)));
+    var multi = Array.isArray(model.lots);
+    var lots = (multi ? model.lots : [{ name: model.name, points: model.points }]).map(function (l) {
+      return { name: (l && l.name) || '', pts: ((l && l.points) || []).filter(validLL) };
+    }).filter(function (l) { return l.pts.length; });
+    var all = [];
+    lots.forEach(function (l) { all = all.concat(l.pts); });
+    if (!all.length) throw new Error('No hay puntos para exportar.');
+    var base = String(model.base || 'terreno'), box = bbox(all), LOTE = { name: 'LOTE', type: 'C', len: 40 };
+    var prow = [], contents = [];
+    lots.forEach(function (l) {
+      l.pts.forEach(function (p, i) {
+        var on = Geo.origenNacional(p.lat, p.lon);
+        var r = [p.name || ('P' + (i + 1)), i + 1, p.lat, p.lon, isNum(p.alt) ? p.alt : null, on ? on.e : null, on ? on.n : null];
+        prow.push(multi ? [l.name].concat(r) : r);
+        contents.push(pointContent(p));
+      });
+    });
+    var out = set(base + '_puntos', shapeFiles(POINT, contents, box), dbf(multi ? [LOTE].concat(POINT_FIELDS) : POINT_FIELDS, prow, now));
+    var polys = lots.filter(function (l) { return l.pts.length >= 3; });
+    if (polys.length) {
+      var pall = [];
+      polys.forEach(function (l) { pall = pall.concat(l.pts); });
+      out = out.concat(set(base + '_poligono', shapeFiles(POLYGON, polys.map(function (l) { return polygonContent(l.pts); }), bbox(pall)),
+        dbf(multi ? [LOTE].concat(POLY_FIELDS) : POLY_FIELDS, polys.map(function (l) {
+          var m2 = Geo.polygonArea(l.pts), r = [(multi ? model.name : l.name) || 'Terreno', m2 / 10000, m2, Geo.perimeter(l.pts, true), l.pts.length];
+          return multi ? [l.name].concat(r) : r;
+        }), now)));
     }
     return out;
   }

@@ -185,7 +185,7 @@ test('guardado en el equipo: un clima actual con forma rara se descarta al abrir
   Store.saveState(e);
   const s = Store.loadState();
   assert.deepEqual(s.projects[0].weatherNow, W);
-  assert.equal('weatherNow' in s.projects[1], false);
-  assert.equal('weatherNow' in s.projects[2], false);
-  assert.equal('weatherNow' in Store.newProject('x'), false, 'un proyecto nuevo no trae clima actual');
+  assert.equal('weatherNow' in s.projects[1].lots[0], false);                  // desde la 2.15.0 los datos están en el lote del proyecto
+  assert.equal('weatherNow' in s.projects[2].lots[0], false);
+  assert.equal('weatherNow' in Store.newProject('x').lots[0], false, 'un proyecto nuevo no trae clima actual');
 });

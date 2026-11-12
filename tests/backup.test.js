@@ -32,7 +32,7 @@ const MEMORY = [{ lat: 4.6, lon: -74.08, T: 14.1, P: 1013, alt: 2640, src: 'paqu
 test('copia: crear → texto → leer → validar devuelve lo mismo', () => {
   const b = Backup.create(sampleState(), MEMORY, { now: NOW, appVersion: '2.0.0' });
   assert.equal(b.app, 'zonas-de-vida-gps');
-  assert.equal(b.format, 1);
+  assert.equal(b.format, 2);                    // 2 desde la 2.15.0 (los puntos van en los lotes)
   assert.deepEqual(b.summary, { projects: 2, points: 3, layers: 1, photos: 0 });
   assert.equal(b.created, '2026-10-22T15:00:00.000Z');
   const res = Backup.validate(JSON.parse(Backup.stringify(b)), { uid, now: NOW });

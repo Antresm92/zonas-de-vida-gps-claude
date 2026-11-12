@@ -42,7 +42,7 @@ module.exports = async function (c) {
     assert.equal(await page.locator('#tab-area .pagetitle').count(), 0, 'en la vista Mapa no va el título grande');
     assert.equal(await text('#tab-area h2.sr-only'), 'Polígono del terreno: mapa');
     const mb = await box('.mapbox'), nav = await box('nav');
-    assert.ok(mb.height >= 590, 'el mapa mide ' + mb.height + ' px de alto en un teléfono de 844');
+    assert.ok(mb.height >= 590, 'el mapa mide ' + mb.height + ' px de alto en un teléfono de 844 (' + await page.evaluate(() => document.querySelector('.mapbox').className + ' · ventana ' + innerHeight + ' · lotes ' + window.__app.S.projects.map((p) => p.lots.length).join(',') + ' · barra ' + !!document.querySelector('#tab-area #lotsBar')) + ')');
     assert.ok(mb.y + mb.height <= nav.y, 'y no queda detrás de la barra de pestañas');
     assert.match(await text('#mapSum'), /^\d+,\d+ ha · [\d,]+ k?m · 3 puntos$/);
     assert.ok((await box('#mapSum')).height <= 34, 'el resumen cabe en una línea');

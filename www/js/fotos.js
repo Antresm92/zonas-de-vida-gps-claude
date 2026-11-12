@@ -205,8 +205,11 @@
   function usedIds(projects) {
     var out = [], seen = {};
     (projects || []).forEach(function (p) {
-      (p.points || []).forEach(function (pt) {
-        (Array.isArray(pt.photos) ? pt.photos : []).forEach(function (f) { if (f && isId(f.id) && !seen[f.id]) { seen[f.id] = true; out.push(f.id); } });
+      var groups = p && Array.isArray(p.lots) ? p.lots.concat([p]) : [p];      // desde la 2.15.0 los puntos están en los lotes del proyecto
+      groups.forEach(function (g) {
+        ((g && g.points) || []).forEach(function (pt) {
+          (Array.isArray(pt.photos) ? pt.photos : []).forEach(function (f) { if (f && isId(f.id) && !seen[f.id]) { seen[f.id] = true; out.push(f.id); } });
+        });
       });
     });
     return out;

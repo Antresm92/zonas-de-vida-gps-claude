@@ -113,7 +113,7 @@
       else B.push({ t: 'note', text: 'No se pudo dibujar ' + noun + ' en el PDF.' });
     }
     var au = Report.authorOf(o), logo = au.logo ? Fotos.fromBase64(au.logo) : null;
-    B.push({ t: 'head', title: 'Reporte de zona de vida', lines: Report.headLines(project, o), logo: logo ? { bytes: logo } : null, logoW: 130, logoH: 80 });
+    if (!o.noHead) B.push({ t: 'head', title: 'Reporte de zona de vida', lines: Report.headLines(project, o), logo: logo ? { bytes: logo } : null, logoW: 130, logoH: 80 });
     if (r && r.ok) {
       B.push({ t: 'zone', symbol: r.zone.symbol, name: r.zone.name, detail: 'Región latitudinal: ' + r.region + ' · Piso altitudinal: ' + r.belt + (r.humidity ? ' · Provincia de humedad: ' + r.humidity.name : '') });
     } else {
@@ -143,7 +143,7 @@
       if (a.n >= 2) {
         B.push({ t: 'h2', text: 'Croquis' });
         pic('croquis', 400, 'el croquis');
-        var items = [[project.mainColor && HEX.test(project.mainColor) ? project.mainColor : '#2F8F4E', 'Mis puntos']];
+        var items = [[project.mainColor && HEX.test(project.mainColor) ? project.mainColor : '#2F8F4E', project.lotName || 'Mis puntos']];
         (project.layers || []).forEach(function (l) { if (l && l.visible !== false && l.points && l.points.length) items.push([l.color, l.name]); });
         if (items.length >= 2) B.push({ t: 'legend', items: items });
         [['Croquis satelital', 'croquis satelital', 'satelital', o.satellite], ['Croquis topográfico', 'croquis topográfico', 'topo', o.topo]].forEach(function (s) {
@@ -203,8 +203,49 @@
       B.push({ t: 'p', small: true, text: 'El anillo rojo marca la posición del punto de análisis; el hexágono resaltado es su zona de vida.' });
     }
     B.push({ t: 'spacer', h: 10 });
+    if (!o.noHead) B.push({ t: 'p', small: true, text: Report.DISCLAIMER });      // en el reporte de todo el proyecto va una sola vez, al final
+    return B;
+  }
+
+  /* ---------- Reporte de todo el proyecto (2.15.0) ---------- */
+  // Las gráficas de todos los lotes; la clave de cada una lleva delante el número del lote («2:croquis»)
+  function sketchesAll(parts) {
+    var out = [], ov = Report.overview(parts);
+    if (ov) out.push({ key: '0:general', svg: ov.svg });
+    (parts || []).forEach(function (pt, i) { sketches(pt.project, pt.a, pt.o).forEach(function (s) { out.push({ key: (i + 1) + ':' + s.key, svg: s.svg, px: s.px }); }); });
+    return out;
+  }
+  function blocksAll(project, parts, o, images) {
+    o = o || {}; images = images || {};
+    var au = Report.authorOf(o), logo = au.logo ? Fotos.fromBase64(au.logo) : null, s = Report.summary(parts);
+    var B = [{ t: 'head', title: 'Reporte de zona de vida', lines: Report.headLines({ name: project.name }, o), logo: logo ? { bytes: logo } : null, logoW: 130, logoH: 80 }];
+    B.push({ t: 'h2', text: 'Resumen del proyecto' });
+    B.push({ t: 'table', rows: s.rows.map(function (x) { return [x.name, x.area + ' · ' + x.alt + ' · ' + x.zone, x.color]; }).concat([['Total', s.totalText + ' · ' + s.note]]) });
+    var ov = Report.overview(parts);
+    if (ov) {
+      B.push({ t: 'h2', text: 'Croquis general' });
+      if (images['0:general'] && images['0:general'].bytes) { B.push({ t: 'image', img: images['0:general'], maxW: 400 }); B.push({ t: 'legend', items: ov.items }); }
+      else B.push({ t: 'note', text: 'No se pudo dibujar el croquis general en el PDF.' });
+    }
+    parts.forEach(function (pt, i) {
+      var own = {}, pre = (i + 1) + ':';
+      Object.keys(images).forEach(function (k) { if (k.indexOf(pre) === 0) own[k.slice(pre.length)] = images[k]; });
+      var po = {};
+      Object.keys(pt.o || {}).forEach(function (k) { po[k] = pt.o[k]; });
+      po.noHead = true;
+      B.push({ t: 'pagebreak' });
+      B.push({ t: 'h1', text: 'Lote: ' + (pt.project.lotName || pt.project.name) });
+      B = B.concat(blocks(pt.project, pt.a, po, own));
+    });
     B.push({ t: 'p', small: true, text: Report.DISCLAIMER });
     return B;
+  }
+  function buildAll(project, parts, o, images) {
+    o = o || {};
+    return Pdf.build(blocksAll(project, parts, o, images), {
+      title: 'Reporte de zona de vida · ' + project.name, subject: 'Clasificación bioclimática de Holdridge', author: '', creator: 'Zonas de Vida',
+      date: o.date || Date.now(), footer: 'Reporte de zona de vida · ' + project.name
+    });
   }
 
   function build(project, a, o, images) {
@@ -220,5 +261,5 @@
     });
   }
 
-  return { sketches: sketches, blocks: blocks, build: build, rasterize: rasterize, rasterizeAll: rasterizeAll, svgSize: svgSize, sized: sized, PX: PX };
+  return { sketchesAll: sketchesAll, blocksAll: blocksAll, buildAll: buildAll, sketches: sketches, blocks: blocks, build: build, rasterize: rasterize, rasterizeAll: rasterizeAll, svgSize: svgSize, sized: sized, PX: PX };
 });
