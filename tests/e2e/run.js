@@ -48,7 +48,7 @@ const arg = (n) => { const a = process.argv.find((x) => x.startsWith('--' + n + 
   const tab = async (name) => { await page.click('#nav-' + name); await page.waitForSelector('#tab-' + name, { state: 'visible' }); };
   const text = (sel) => page.evaluate((s) => { const e = document.querySelector(s); return e ? e.textContent : null; }, sel);
   const fresh = async () => {
-    await page.evaluate(() => { localStorage.clear(); localStorage.setItem('zvg.v1.flags', JSON.stringify({ mapGuide: true })); });   // la ayuda de primera vez del mapa se prueba aparte
+    await page.evaluate(() => { localStorage.clear(); localStorage.setItem('zvg.v1.flags', JSON.stringify({ mapGuide: true, appGuide: true, reportOpen: true })); });   // la ayuda de primera vez del mapa se prueba aparte
     await page.goto(url);
     await page.waitForSelector('#tab-puntos');
     errors.length = 0;
@@ -81,7 +81,7 @@ const arg = (n) => { const a = process.argv.find((x) => x.startsWith('--' + n + 
   await page.goto(url);
   await page.waitForSelector('#tab-puntos');
   const only = (arg('parts') || '').split(',').filter(Boolean);
-  for (const part of ['part1-puntos', 'part2-area-importar', 'part3-clima', 'part4-informe-proyectos', 'part5-offline', 'part7-mapa', 'part8-perfil-satelital', 'part9-menu-mapa', 'part10-posicion-manual', 'part11-v25', 'part12-fotos', 'part13-pdf', 'part14-herramientas', 'part15-mapa-intuitivo']) {
+  for (const part of ['part1-puntos', 'part2-area-importar', 'part3-clima', 'part4-informe-proyectos', 'part5-offline', 'part7-mapa', 'part8-perfil-satelital', 'part9-menu-mapa', 'part10-posicion-manual', 'part11-v25', 'part12-fotos', 'part13-pdf', 'part14-herramientas', 'part15-mapa-intuitivo', 'part16-guiada']) {
     if (only.length && !only.some((o) => part.startsWith(o))) continue;
     const f = path.join(__dirname, part + '.js');
     if (fs.existsSync(f)) { console.log('\n' + part); await require(f)(ctx); }

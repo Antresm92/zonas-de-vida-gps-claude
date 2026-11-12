@@ -7,9 +7,9 @@ const U = require('../www/js/units.js');
 const val = (cat, v, from, to) => U.convert(cat, v, from).rows.find((r) => r.id === to).value;
 const near = (a, b, msg) => assert.ok(Math.abs(a - b) <= Math.abs(b) * 1e-12 + 1e-15, (msg || '') + ' ' + a + ' ≠ ' + b);
 
-test('categorías: las ocho magnitudes en el orden de las tarjetas, con unidades únicas y su unidad inicial', () => {
-  assert.deepEqual(U.CATEGORIES.map((c) => c.id), ['area', 'distancia', 'peso', 'volumen', 'energia', 'temperatura', 'velocidad', 'potencia']);
-  assert.deepEqual(U.CATEGORIES.map((c) => c.name), ['Área', 'Distancia', 'Peso', 'Volumen', 'Energía', 'Temperatura', 'Velocidad', 'Potencia']);
+test('categorías: las tres magnitudes de campo en el orden de las tarjetas, con unidades únicas y su unidad inicial', () => {
+  assert.deepEqual(U.CATEGORIES.map((c) => c.id), ['area', 'distancia', 'temperatura']);
+  assert.deepEqual(U.CATEGORIES.map((c) => c.name), ['Área', 'Distancia', 'Temperatura']);
   for (const c of U.CATEGORIES) {
     const ids = c.units.map((u) => u.id);
     assert.equal(new Set(ids).size, ids.length, c.id + ': ids repetidos');
@@ -19,6 +19,8 @@ test('categorías: las ocho magnitudes en el orden de las tarjetas, con unidades
   }
   assert.equal(U.category('area').name, 'Área');
   assert.equal(U.category('nada'), null);
+  // lo que no es de un levantamiento de campo se quitó en la 2.13
+  for (const id of ['peso', 'volumen', 'energia', 'velocidad', 'potencia']) { assert.equal(U.category(id), null); assert.equal(U.convert(id, 1, 'kg').ok, false); }
   assert.equal(U.unit(U.category('area'), 'xx'), null);
 });
 
@@ -44,48 +46,6 @@ test('distancia: pulgada, pie, yarda, milla y milla náutica con sus definicione
   near(val('distancia', 1, 'km', 'mm'), 1e6);
   near(val('distancia', 250, 'cm', 'm'), 2.5);
 });
-test('peso: libra, onza, tonelada y miligramo', () => {
-  near(val('peso', 1, 'lb', 'g'), 453.59237);
-  near(val('peso', 1, 'lb', 'oz'), 16);
-  near(val('peso', 1, 't', 'kg'), 1000);
-  near(val('peso', 1, 'kg', 'mg'), 1e6);
-  near(val('peso', 100, 'kg', 'lb'), 220.46226218487757);
-});
-test('volumen: galón de EE. UU. y el imperial, onza líquida, pie cúbico, barril', () => {
-  near(val('volumen', 1, 'galus', 'l'), 3.785411784);
-  near(val('volumen', 1, 'galuk', 'l'), 4.54609);
-  near(val('volumen', 1, 'galus', 'floz'), 128);
-  near(val('volumen', 1, 'm3', 'l'), 1000);
-  near(val('volumen', 1, 'ft3', 'in3'), 1728);
-  near(val('volumen', 1, 'bbl', 'galus'), 42);
-  near(val('volumen', 500, 'ml', 'l'), 0.5);
-});
-test('energía: caloría termoquímica, kilovatio-hora, BTU y pie-libra', () => {
-  near(val('energia', 1, 'kcal', 'j'), 4184);
-  near(val('energia', 1, 'cal', 'j'), 4.184);
-  near(val('energia', 1, 'kwh', 'mj'), 3.6);
-  near(val('energia', 1, 'kwh', 'wh'), 1000);
-  near(val('energia', 1, 'btu', 'j'), 1055.05585262);
-  near(val('energia', 1, 'ftlbf', 'j'), 1.3558179483314004);
-  near(val('energia', 1, 'btu', 'ftlbf'), 778.169262265965);
-});
-test('velocidad: km/h, milla por hora y nudo', () => {
-  near(val('velocidad', 36, 'kmh', 'ms'), 10);
-  near(val('velocidad', 60, 'mph', 'kmh'), 96.56064);
-  near(val('velocidad', 1, 'kn', 'kmh'), 1.852);
-  near(val('velocidad', 1, 'ms', 'kmh'), 3.6);
-  near(val('velocidad', 1, 'fts', 'ms'), 0.3048);
-});
-test('potencia: caballo de fuerza, caballo de vapor, BTU/h y kcal/h', () => {
-  near(val('potencia', 1, 'hp', 'w'), 745.69987158227022);
-  near(val('potencia', 1, 'cv', 'w'), 735.49875);
-  near(val('potencia', 1, 'kw', 'w'), 1000);
-  near(val('potencia', 1, 'mw', 'kw'), 1000);
-  near(val('potencia', 3600, 'kcalh', 'kw'), 4.184);
-  near(val('potencia', 3600, 'btuh', 'w'), 1055.05585262);
-  near(val('potencia', 1, 'hp', 'cv'), 745.69987158227022 / 735.49875);
-});
-
 test('convertir ida y vuelta devuelve el mismo valor en todas las magnitudes y unidades', () => {
   for (const c of U.CATEGORIES) {
     for (const a of c.units) {
@@ -143,7 +103,6 @@ test('convertir: el ruido de punto flotante se limpia solo en temperatura; en la
   const area = U.convert('area', 1, 'cm2').rows;
   assert.equal(area.find((x) => x.id === 'km2').text, '1e-10');
   assert.equal(area.find((x) => x.id === 'km2').value, 1e-10);
-  assert.equal(U.convert('potencia', 1e-12, 'w').rows.find((x) => x.id === 'mw').text, '1e-18');
   // temperatura: una diferencia de 1e-12 con respecto al cero es ruido de la resta y se muestra 0; 0,001 °C sí es un valor real
   const ruido = U.convert('temperatura', 1e-12, 'c').rows.find((x) => x.id === 'c');
   assert.equal(ruido.value, 0);

@@ -23,7 +23,7 @@ module.exports = async function (c) {
     assert.equal(await page.getAttribute('#nav-informe', 'aria-current'), 'page');
     assert.equal(await page.isVisible('#tab-informe'), true);
     assert.match(await page.innerText('#nav-informe'), /^Reporte$/);
-    assert.match(await text('#tab-informe .block .btn-primary[data-act="share"]'), /^Compartir reporte$/);
+    assert.match(await text('#tab-informe .sharebar .btn-primary[data-act="share"]'), /^Compartir reporte$/);
     // en el teléfono más angosto (320 px) ninguna etiqueta se corta
     await page.setViewportSize({ width: 320, height: 640 });
     const cortadas = await page.$$eval('nav.tabs button span', (els) => els.filter((e) => e.scrollWidth > e.parentElement.clientWidth).map((e) => e.textContent));
@@ -133,7 +133,7 @@ module.exports = async function (c) {
     assert.deepEqual(await projectNames(), ['Mi primer proyecto']);
     await act('projects');
     assert.equal(await page.locator('[data-act="askDeleteProject"]').count(), 0, 'no se puede eliminar el único proyecto');
-    assert.match(await text('#sheet'), /versión 2\.12\.0/);
+    assert.match(await text('#sheet'), /versión 2\.13\.0/);
     await act('closeSheet'); await waitSheetClosed();
     // nombre vacío al crear → nombre por defecto
     await act('projects'); await act('newProject'); await fill('#pName', '   '); await act('saveNewProject'); await waitSheetClosed();

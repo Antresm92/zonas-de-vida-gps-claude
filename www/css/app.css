@@ -394,3 +394,45 @@ img.nofoto { opacity: .35; }
 .cvrow small { font-size: 13px; font-weight: 500; color: var(--ink-soft); }
 .cvrow.cvfrom { background: var(--green-soft); }
 .cvrow:active { background: var(--blue-soft); }
+
+/* ---------- Versión guiada (2.13) ---------- */
+/* Franja de tres pasos: qué está listo y qué falta */
+.steps { display: flex; margin: 0 0 14px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--surface); }
+.step { flex: 1 1 0; min-width: 0; min-height: 48px; padding: 6px 4px; border: 0; border-right: 1px solid var(--line); background: transparent; color: var(--ink-soft); font: inherit; text-align: center; line-height: 1.2; }
+.step:last-child { border-right: 0; }
+.step b { display: block; font-size: 13px; }
+.step small { display: block; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.step.ok b { color: #1D7A3E; }
+.step.now { background: var(--blue); color: var(--on-blue); }
+/* Puntos: las cuatro formas de agregar, juntas */
+.addgrid { display: grid; grid-template-columns: 1fr 1fr 1fr; grid-gap: 8px; gap: 8px; }
+.addgrid .btn { min-height: 48px; padding: 6px 4px; font-size: 13.5px; line-height: 1.2; }
+.addgrid .btn-primary { grid-column: 1 / -1; font-size: 16px; }
+.addgrid + .readout, .prog + .readout { margin-top: 10px; }
+.f.f-inline { display: flex; align-items: center; gap: 10px; margin: 10px 0 0; }
+.f.f-inline > span { flex: 1 1 auto; margin: 0; font-weight: 600; font-size: 14px; }
+.f.f-inline select { flex: 0 0 auto; width: auto; max-width: 55%; min-height: 44px; }
+/* Información: lo que falta, en rojo; las explicaciones, plegadas */
+.block.need { padding: 12px; border: 2px solid #C42D34; border-radius: 12px; }
+.needtag { margin-left: 8px; padding: 2px 8px; border-radius: 9px; background: #C42D34; color: #FFFFFF; font-size: 12px; font-weight: 700; vertical-align: 2px; }
+details.why { margin: 2px 0 0; }
+details.why summary { min-height: 32px; padding: 6px 0; color: var(--blue); font-size: 13.5px; font-weight: 600; cursor: pointer; }
+/* Reporte: secciones que se abren al tocar su título, y «Compartir» siempre a la vista */
+.folds .block > h2[data-fold] { display: flex; align-items: center; justify-content: space-between; min-height: 48px; margin: 0; padding: 0 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); font-size: 16px; cursor: pointer; }
+.folds .block > h2[data-fold]::after { content: '›'; color: var(--ink-soft); font-size: 22px; transform: rotate(90deg); }
+.folds .block.folded > h2[data-fold]::after { transform: none; }
+.folds .block.folded > :not(h2) { display: none !important; }
+.folds .block.folded { margin-bottom: 8px; }
+.folds .block:not(.folded) > h2[data-fold] { margin-bottom: 10px; }
+.sharebar { position: -webkit-sticky; position: sticky; bottom: 70px; bottom: calc(var(--nav-h) + 8px); bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 8px); z-index: 4; margin-top: 12px; padding: 8px 0 0; background: linear-gradient(rgba(238, 242, 236, 0), var(--paper) 40%); }
+/* Herramientas: tres conversores en una fila y listas de opciones */
+.tgrid.tgrid3 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+.tgrid3 .tcard { min-width: 0; min-height: 104px; padding: 12px 2px; }
+.tgrid3 .tcard b { font-size: 15px; }
+.menu { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); overflow: hidden; }
+.menurow { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; min-height: 52px; padding: 8px 12px; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: var(--ink); font: inherit; text-align: left; }
+.menurow:last-child { border-bottom: 0; }
+.menurow b { display: block; font-size: 15px; }
+.menurow small { display: block; color: var(--ink-soft); font-size: 13px; }
+.menurow i { color: var(--ink-soft); font-style: normal; font-size: 22px; }
+.menurow input[type="checkbox"] { flex: none; width: 24px; height: 24px; accent-color: var(--blue); }

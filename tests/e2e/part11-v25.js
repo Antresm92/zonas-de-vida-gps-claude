@@ -68,9 +68,11 @@ module.exports = async function (c) {
     assert.match(f.text, new RegExp('<span class="dot" style="background:' + rojo + '"></span>Abajo'));
     assert.match(f.text, /<span class="dot" style="background:#2F8F4E"><\/span>Arriba/);
     assert.match(f.text, new RegExp('<circle[^>]*stroke="' + rojo + '"'), 'el perfil del reporte');
-    const kml = (await download(() => page.click('#tab-informe [data-act="export"][data-fmt="kml"]'))).text;
+    await page.click('#tab-informe [data-act="goExport"]');               // exportar vive en Polígono › Croquis
+    await page.waitForSelector('#tab-area #exportBlock');
+    const kml = (await download(() => page.click('#tab-area [data-act="export"][data-fmt="kml"]'))).text;
     assert.match(kml, new RegExp('<Style id="punto' + rojo.slice(1).toUpperCase() + '"><IconStyle>'));
-    const gj = JSON.parse((await download(() => page.click('#tab-informe [data-act="export"][data-fmt="geojson"]'))).text);
+    const gj = JSON.parse((await download(() => page.click('#tab-area [data-act="export"][data-fmt="geojson"]'))).text);
     assert.equal(gj.features.find((x) => x.properties.name === 'Abajo' && x.properties.tipo === 'vertice').properties.color, rojo);
     assert.equal(gj.features.find((x) => x.properties.name === 'Arriba' && x.properties.tipo === 'vertice').properties.color, '#2F8F4E');
   });

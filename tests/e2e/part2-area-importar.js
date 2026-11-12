@@ -277,10 +277,17 @@ module.exports = async function (c) {
     await page.click('[data-act="csvStyle"][data-s="es"]');
   });
 
-  await step('Exportar también desde la pestaña Reporte', async () => {
+  await step('Desde el Reporte, «Exportar el terreno» lleva al bloque Exportar de Polígono › Croquis (ya no está repetido en el Reporte)', async () => {
     await page.evaluate(() => { const p = window.__app.S.projects.find((x) => x.id === window.__app.S.currentId); p.climate.pManual = 1200; p.climate.altOverride = 2600; });
     await tab('informe');
-    assert.ok(await page.locator('#tab-informe [data-act="export"]').count() >= 4);
+    assert.equal(await page.locator('#tab-informe [data-act="export"]').count(), 0);
+    await page.click('#tab-informe [data-act="goExport"]');
+    await page.waitForSelector('#tab-area #exportBlock');
+    assert.equal(await page.getAttribute('#nav-area', 'aria-current'), 'page');
+    assert.equal(await page.getAttribute('[data-act="polyView"][data-v="croquis"]', 'aria-pressed'), 'true');
+    assert.ok(await page.locator('#tab-area [data-act="export"]').count() >= 4);
+    const visto = await page.evaluate(() => { const r = document.querySelector('#exportBlock').getBoundingClientRect(); return r.top < window.innerHeight && r.bottom > 0; });
+    assert.equal(visto, true, 'la pantalla baja hasta el bloque');
   });
 
   await step('Sin errores de JavaScript en la consola', async () => {

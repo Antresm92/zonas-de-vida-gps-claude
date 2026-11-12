@@ -133,12 +133,18 @@ module.exports = async function (c) {
     await otraVez();
     await page.click('[data-act="photoDel"] >> nth=4'); await waitToast(/Foto quitada/);        // hace sitio
     assert.equal(await conteo(), 'Fotos (4 de 5)');
+    // entre un archivo y el siguiente se espera a que el aviso anterior se vaya: así cada aviso es el de su archivo y la app ya terminó con el anterior
+    const sinAviso = () => page.waitForFunction(() => document.querySelector('#toast').hidden, null, { timeout: 12000 });
+    await sinAviso();
     await page.setInputFiles('#photoGal', { name: 'nota.txt', mimeType: 'text/plain', buffer: Buffer.from('hola') });
     assert.match(await waitToast(/No se pudo guardar la foto/), /no es una imagen/);
+    await sinAviso();
     await page.setInputFiles('#photoGal', { name: 'rota.png', mimeType: 'image/png', buffer: Buffer.from('esto no es un png') });
     await waitToast(/No se pudo guardar la foto/);
+    await sinAviso();
     await page.setInputFiles('#photoGal', { name: 'vacia.png', mimeType: 'image/png', buffer: Buffer.alloc(0) });
     assert.match(await waitToast(/No se pudo guardar la foto/), /vacío|no es una imagen/);
+    await sinAviso();
     assert.equal(await conteo(), 'Fotos (4 de 5)', 'nada cambió');
     await page.setInputFiles('#photoGal', archivo('quinta.png', 200, [90, 90, 90]));
     await waitToast(/Foto guardada/);

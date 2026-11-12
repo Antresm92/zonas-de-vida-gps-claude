@@ -5,8 +5,8 @@ module.exports = async function (c) {
   const { page, assert, step, fresh, act, tab, text, fill, waitToast, waitSheetClosed, addPointManual, gpsPush, shot, sheetTitle, sheetOpen, proj, errors, context } = c;
 
   /* ---------- Ayudas ---------- */
-  const CATS = [['area', 'Área', 10, 'm²'], ['distancia', 'Distancia', 9, 'm'], ['peso', 'Peso', 6, 'kg'], ['volumen', 'Volumen', 9, 'L'], ['energia', 'Energía', 9, 'J'],
-    ['temperatura', 'Temperatura', 4, '°C'], ['velocidad', 'Velocidad', 5, 'km/h'], ['potencia', 'Potencia', 7, 'W']];
+  // Desde la 2.13 el conversor trae solo las magnitudes de un levantamiento de campo
+  const CATS = [['area', 'Área', 10, 'm²'], ['distancia', 'Distancia', 9, 'm'], ['temperatura', 'Temperatura', 4, '°C']];
   const abrir = async (cat) => { await tab('herramientas'); await page.click('[data-act="convert"][data-tool="' + cat + '"]'); await page.waitForSelector('#cvRes .cvrow, #cvRes .tip'); };
   const filas = () => page.$$eval('#cvRes .cvrow', (els) => els.map((e) => [e.querySelector('.cvn').textContent, e.querySelector('b').textContent.replace(/\s+/g, ' ').trim()]));
   const fila = async (nombre) => { const f = (await filas()).find((x) => x[0].startsWith(nombre)); assert.ok(f, 'no hay fila «' + nombre + '»: ' + JSON.stringify(await filas())); return f[1]; };
@@ -36,7 +36,7 @@ module.exports = async function (c) {
   const query = (i) => new URL(mock.urls[i === undefined ? mock.urls.length - 1 : i]).searchParams;
 
   /* ---------- La pestaña ---------- */
-  await step('Menú inferior: «Herramientas» es la quinta pestaña y abre su pantalla con las ocho tarjetas del conversor y las de Clima y GPS', async () => {
+  await step('Menú inferior: «Herramientas» es la quinta pestaña y abre su pantalla con las tres tarjetas del conversor y las de Clima y GPS', async () => {
     await fresh();
     const etiquetas = await page.$$eval('nav.tabs button span', (els) => els.map((e) => e.textContent.trim()));
     assert.deepEqual(etiquetas, ['Puntos', 'Polígono', 'Información', 'Reporte', 'Herramientas']);
@@ -45,12 +45,12 @@ module.exports = async function (c) {
     assert.equal(await page.isVisible('#tab-herramientas'), true);
     assert.equal(await page.isVisible('#tab-puntos'), false);
     assert.equal(await text('#tab-herramientas h2'), 'Herramientas');
-    assert.equal(await text('#tab-herramientas .lead'), 'Conversor de unidades y utilidades de campo.');
     const h3 = await page.$$eval('#tab-herramientas h3', (els) => els.map((e) => e.textContent));
-    assert.deepEqual(h3, ['Conversor de unidades', 'Utilidades de campo']);
+    assert.deepEqual(h3, ['Conversor de unidades', 'Utilidades de campo', 'Proyectos y copias', 'Preferencias', 'Ayuda']);
+    assert.equal(await page.locator('#tab-herramientas [data-act="convert"]').count(), 3, 'peso, volumen, energía, velocidad y potencia ya no están');
     const tarjetas = await page.$$eval('#tab-herramientas .tcard', (els) => els.map((e) => { const s = e.querySelector('span'); return [e.querySelector('b').textContent, s ? s.textContent : null, e.getAttribute('data-act')]; }));
     assert.deepEqual(tarjetas, [...CATS.map((x) => [x[1], null, 'convert']), ['Clima', 'Condiciones actuales', 'toolWeather'], ['GPS', 'Coordenadas y precisión', 'toolGps']]);
-    assert.equal(await page.locator('#tab-herramientas .tcard svg').count(), 10, 'cada tarjeta lleva su ícono');
+    assert.equal(await page.locator('#tab-herramientas .tcard svg').count(), 5, 'cada tarjeta lleva su ícono');
     assert.equal(await page.locator('#tab-herramientas .tcard[data-act="convert"] span').count(), 0, 'las tarjetas del conversor no llevan subtítulo (2.8.1)');
     assert.equal(await page.locator('#tab-herramientas .tcard:not([data-act="convert"]) span').count(), 2, 'Clima y GPS conservan el suyo');
     await shot('140-herramientas');
@@ -159,23 +159,6 @@ module.exports = async function (c) {
     assert.equal(await fila('grado Rankine'), '0 °R');
   });
 
-  await step('Peso, volumen, energía, velocidad y potencia dan los valores de referencia (1 lb = 453,5924 g, 1 gal = 3,785412 L, 1 kWh = 3600 kJ, 60 mph = 96,56064 km/h, 1 hp = 745,6999 W)', async () => {
-    await abrir('peso'); await fill('#cvVal', '1'); await page.selectOption('#cvUnit', 'lb');
-    assert.equal(await fila('gramo'), '453,5924 g'); assert.equal(await fila('onza'), '16 oz');
-    await cerrar();
-    await abrir('volumen'); await fill('#cvVal', '1'); await page.selectOption('#cvUnit', 'galus');
-    assert.equal(await fila('litro'), '3,785412 L'); assert.equal(await fila('onza líquida'), '128 fl oz');
-    await cerrar();
-    await abrir('energia'); await fill('#cvVal', '1'); await page.selectOption('#cvUnit', 'kwh');
-    assert.equal(await fila('kilojulio'), '3600 kJ'); assert.equal(await fila('kilocaloría'), '860,4207 kcal');
-    await cerrar();
-    await abrir('velocidad'); await fill('#cvVal', '60'); await page.selectOption('#cvUnit', 'mph');
-    assert.equal(await fila('kilómetro por hora'), '96,56064 km/h'); assert.equal(await fila('nudo'), '52,13857 kn');
-    await cerrar();
-    await abrir('potencia'); await fill('#cvVal', '1'); await page.selectOption('#cvUnit', 'hp');
-    assert.equal(await fila('vatio'), '745,6999 W'); assert.equal(await fila('caballo de vapor'), '1,01387 CV');
-  });
-
   await step('El conversor recuerda el valor y la unidad de cada magnitud mientras la app está abierta; cada magnitud lleva los suyos', async () => {
     await fresh();
     await abrir('area'); await fill('#cvVal', '7'); await page.selectOption('#cvUnit', 'acre'); await cerrar();
@@ -212,9 +195,9 @@ module.exports = async function (c) {
     await fresh();
     await context.setOffline(true);
     try {
-      await abrir('velocidad');
+      await abrir('distancia');
       await fill('#cvVal', '100');
-      assert.equal(await fila('metro por segundo'), '27,77778 m/s');
+      assert.equal(await fila('kilómetro'), '0,1 km');
       await shot('144-conversor-sin-internet');
     } finally { await context.setOffline(false); }
     assert.deepEqual(errors, []);

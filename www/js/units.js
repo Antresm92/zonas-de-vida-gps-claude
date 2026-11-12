@@ -40,52 +40,6 @@
     lin('mi', 'milla', 'mi', 1609.344),
     lin('nmi', 'milla náutica', 'nmi', 1852)
   ];
-  var PESO = [
-    lin('kg', 'kilogramo', 'kg', 1),
-    lin('g', 'gramo', 'g', 0.001),
-    lin('mg', 'miligramo', 'mg', 1e-6),
-    lin('t', 'tonelada métrica', 't', 1000),
-    lin('lb', 'libra (453,59 g)', 'lb', 0.45359237),
-    lin('oz', 'onza', 'oz', 0.028349523125)
-  ];
-  var VOLUMEN = [
-    lin('l', 'litro', 'L', 1),
-    lin('ml', 'mililitro', 'mL', 0.001),
-    lin('m3', 'metro cúbico', 'm³', 1000),
-    lin('galus', 'galón (EE. UU.)', 'gal', 3.785411784),
-    lin('galuk', 'galón imperial (Reino Unido)', 'gal imp.', 4.54609),
-    lin('floz', 'onza líquida (EE. UU.)', 'fl oz', 0.0295735295625),
-    lin('ft3', 'pie cúbico', 'ft³', 28.316846592),
-    lin('in3', 'pulgada cúbica', 'in³', 0.016387064),
-    lin('bbl', 'barril de petróleo (42 gal)', 'bbl', 158.987294928)
-  ];
-  var ENERGIA = [
-    lin('j', 'julio', 'J', 1),
-    lin('kj', 'kilojulio', 'kJ', 1000),
-    lin('mj', 'megajulio', 'MJ', 1e6),
-    lin('cal', 'caloría', 'cal', 4.184),
-    lin('kcal', 'kilocaloría', 'kcal', 4184),
-    lin('wh', 'vatio-hora', 'Wh', 3600),
-    lin('kwh', 'kilovatio-hora', 'kWh', 3.6e6),
-    lin('btu', 'BTU', 'BTU', 1055.05585262),
-    lin('ftlbf', 'pie-libra fuerza', 'ft·lbf', 1.3558179483314004)
-  ];
-  var VELOCIDAD = [
-    lin('kmh', 'kilómetro por hora', 'km/h', 1 / 3.6),
-    lin('ms', 'metro por segundo', 'm/s', 1),
-    lin('mph', 'milla por hora', 'mph', 0.44704),
-    lin('kn', 'nudo', 'kn', 1852 / 3600),
-    lin('fts', 'pie por segundo', 'ft/s', 0.3048)
-  ];
-  var POTENCIA = [
-    lin('w', 'vatio', 'W', 1),
-    lin('kw', 'kilovatio', 'kW', 1000),
-    lin('mw', 'megavatio', 'MW', 1e6),
-    lin('hp', 'caballo de fuerza (hp)', 'hp', 745.69987158227022),
-    lin('cv', 'caballo de vapor (CV)', 'CV', 735.49875),
-    lin('btuh', 'BTU por hora', 'BTU/h', 1055.05585262 / 3600),
-    lin('kcalh', 'kilocaloría por hora', 'kcal/h', 4184 / 3600)
-  ];
   // Temperatura: la base es el kelvin; cada unidad sabe pasar de y a kelvin
   var TEMPERATURA = [
     { id: 'c', name: 'grado Celsius', sym: '°C', toBase: function (v) { return v + 273.15; }, fromBase: function (k) { return k - 273.15; } },
@@ -94,16 +48,12 @@
     { id: 'r', name: 'grado Rankine', sym: '°R', toBase: function (v) { return v * 5 / 9; }, fromBase: function (k) { return k * 9 / 5; } }
   ];
 
-  // Las ocho tarjetas, en el orden en que salen en la pantalla. «def» es la unidad con que abre el conversor.
+  // Las tres tarjetas, en el orden en que salen en la pantalla. «def» es la unidad con que abre el conversor.
+  // (Hasta la 2.12 había también peso, volumen, energía, velocidad y potencia; se quitaron por no ser de un levantamiento de campo.)
   var CATEGORIES = [
     { id: 'area', name: 'Área', def: 'm2', units: AREA },
     { id: 'distancia', name: 'Distancia', def: 'm', units: DISTANCIA },
-    { id: 'peso', name: 'Peso', def: 'kg', units: PESO },
-    { id: 'volumen', name: 'Volumen', def: 'l', units: VOLUMEN },
-    { id: 'energia', name: 'Energía', def: 'j', units: ENERGIA },
-    { id: 'temperatura', name: 'Temperatura', def: 'c', units: TEMPERATURA },
-    { id: 'velocidad', name: 'Velocidad', def: 'kmh', units: VELOCIDAD },
-    { id: 'potencia', name: 'Potencia', def: 'w', units: POTENCIA }
+    { id: 'temperatura', name: 'Temperatura', def: 'c', units: TEMPERATURA }
   ];
 
   function category(id) {

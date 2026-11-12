@@ -5,7 +5,7 @@
   var Geo = window.Geo, H = window.Holdridge, Climate = window.Climate, A = window.Analysis, Fmt = window.Fmt,
       Gps = window.Gps, Store = window.Store, Diagram = window.Diagram, Report = window.Report,
       Gis = window.Gis, Backup = window.Backup, IO = window.IO, WL = window.WalterLieth, Mapa = window.Mapa, MapView = window.MapView, Satelite = window.Satelite, Perfil = window.Perfil, Fotos = window.Fotos, Zip = window.Zip, Units = window.Units;
-  var APP_VERSION = '2.12.0';
+  var APP_VERSION = '2.13.0';
 
   var S = Store.loadState();
   var hadSaved = Store.hasSavedState();      // ¿había datos guardados al abrir? (solo entonces se limpian las fotos sin uso)
@@ -15,7 +15,7 @@
              imp: null, restore: null, edit: null,
              polyView: 'croquis', polyActive: true, mapBase: Mapa.baseId(Store.loadFlag('mapBase')), mapRef: Store.loadFlag('mapRef') === true,
              map: null, mapFollow: false, mapFitKey: null, tileErrors: 0, mapMode: '', mapMenu: false, mapModeFor: null,
-             mapSel: null, navId: null, mapLayers: false, mapFull: false, follow: false, mapTool: '', measure: [], measureClosed: false, mapUndo: Mapa.undoStack(20), track: null, wake: null,
+             unfolded: {}, mapSel: null, navId: null, mapLayers: false, mapFull: false, follow: false, mapTool: '', measure: [], measureClosed: false, mapUndo: Mapa.undoStack(20), track: null, wake: null,
              croq: { satelite: { img: null, busy: false, error: null }, topo: { img: null, busy: false, error: null } }, sharing: false, nowBusy: false, nowError: '', photoBusy: false, restoring: false,
              conv: null, convMem: {}, tool: null, wx: null, wxToken: 0, toolGpsKind: '' };
 
@@ -412,24 +412,24 @@
   function tabPuntos() {
     var p = proj(), h = '';
     var sampling = ui.sampling;
-    h += '<div class="block"><h2>Posición actual</h2>';
-    h += '<div class="readout"><div><span class="k">Latitud</span><span class="v" id="rLat">—</span></div><div><span class="k">Longitud</span><span class="v" id="rLon">—</span></div>' +
-         '<div><span class="k">Altitud</span><span class="v" id="rAlt">—</span></div><div><span class="k">Precisión</span><span class="v" id="rAcc">—</span></div></div>' +
-         '<div id="precBanner" hidden></div>';
+    // Arriba, las formas de agregar un punto; la posición del GPS solo ocupa lugar cuando el GPS está encendido
+    h += '<div class="block"><h2>Agregar un punto</h2>';
     if (sampling) {
       h += '<div class="prog"><i id="progBar"></i></div><p class="small muted" id="progTxt">Esperando la primera lectura del GPS…</p>';
       h += '<div class="btns"><button class="btn btn-danger" data-act="cancelMark">Cancelar</button></div>';
-    } else if (!ui.gpsOn) {
-      h += '<div class="btns"><button class="btn btn-primary" data-act="gpsOn">Activar GPS</button><button class="btn" data-act="addCoords">Escribir coordenadas</button></div>';
-      h += '<p class="small muted">Con el GPS activo, la altitud del punto se toma sola y la puedes corregir a mano.</p>';
     } else {
-      h += '<div class="btns"><button class="btn btn-primary" data-act="mark">Marcar punto aquí</button><button class="btn" data-act="addCoords">Escribir coordenadas</button></div>';
-      h += '<p class="small muted">Quédate quieto unos 10 segundos: se promedian las lecturas para mejorar la posición y la altitud. <button class="link" data-act="gpsOff">Apagar GPS</button></p>';
+      h += '<div class="addgrid">' + (ui.gpsOn ? '<button class="btn btn-primary" data-act="mark">Marcar punto aquí</button>' : '<button class="btn btn-primary" data-act="gpsOn">Activar GPS</button>') +
+        '<button class="btn" data-act="addCoords">Escribir coordenadas</button><button class="btn" data-act="addBulk">Pegar varias coordenadas</button><button class="btn" data-act="importFile">Importar archivo</button></div>';
     }
-    h += '<label class="f" style="margin:12px 0 0"><span>Precisión mínima para marcar puntos</span><select data-setting="minAcc">' +
+    h += '<div class="readout"' + (ui.gpsOn || sampling ? '' : ' hidden') + '><div><span class="k">Latitud</span><span class="v" id="rLat">—</span></div><div><span class="k">Longitud</span><span class="v" id="rLon">—</span></div>' +
+         '<div><span class="k">Altitud</span><span class="v" id="rAlt">—</span></div><div><span class="k">Precisión</span><span class="v" id="rAcc">—</span></div></div>' +
+         '<div id="precBanner" hidden></div>';
+    if (!sampling && ui.gpsOn) h += '<p class="small muted">Quédate quieto unos 10 segundos: se promedian las lecturas para mejorar la posición y la altitud. <button class="link" data-act="gpsOff">Apagar GPS</button></p>';
+    else if (!sampling) h += '<p class="small muted">Con el GPS activo, la altitud del punto se toma sola y la puedes corregir a mano.</p>';
+    h += '<label class="f f-inline"><span>Precisión mínima del GPS</span><select data-setting="minAcc" title="Si el GPS está menos preciso que esto, la app te avisa antes de marcar y tú decides. No bloquea nada.">' +
       [[0, 'Sin límite'], [3, '±3 m (muy exigente)'], [5, '±5 m'], [10, '±10 m'], [20, '±20 m (campo difícil)']].map(function (o) {
         return '<option value="' + o[0] + '"' + (o[0] === S.settings.minAcc ? ' selected' : '') + '>' + o[1] + '</option>';
-      }).join('') + '</select><span class="hint">Si el GPS está menos preciso que esto, la app te avisa antes de marcar y tú decides. No bloquea nada.</span></label>';
+      }).join('') + '</select></label>';
     h += '</div>';
 
     h += '<div class="block"><h2>Puntos' + (p.points.length ? '<span class="count">' + p.points.length + '</span>' : '') + '</h2>';
@@ -445,7 +445,7 @@
       });
       h += '</ul>';
     }
-    h += '<div class="btns"><button class="btn" data-act="addBulk">Pegar varias coordenadas</button><button class="btn" data-act="importFile">Importar archivo</button></div></div>';
+    h += '</div>';
     h += layersBlock();
     return h;
   }
@@ -464,7 +464,7 @@
   function layersBlock() {
     var p = proj();
     var h = '<div class="block"><h2>Colores y capas' + (p.layers.length ? '<span class="count">' + p.layers.length + '</span>' : '') + '</h2>';
-    h += '<p class="lead">Tus puntos se usan para el área y la zona de vida. Lo que importes queda en capas de otro color, sin mezclarse con ellos.</p>';
+    if (p.layers.length) h += '<p class="small muted">Tus puntos se usan para el área y la zona de vida. Lo importado queda en capas de otro color, sin mezclarse con ellos.</p>';
     h += '<ul class="layers"><li class="layer">' + swatch(p.mainColor, 'editMain', '', 'Cambiar el color de mis puntos') +
       '<div class="lname"><b>Mis puntos</b><span class="psub">' + p.points.length + (p.points.length === 1 ? ' punto' : ' puntos') + '</span></div></li>';
     p.layers.forEach(function (l) {
@@ -644,7 +644,7 @@
     csv: { ext: 'csv', mime: 'text/csv', label: 'CSV', sub: 'Excel' }
   };
   function exportBlock() {
-    var h = '<div class="block"><h2>Exportar</h2><p class="lead">Para abrir tu terreno en Google Earth, QGIS, Excel o un GPS.</p><div class="expgrid">';
+    var h = '<div class="block" id="exportBlock"><h2>Exportar</h2><p class="lead">Para abrir tu terreno en Google Earth, QGIS, Excel o un GPS.</p><div class="expgrid">';
     Object.keys(EXPORTS).forEach(function (k) { h += '<button class="btn" data-act="export" data-fmt="' + k + '">' + EXPORTS[k].label + '<small>' + EXPORTS[k].sub + '</small></button>'; });
     h += '</div><div class="seg" role="group" aria-label="Formato del CSV" style="margin-top:12px">';
     [['es', 'CSV para Excel en español'], ['std', 'CSV estándar']].forEach(function (o) { h += '<button data-act="csvStyle" data-s="' + o[0] + '" aria-pressed="' + (S.settings.csvStyle === o[0]) + '">' + o[1] + '</button>'; });
@@ -1329,13 +1329,24 @@
   }
   function numField(field, label, value, hint, ph) {
     return '<label class="f"><span>' + esc(label) + '</span><div class="field-row"><input type="text" inputmode="decimal" data-field="' + field + '" value="' + (isNum(value) ? esc(Fmt.num(value, field === 'tManual' ? 1 : 0)) : '') + '" placeholder="' + esc(ph || '') + '" autocomplete="off">' +
-      (isNum(value) ? '<button class="btn btn-quiet" data-act="clearField" data-field="' + field + '">Quitar</button>' : '') + '</div><span class="hint">' + hint + '</span></label>';
+      (isNum(value) ? '<button class="btn btn-quiet" data-act="clearField" data-field="' + field + '">Quitar</button>' : '') + '</div></label><details class="why"><summary>¿Qué escribo aquí?</summary><span class="hint">' + hint + '</span></details>';
   }
 
   function tabClima() {
     var a = analysis(), p = proj(), c = p.climate, h = '';
     if (a.empty) return '<div class="empty"><b>Sin puntos todavía</b>Agrega un punto en la pestaña Puntos para ver o completar el clima.</div>';
     var cl = a.climate;
+
+    // Lo primero, lo que más ahorra trabajo: traer los datos de internet
+    h += '<div class="block"><h2>Completar con internet</h2>';
+    h += '<p class="lead">Trae la altitud de cada punto sin altitud y el clima de la zona, mes por mes (NASA POWER y, si no responde, Open-Meteo). Lo que traes queda guardado en el equipo para usarlo sin conexión.</p>';
+    if (ui.staleOnline) h += '<div class="tip">Los datos de internet guardados son de otro lugar; vuelve a completarlos.</div>';
+    if (c.online && !ui.staleOnline) h += '<p class="small muted">Última descarga: ' + esc(Fmt.date(c.online.date)) + (c.online.source ? ' · ' + esc(c.online.source) : '') + '.</p>';
+    var offline = navigator.onLine === false;
+    h += '<button class="btn btn-primary btn-block" data-act="fetchOnline"' + (ui.fetching ? ' disabled' : '') + '>' + (ui.fetching ? 'Consultando…' : 'Completar con internet') + '</button>';
+    if (offline) h += '<p class="small muted">Ahora no hay conexión. Tus puntos quedan guardados; completa cuando tengas internet.</p>';
+    h += '</div>';
+
 
     h += '<div class="block"><h2>Altitud</h2>';
     if (a.alt.value !== null) {
@@ -1354,7 +1365,7 @@
     h += numField('tManual', 'Escribir la temperatura medida (°C)', c.tManual, 'Si tienes un dato medido (estación, IDEAM, finca vecina) escríbelo: manda sobre cualquier estimación.', 'ej. 14,5');
     h += '</div>';
 
-    h += '<div class="block"><h2>Precipitación anual</h2>';
+    h += '<div class="block' + (isNum(cl.P) ? '' : ' need') + '"><h2>Precipitación anual' + (isNum(cl.P) ? '' : '<span class="needtag">falta</span>') + '</h2>';
     if (isNum(cl.P)) h += '<span class="big">' + Fmt.num(cl.P, 0) + ' <small>mm</small></span> ' + srcBadge(cl.PSrc);
     else h += '<div class="tip">La precipitación no se estima: cambia mucho de un valle a otro. Escríbela, importa un archivo de datos o complétala con internet.</div>';
     h += numField('pManual', 'Escribir la precipitación media anual (mm)', c.pManual, 'Suma de la lluvia de un año típico. Si tienes registros de varios años, usa el promedio.', 'ej. 1200');
@@ -1363,15 +1374,6 @@
     (cl.notes || []).concat(a.warnings || []).forEach(function (n) { h += '<p class="small muted" style="margin:4px 0">• ' + esc(n) + '</p>'; });
 
     h += walterBlock(a);
-
-    h += '<div class="block" style="margin-top:20px"><h2>Completar con internet</h2>';
-    h += '<p class="lead">Trae la altitud de cada punto sin altitud y el clima de la zona, mes por mes (NASA POWER y, si no responde, Open-Meteo). Lo que traes queda guardado en el equipo para usarlo sin conexión.</p>';
-    if (ui.staleOnline) h += '<div class="tip">Los datos de internet guardados son de otro lugar; vuelve a completarlos.</div>';
-    if (c.online && !ui.staleOnline) h += '<p class="small muted">Última descarga: ' + esc(Fmt.date(c.online.date)) + (c.online.source ? ' · ' + esc(c.online.source) : '') + '.</p>';
-    var offline = navigator.onLine === false;
-    h += '<button class="btn btn-primary btn-block" data-act="fetchOnline"' + (ui.fetching ? ' disabled' : '') + '>' + (ui.fetching ? 'Consultando…' : 'Completar con internet') + '</button>';
-    if (offline) h += '<p class="small muted">Ahora no hay conexión. Tus puntos quedan guardados; completa cuando tengas internet.</p>';
-    h += '</div>';
 
     h += '<div class="block"><h2>Datos guardados en este equipo</h2>';
     h += '<p class="lead">' + (MEM.count ? MEM.count + ' registro' + (MEM.count > 1 ? 's' : '') + ' de clima. Se usan sin conexión para puntos a menos de 25 km.' : 'Todavía no hay datos. Importa un archivo CSV con estaciones o celdas de clima, o completa con internet una vez.') + '</p>';
@@ -1568,9 +1570,10 @@
       '<div class="diagram-tools"><button data-act="dZoomOut" aria-label="Alejar">−</button><button data-act="dZoomIn" aria-label="Acercar">+</button><button class="txt" data-act="dCenter" aria-label="Centrar en el punto">Mi punto</button><button class="txt" data-act="dFit" aria-label="Ver todo el diagrama">Ver todo</button></div>' +
       '<p class="small muted">Arrastra para moverte y pellizca para acercar. El anillo rojo es el punto analizado y el hexágono verde, su zona de vida.</p></div>';
 
-    h += '<div class="block"><h2>Compartir</h2><div class="btns"><button class="btn btn-primary" data-act="share">Compartir reporte</button><button class="btn" data-act="copy">Copiar resumen</button></div>' +
+    h += '<div class="block"><h2>Más opciones</h2><div class="btns"><button class="btn" data-act="copy">Copiar resumen</button><button class="btn" data-act="goExport">Exportar el terreno (KML, GeoJSON, GPX, CSV)</button></div>' +
       '<p class="small muted" style="margin-top:12px">' + esc(Report.DISCLAIMER) + '</p></div>';
-    return h + exportBlock();
+    // Siempre a la vista, pegado sobre la barra de pestañas
+    return h + '<div class="sharebar"><button class="btn btn-primary btn-block" data-act="share">Compartir reporte</button></div>';
   }
   /* ---------- Reporte: fotos de los puntos ---------- */
   function photosBlock() {
@@ -1610,7 +1613,7 @@
     return h + '<p class="small muted">Con internet, trae la temperatura, la condición, el viento, la presión, la humedad y las horas de amanecer y atardecer de este momento en el centro de tus puntos (Open-Meteo). ' +
       'No es el promedio de varios años y no cambia el cálculo de la zona de vida.</p>';
   }
-  function refreshNow() { var el = $('#nowBlock'); if (el) el.innerHTML = nowBlock(); }
+  function refreshNow() { var el = $('#nowBlock'); if (el) { el.innerHTML = nowBlock(); foldReport(); } }
   function fetchNow() {
     var a = analysis();
     if (a.empty || ui.nowBusy) return;
@@ -1660,7 +1663,7 @@
     h += '<div class="btns"><button class="btn" data-act="' + cfg.act + '"' + (c.busy ? ' disabled' : '') + '>' + (s ? 'Volver a preparar' : 'Preparar croquis ' + cfg.noun) + '</button></div>';
     return h + '<p class="small muted">' + cfg.note + '</p>';
   }
-  function refreshCroqBlock(kind) { var el = $('#' + CROQ[kind].block); if (el) el.innerHTML = croqBlock(kind); }
+  function refreshCroqBlock(kind) { var el = $('#' + CROQ[kind].block); if (el) { el.innerHTML = croqBlock(kind); foldReport(); } }
   // Resuelve siempre con { svg, caption } o { unavailable: motivo }; nunca rechaza. force: volver a bajar aunque ya esté preparado.
   function prepareCroquis(kind, force) {
     var p = proj(), a = analysis(), sig = Satelite.signature(p), cur = croqCurrent(kind), c = ui.croq[kind], caption = Satelite.KINDS[kind].caption;
@@ -1887,12 +1890,7 @@
   var TOOL_ICON = {
     area: '<path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/>',
     distancia: '<path d="M4 16L16 4l4 4L8 20z"/><path d="M7.5 12.5l2 2M10.5 9.5l2 2M13.5 6.5l2 2"/>',
-    peso: '<path d="M6.5 9h11L20 20H4z"/><circle cx="12" cy="5.5" r="2.5"/>',
-    volumen: '<path d="M5 4h14l-2 16H7z"/><path d="M5.8 10h12.4"/>',
-    energia: '<path d="M13 2L5 13.5h6L10 22l9-12h-6z"/>',
     temperatura: '<path d="M14 14.8V5a2 2 0 0 0-4 0v9.8a4 4 0 1 0 4 0z"/><path d="M12 9v7"/>',
-    velocidad: '<path d="M4 17a8 8 0 1 1 16 0"/><path d="M12 17l4.5-5.5"/>',
-    potencia: '<rect x="2.5" y="7.5" width="16" height="9" rx="2"/><path d="M21.5 10.5v3"/><path d="M11 9.5l-2.5 3h3L9 15"/>',
     clima: '<path d="M7 15.5a4 4 0 0 1-.6-7.9 5.5 5.5 0 0 1 10.6 1A3.5 3.5 0 0 1 17 15.5z"/><path d="M8.5 18.5l-.8 2M12.5 18.5l-.8 2M16.5 18.5l-.8 2"/>',
     gps: '<path d="M12 21s-7-6.2-7-11.2A7 7 0 0 1 19 9.8C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.8" r="2.5"/>'
   };
@@ -1900,11 +1898,91 @@
     return '<button class="tcard" data-act="' + act + '" data-tool="' + key + '"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + TOOL_ICON[key] + '</svg><b>' + esc(title) + '</b>' + (sub ? '<span>' + esc(sub) + '</span>' : '') + '</button>';
   }
   function tabHerramientas() {
-    var h = '<h2 class="tt">Herramientas</h2><p class="lead">Conversor de unidades y utilidades de campo.</p>';
-    h += '<h3 class="sub">Conversor de unidades</h3><div class="tgrid">';
+    var p = proj(), h = '<h2 class="tt">Herramientas</h2>';
+    h += '<h3 class="sub">Conversor de unidades</h3><div class="tgrid tgrid3">';
     Units.CATEGORIES.forEach(function (c) { h += toolCard('convert', c.id, c.name); });
     h += '</div><h3 class="sub">Utilidades de campo</h3><div class="tgrid">' + toolCard('toolWeather', 'clima', 'Clima', 'Condiciones actuales') + toolCard('toolGps', 'gps', 'GPS', 'Coordenadas y precisión') + '</div>';
+    h += '<h3 class="sub">Proyectos y copias</h3><div class="menu">' +
+      menuRow('projects', 'Proyectos', S.projects.length + (S.projects.length === 1 ? ' proyecto' : ' proyectos') + ' · actual: ' + p.name) +
+      menuRow('projects', 'Copia de seguridad y restaurar', '.zip recomendado') + '</div>';
+    h += '<h3 class="sub">Preferencias</h3><div class="menu"><label class="menurow"><span><b>Reporte con todas las secciones abiertas</b><small>Si no, cada sección se abre al tocar su título.</small></span>' +
+      '<input type="checkbox" data-flag="reportOpen"' + (Store.loadFlag('reportOpen') === true ? ' checked' : '') + '></label></div>';
+    h += '<h3 class="sub">Ayuda</h3><div class="menu">' + menuRow('appGuide', 'Cómo usar la app', 'Los tres pasos') + menuRow('mapGuide', 'Cómo usar el mapa', '') +
+      menuRow('licenses', 'Fuentes y licencias', 'Mapas y datos de clima') + '</div>';
+    h += '<p class="small muted" style="margin-top:14px">Zonas de Vida · versión ' + APP_VERSION + '. Funciona sin internet, salvo los mapas y los datos de clima.</p>';
     return h;
+  }
+  function menuRow(act, title, sub) {
+    return '<button class="menurow" data-act="' + act + '"><span><b>' + esc(title) + '</b>' + (sub ? '<small>' + esc(sub) + '</small>' : '') + '</span><i aria-hidden="true">›</i></button>';
+  }
+
+  /* ---------- Los tres pasos: qué está listo y qué falta ---------- */
+  // Estado de cada paso para el proyecto actual. state: 'ok' (listo), 'now' (el siguiente por hacer) o 'wait'.
+  function stepsModel() {
+    var a = analysis(), n = proj().points.length, r = a.result;
+    var s1 = { tab: 'puntos', title: 'Puntos', sub: n ? n + (n === 1 ? ' punto' : ' puntos') : 'sin puntos', ok: n > 0 };
+    var s2 = { tab: 'clima', title: 'Información', sub: !n ? 'pendiente' : !r ? 'falta la altitud' : !r.ok ? 'falta la lluvia' : 'completo', ok: !!(n && r && r.ok) };
+    var s3 = { tab: 'informe', title: 'Reporte', sub: s2.ok ? 'listo' : 'pendiente', ok: s2.ok };
+    var steps = [s1, s2, s3], next = !s1.ok ? 0 : !s2.ok ? 1 : 2;
+    steps.forEach(function (s, i) { s.state = i === next ? 'now' : s.ok ? 'ok' : 'wait'; });
+    return steps;
+  }
+  function stepsHtml() {
+    return '<div class="steps" role="group" aria-label="Pasos para llegar al reporte">' + stepsModel().map(function (s, i) {
+      return '<button class="step ' + s.state + '" data-act="step" data-tab="' + s.tab + '"' + (s.state === 'now' ? ' aria-current="step"' : '') + '><b>' + (i + 1) + ' · ' + s.title + (s.state === 'ok' ? ' ✓' : '') + '</b><small>' + esc(s.sub) + '</small></button>';
+    }).join('') + '</div>';
+  }
+  // La franja va arriba en Puntos, Información, Reporte y el croquis de Polígono (en el mapa no: ese alto es del mapa)
+  function hasSteps(t) { return t === 'puntos' || t === 'clima' || t === 'informe' || (t === 'area' && ui.polyView !== 'mapa'); }
+
+  /* ---------- Ayuda y licencias ---------- */
+  function openAppGuide() {
+    var rows = [
+      ['1 · Puntos', 'Marca los linderos del terreno con el GPS, escribe sus coordenadas o importa un archivo. Con un punto ya hay zona de vida; con tres o más, también el área.'],
+      ['2 · Información', 'Pulsa «Completar con internet» para traer la altitud, la temperatura y la lluvia. Si tienes datos medidos, escríbelos: mandan sobre lo estimado. Sin la lluvia no hay zona de vida.'],
+      ['3 · Reporte', 'En «Reporte» está la zona de vida de Holdridge con su diagrama, el perfil del relieve y los croquis. Compártelo en PDF o HTML.'],
+      ['Polígono', 'El croquis con las medidas y, en «Mapa», el terreno sobre calles, satélite o topográfico: ahí también se crean, mueven y ordenan los puntos.'],
+      ['Arriba', 'La franja de tres pasos dice qué está listo y qué falta. Tócala para ir a ese paso.']
+    ];
+    openSheet('Cómo usar la app', '<dl class="guide">' + rows.map(function (r) { return '<div><dt>' + esc(r[0]) + '</dt><dd>' + esc(r[1]) + '</dd></div>'; }).join('') + '</dl>' +
+      '<p class="small muted">Puedes volver a ver esta ayuda en «Herramientas».</p><div class="btns"><button class="btn btn-primary" data-act="closeSheet">Entendido</button></div>');
+  }
+  function openLicenses() {
+    var rows = [
+      ['Mapa de calles', '© colaboradores de OpenStreetMap, licencia ODbL. openstreetmap.org/copyright'],
+      ['Imágenes de satélite y nombres', 'Esri World Imagery y capas de referencia. Fuente: Esri, Maxar, Earthstar Geographics y la comunidad de usuarios SIG.'],
+      ['Mapa topográfico', '© OpenTopoMap (CC-BY-SA), con datos de OpenStreetMap y SRTM.'],
+      ['Clima de la zona', 'NASA POWER (NASA Langley Research Center) y Open-Meteo (CC BY 4.0).'],
+      ['Clima actual', 'Open-Meteo (CC BY 4.0).'],
+      ['Mapa en pantalla', 'Leaflet (licencia BSD de 2 cláusulas).'],
+      ['Zonas de vida', 'Sistema de clasificación de L. R. Holdridge (1967). El resultado es orientativo.']
+    ];
+    openSheet('Fuentes y licencias', '<dl class="guide">' + rows.map(function (r) { return '<div><dt>' + esc(r[0]) + '</dt><dd>' + esc(r[1]) + '</dd></div>'; }).join('') + '</dl>' +
+      '<p class="small muted">Los mapas y el clima se piden a esos servicios solo cuando hay internet; la app no envía tus puntos a ningún otro lugar.</p><div class="btns"><button class="btn btn-primary" data-act="closeSheet">Cerrar</button></div>');
+  }
+  // Exportar vive en Polígono › Croquis: desde el Reporte se salta hasta ahí
+  function goExport() {
+    ui.polyView = 'croquis'; setMapMode(''); leaveMap();
+    showTab('area');
+    var el = $('#exportBlock');
+    if (el && el.scrollIntoView) el.scrollIntoView();
+  }
+  // Reporte: cada sección se abre al tocar su título (salvo que se prefiera todo abierto). Las dos primeras quedan siempre abiertas.
+  function toggleFold(key) {
+    ui.unfolded[key] = !ui.unfolded[key];
+    renderTab('informe');             // se vuelve a dibujar: el diagrama y los croquis necesitan su tamaño real para montarse
+  }
+  function foldReport() {
+    var tab = $('#tab-informe'), all = Store.loadFlag('reportOpen') === true;
+    if (!tab) return;
+    tab.classList.toggle('folds', !all);
+    [].slice.call(tab.querySelectorAll('.block')).forEach(function (b) {
+      var h2 = b.querySelector('h2'), key = h2 ? h2.firstChild && h2.firstChild.textContent : '';
+      if (!h2 || all || key === 'Datos usados') { b.classList.remove('folded'); return; }
+      var open = !!ui.unfolded[key];
+      b.classList.toggle('folded', !open);
+      h2.setAttribute('role', 'button'); h2.setAttribute('tabindex', '0'); h2.setAttribute('aria-expanded', String(open)); h2.setAttribute('data-fold', key);
+    });
   }
 
   // Conversor: se escribe un valor en una unidad y se ven todas las demás a la vez. Lo escrito y la unidad se recuerdan mientras la app está abierta.
@@ -2024,11 +2102,11 @@
     var el = $('#tab-' + t);
     if (!el) return;
     var sy = window.scrollY;
-    el.innerHTML = TABS[t]();
+    el.innerHTML = (hasSteps(t) ? stepsHtml() : '') + TABS[t]();
     hydratePhotos(el);
     if (t === 'puntos') { updateReadout(); updateProgress(); }
     if (t === 'area') { mountMap(); updateProgress(); }
-    if (t === 'informe') mountDiagram();
+    if (t === 'informe') { foldReport(); mountDiagram(); }
     window.scrollTo(0, sy);
   }
   // Al salir del mapa se sueltan la mira y la medida (caminar el lindero sigue, porque depende del GPS y no de la pantalla)
@@ -2052,6 +2130,8 @@
   /* ---------- Eventos ---------- */
   var ACTIONS = {
     tab: function (t) { showTab(t.getAttribute('data-tab')); },
+    step: function (t) { showTab(t.getAttribute('data-tab')); },
+    appGuide: openAppGuide, licenses: openLicenses, goExport: goExport,
     convert: function (t) { openConverter(t.getAttribute('data-tool')); }, cvCopy: function (t) { copyText(t.getAttribute('data-t'), 'Copiado: ' + t.getAttribute('data-t')); },
     toolGps: openGpsTool, toolGpsOn: function () { gpsStart(); renderGpsTool(); }, toolGpsOff: gpsStop,
     toolGpsCopy: function () { if (ui.fix) copyText(Fmt.latlon(ui.fix.lat, ui.fix.lon), 'Coordenadas copiadas.'); },
@@ -2150,6 +2230,8 @@
   };
   document.addEventListener('click', function (e) {
     if (ui.mapMenu && !e.target.closest('.mapmenu')) { ui.mapMenu = false; syncMapMenu(); }   // un toque fuera de la lista la cierra
+    var fold = e.target.closest('h2[data-fold]');
+    if (fold && $('#tab-informe').classList.contains('folds')) { toggleFold(fold.getAttribute('data-fold')); return; }
     var t = e.target.closest('[data-act]');
     if (!t) return;
     var fn = ACTIONS[t.getAttribute('data-act')];
@@ -2158,6 +2240,7 @@
   document.addEventListener('change', function (e) {
     if (!e.target.matches) return;
     if (e.target.matches('[data-field]')) commitField(e.target);
+    else if (e.target.matches('[data-flag]')) Store.saveFlag(e.target.getAttribute('data-flag'), !!e.target.checked);
     else if (e.target.matches('[data-setting]')) {
       S.settings[e.target.getAttribute('data-setting')] = parseInt(e.target.value, 10);
       save(); precisionBanner();
@@ -2173,6 +2256,7 @@
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape' && ui.mapMenu) { ui.mapMenu = false; syncMapMenu(); }
     if (e.key === 'Enter' && e.target.matches && e.target.matches('[data-field]')) e.target.blur();
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('h2[data-fold]') && $('#tab-informe').classList.contains('folds')) { e.preventDefault(); toggleFold(e.target.getAttribute('data-fold')); }
   });
   $('#csvFile').addEventListener('change', function (e) {
     var f = e.target.files && e.target.files[0];
@@ -2201,6 +2285,7 @@
 
   /* ---------- Inicio ---------- */
   renderAll();
+  if (Store.loadFlag('appGuide') !== true) { Store.saveFlag('appGuide', true); openAppGuide(); }   // la primera vez se explican los tres pasos
   // Al abrir se borran del teléfono las imágenes que ya ningún punto usa (fotos quitadas, puntos o proyectos eliminados). No se hace sin datos guardados.
   if (hadSaved) Fotos.sweep(photoStore, Fotos.usedIds(S.projects)).catch(function () { /* sin almacén de fotos: nada que limpiar */ });
   var native = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform();
