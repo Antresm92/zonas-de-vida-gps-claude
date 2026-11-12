@@ -31,13 +31,13 @@
     var out = [], r = a.result;
     if (a.n >= 2) {
       out.push({ key: 'croquis', svg: Diagram.polygonSVG(project.points, { width: 560, height: 380, center: a.center, bad: a.selfIntersects, dots: !!project.dots, layers: project.layers, color: project.mainColor }) });
-      if (o.satellite && o.satellite.svg) out.push({ key: 'satelital', svg: o.satellite.svg, px: PX_MAP });
-      if (o.topo && o.topo.svg) out.push({ key: 'topo', svg: o.topo.svg, px: PX_MAP });
+      if (!Report.skips(o, 'sat') && o.satellite && o.satellite.svg) out.push({ key: 'satelital', svg: o.satellite.svg, px: PX_MAP });
+      if (!Report.skips(o, 'topo') && o.topo && o.topo.svg) out.push({ key: 'topo', svg: o.topo.svg, px: PX_MAP });
       var m = perfilModel(project);
-      if (m.ok) out.push({ key: 'perfil', svg: Perfil.svg(m, { color: project.mainColor, id: 'perfil-reporte' }) });
+      if (!Report.skips(o, 'perfil') && m.ok) out.push({ key: 'perfil', svg: Perfil.svg(m, { color: project.mainColor, id: 'perfil-reporte' }) });
     }
-    if (o.walter && o.walter.svg) out.push({ key: 'walter', svg: o.walter.svg });
-    if (r && r.ok) out.push({ key: 'holdridge', svg: Diagram.staticSVG({ hex: r.hex, point: r.point, vertices: (a.vertexZones || []).map(function (v) { return { point: v.point, name: v.name }; }), width: 1100 }), px: PX_BIG });
+    if (!Report.skips(o, 'walter') && o.walter && o.walter.svg) out.push({ key: 'walter', svg: o.walter.svg });
+    if (!Report.skips(o, 'holdridge') && r && r.ok) out.push({ key: 'holdridge', svg: Diagram.staticSVG({ hex: r.hex, point: r.point, vertices: (a.vertexZones || []).map(function (v) { return { point: v.point, name: v.name }; }), width: 1100 }), px: PX_BIG });
     return out;
   }
 
@@ -125,7 +125,15 @@
       B.push({ t: 'p', small: true, text: 'Con el margen de error de los datos (±' + Fmt.num(a.margins.t, 1) + ' °C y ±' + Fmt.num(a.margins.p * 100, 0) + ' % en precipitación, supuestos) el punto también podría caer en: ' +
         a.alternatives.map(function (z) { return z.name + ' (' + z.symbol + ')'; }).join('; ') + '.' });
     }
-    var cur = Report.currentRows(project.weatherNow);
+    var skip = function (k) { return Report.skips(o, k); };
+    var cr = skip('clasif') ? [] : Report.clasifRows(a);
+    if (cr.length) {
+      B.push({ t: 'h2', text: 'Otras clasificaciones del clima' });
+      B.push({ t: 'table', rows: cr.map(function (x) { return [x[0], x[1]]; }) });
+      cr.forEach(function (x) { B.push({ t: 'p', small: true, text: x[0] + ': ' + x[2] }); });
+      B.push({ t: 'p', small: true, text: Report.CLASIF_NOTE });
+    }
+    var cur = skip('actual') ? [] : Report.currentRows(project.weatherNow);
     if (cur.length) {
       B.push({ t: 'h2', text: 'Clima actual' });
       B.push({ t: 'table', rows: cur });
@@ -148,15 +156,17 @@
         if (items.length >= 2) B.push({ t: 'legend', items: items });
         [['Croquis satelital', 'croquis satelital', 'satelital', o.satellite], ['Croquis topográfico', 'croquis topográfico', 'topo', o.topo]].forEach(function (s) {
           var d = s[3];
-          if (!d) return;
+          if (!d || skip(s[2] === 'satelital' ? 'sat' : 'topo')) return;
           B.push({ t: 'h2', text: s[0] });
           if (d.svg && images[s[2]] && images[s[2]].bytes) B.push({ t: 'image', img: images[s[2]], maxW: 470, caption: d.caption || '' });
           else if (d.svg) B.push({ t: 'note', text: 'No se pudo dibujar el ' + s[1] + ' en el PDF.' });
           else B.push({ t: 'note', text: 'No se pudo preparar el ' + s[1] + (d.unavailable ? ': ' + d.unavailable : '.') });
         });
         var m = perfilModel(project);
-        B.push({ t: 'h2', text: 'Perfil del relieve' });
-        if (!m.ok) B.push({ t: 'note', text: m.reason });
+        if (skip('perfil')) m = null;
+        if (m) B.push({ t: 'h2', text: 'Perfil del relieve' });
+        if (!m) { /* sección quitada del reporte */ }
+        else if (!m.ok) B.push({ t: 'note', text: m.reason });
         else {
           pic('perfil', 440, 'el perfil del relieve');
           B.push({ t: 'table', rows: Perfil.rows(m) });
@@ -167,7 +177,7 @@
     }
     // Fotos de los puntos: las que no estén (o no sean JPEG usables) no se dibujan
     var any = false;
-    project.points.forEach(function (p, i) {
+    (skip('fotos') ? [] : project.points).forEach(function (p, i) {
       var name = p.name || 'P' + (i + 1), list = [];
       (Array.isArray(p.photos) ? p.photos : []).forEach(function (f) {
         var bytes = f && photoBytes(o.photos, f.id);
@@ -179,7 +189,7 @@
       B.push({ t: 'gallery', items: list, per: 3 });
     });
     if (any) B.push({ t: 'p', small: true, text: 'Fotos reducidas para este reporte. En el teléfono y en la copia de seguridad quedan con más calidad (hasta 1280 px).' });
-    if (a.vertexZones && a.vertexZones.length && a.distinctZones && a.distinctZones.length > 1) {
+    if (!skip('zonas') && a.vertexZones && a.vertexZones.length && a.distinctZones && a.distinctZones.length > 1) {
       B.push({ t: 'h2', text: 'Zonas según la altitud de cada punto' });
       B.push({ t: 'table', rows: a.vertexZones.map(function (v) { return [v.name + ' (' + Fmt.num(v.alt, 0) + ' m)', v.zone + ' (' + v.symbol + ')']; }) });
       B.push({ t: 'p', small: true, text: 'Se usa la misma precipitación para todos los puntos; la temperatura se ajusta con la altitud.' });
@@ -191,13 +201,13 @@
       (a.info || []).forEach(function (w) { B.push({ t: 'p', small: true, text: w }); });
       ((a.climate && a.climate.notes) || []).forEach(function (n) { B.push({ t: 'p', small: true, text: n }); });
     }
-    if (o.walter && o.walter.svg) {
+    if (!skip('walter') && o.walter && o.walter.svg) {
       B.push({ t: 'h2', text: 'Diagrama de Walter-Lieth' });
       pic('walter', 470, 'el diagrama de Walter-Lieth');
       B.push({ t: 'list', items: o.walter.lines || [] });
       B.push({ t: 'p', small: true, text: (o.walter.source || '') + ' Mes seco: la lluvia mensual (mm) es menor que el doble de la temperatura media mensual (°C).' });
     }
-    if (r && r.ok) {
+    if (!skip('holdridge') && r && r.ok) {
       B.push({ t: 'pagebreak' });
       B.push({ t: 'h2', text: 'Diagrama de Holdridge' });
       pic('holdridge', 520, 'el diagrama de Holdridge');

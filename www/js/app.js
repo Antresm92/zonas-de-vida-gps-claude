@@ -5,7 +5,7 @@
   var Geo = window.Geo, H = window.Holdridge, Climate = window.Climate, A = window.Analysis, Fmt = window.Fmt,
       Gps = window.Gps, Store = window.Store, Diagram = window.Diagram, Report = window.Report,
       Gis = window.Gis, Backup = window.Backup, IO = window.IO, WL = window.WalterLieth, Mapa = window.Mapa, MapView = window.MapView, Satelite = window.Satelite, Perfil = window.Perfil, Fotos = window.Fotos, Zip = window.Zip, Units = window.Units;
-  var APP_VERSION = '2.17.2';
+  var APP_VERSION = '2.18.0';
 
   var S = Store.loadState();
   var hadSaved = Store.hasSavedState();      // ¿había datos guardados al abrir? (solo entonces se limpian las fotos sin uso)
@@ -1897,6 +1897,12 @@
     Report.rows(p, a).forEach(function (x) { h += '<div><dt>' + esc(x[0]) + '</dt><dd>' + esc(x[1]) + '</dd></div>'; });
     if (a.area) h += '<div><dt>Área</dt><dd>' + Fmt.area(a.area, S.settings.areaUnit || 'ha') + '</dd></div>';
     h += '</dl><p class="small muted">' + esc(Report.QUALITY[a.quality]) + '</p></div>';
+    var cr = Report.clasifRows(a);
+    if (cr.length) {
+      h += '<div class="block" id="clasifBlock"><h2>Otras clasificaciones del clima</h2><dl class="kv clasif">';
+      cr.forEach(function (x) { h += '<div><dt>' + esc(x[0]) + '</dt><dd><b>' + esc(x[1]) + '</b><small>' + esc(x[2]) + '</small></dd></div>'; });
+      h += '</dl><p class="small muted">' + esc(Report.CLASIF_NOTE) + '</p></div>';
+    }
     h += '<div class="block" id="nowBlock">' + nowBlock() + '</div>' + photosBlock();
 
     if (a.vertexZones && a.vertexZones.length && a.distinctZones && a.distinctZones.length > 1) {
@@ -1914,7 +1920,7 @@
       '<div class="diagram-tools"><button data-act="dZoomOut" aria-label="Alejar">−</button><button data-act="dZoomIn" aria-label="Acercar">+</button><button class="txt" data-act="dCenter" aria-label="Centrar en el punto">Mi punto</button><button class="txt" data-act="dFit" aria-label="Ver todo el diagrama">Ver todo</button></div>' +
       '<p class="small muted">Arrastra para moverte y pellizca para acercar. El anillo rojo es el punto analizado y el hexágono verde, su zona de vida.</p></div>';
 
-    h += '<div class="block"><h2>Más opciones</h2><div class="btns"><button class="btn" data-act="copy">Copiar resumen</button><button class="btn" data-act="goExport">Exportar el terreno (KML, GeoJSON, GPX, CSV)</button></div>' +
+    h += '<div class="block"><h2>Más opciones</h2><label class="repline"><input type="checkbox" class="repchk" data-rep="walter"' + (Store.loadFlag('rep_walter') !== false ? ' checked' : '') + '><span>Incluir el diagrama de Walter-Lieth en el reporte (cuando hay datos de los 12 meses)</span></label><p class="small muted" id="repHelp">Las casillas a la izquierda de cada sección deciden qué va en el reporte que compartes. Lo esencial (zona de vida, datos del clima, terreno, puntos y croquis) va siempre.</p><div class="btns"><button class="btn" data-act="copy">Copiar resumen</button><button class="btn" data-act="goExport">Exportar el terreno (KML, GeoJSON, GPX, CSV)</button></div>' +
       '<p class="small muted" style="margin-top:12px">' + esc(Report.DISCLAIMER) + '</p></div>';
     // Siempre a la vista, pegado sobre la barra de pestañas
     return h + '<div class="sharebar"><button class="btn btn-primary btn-block" data-act="share">Compartir reporte</button></div>';
@@ -2051,9 +2057,15 @@
       vertices: (a.vertexZones || []).map(function (v) { return { point: v.point, name: v.name }; }) });
   }
 
+  // Secciones que la persona desmarcó en la pestaña Reporte (2.18.0): { clave: true }. Por defecto van todas.
+  function repSkip() {
+    var s = {};
+    Report.SECTIONS.forEach(function (x) { if (Store.loadFlag('rep_' + x[0]) === false) s[x[0]] = true; });
+    return s;
+  }
   function reportOpts(a) {
     var w = walterModel(a);
-    return { walter: w ? { svg: w.svg, lines: w.lines, source: w.source } : null, author: Store.loadAuthor() };
+    return { walter: w ? { svg: w.svg, lines: w.lines, source: w.source } : null, author: Store.loadAuthor(), skip: repSkip() };
   }
   // «Compartir reporte» pregunta el formato: HTML (se abre en cualquier navegador) o PDF (hoja A4 lista para imprimir)
   function shareReport() {
@@ -2070,13 +2082,15 @@
   // Lo del lote elegido: resuelve con { project, a, o }
   function preparePart() {
     var p = view(), a = analysis();
-    var kinds = a.n >= 2 ? CROQ_KINDS : [];
+    var sk = repSkip(), skipOf = { satelital: 'sat', topo: 'topo' };
+    var kinds = a.n >= 2 ? CROQ_KINDS.filter(function (k) { return !sk[skipOf[k] || k]; }) : [];      // un croquis desmarcado ni siquiera se prepara
     var need = kinds.filter(function (k) { return !croqCurrent(k); });
     if (need.length && navigator.onLine !== false) busyStep((need.length > 1 ? 'Preparando los croquis satelital y topográfico' : 'Preparando el croquis ' + CROQ[need[0]].noun) + (p.lotName ? ' de «' + p.lotName + '»' : ' para el reporte') + '…');
     else if (Fotos.countAll(p.points).photos) busyStep('Preparando las fotos' + (p.lotName ? ' de «' + p.lotName + '»' : ' para el reporte') + '…');
-    return Promise.all([Promise.all(kinds.map(function (k) { return prepareCroquis(k, false); })), reportPhotos(p)]).then(function (all) {
-      var res = all[0];
-      var o = reportOpts(a); o.satellite = res[0] || null; o.topo = res[1] || null; o.photos = all[1];
+    return Promise.all([Promise.all(kinds.map(function (k) { return prepareCroquis(k, false); })), sk.fotos ? Promise.resolve({}) : reportPhotos(p)]).then(function (all) {
+      var res = all[0], by = {};
+      kinds.forEach(function (k, i) { by[k] = res[i] || null; });
+      var o = reportOpts(a); o.satellite = by[CROQ_KINDS[0]] || null; o.topo = by[CROQ_KINDS[1]] || null; o.photos = all[1];
       return { project: p, a: a, o: o };
     });
   }
@@ -2411,8 +2425,19 @@
     var tab = $('#tab-informe'), all = Store.loadFlag('reportOpen') === true;
     if (!tab) return;
     tab.classList.toggle('folds', !all);
+    var keyOf = {};
+    Report.SECTIONS.forEach(function (x) { keyOf[x[1]] = x[0]; });
     [].slice.call(tab.querySelectorAll('.block')).forEach(function (b) {
-      var h2 = b.querySelector('h2'), key = h2 ? h2.firstChild && h2.firstChild.textContent : '';
+      var h2 = b.querySelector('h2');
+      if (h2 && !h2.hasAttribute('data-key')) h2.setAttribute('data-key', h2.firstChild ? h2.firstChild.textContent : '');
+      var key = h2 ? h2.getAttribute('data-key') : '';
+      // casilla a la izquierda del título: marcada = la sección va en el reporte que se comparte (2.18.0)
+      if (h2 && keyOf[key] && !h2.querySelector('.repchk')) {
+        var c = document.createElement('input');
+        c.type = 'checkbox'; c.className = 'repchk'; c.setAttribute('data-rep', keyOf[key]); c.checked = Store.loadFlag('rep_' + keyOf[key]) !== false;
+        c.setAttribute('aria-label', 'Incluir «' + key + '» en el reporte');
+        h2.insertBefore(c, h2.firstChild); h2.classList.add('haschk');
+      }
       if (!h2 || all || key === 'Datos usados') { b.classList.remove('folded'); return; }
       var open = !!ui.unfolded[key];
       b.classList.toggle('folded', !open);
@@ -2681,6 +2706,7 @@
   };
   document.addEventListener('click', function (e) {
     if (ui.mapMenu && !e.target.closest('.mapmenu')) { ui.mapMenu = false; syncMapMenu(); }   // un toque fuera de la lista la cierra
+    if (e.target.matches && e.target.matches('.repchk')) return;        // la casilla de una sección no la abre ni la cierra
     var fold = e.target.closest('h2[data-fold]');
     if (fold && $('#tab-informe').classList.contains('folds')) { toggleFold(fold.getAttribute('data-fold')); return; }
     var t = e.target.closest('[data-act]');
@@ -2693,6 +2719,11 @@
     if (!e.target.matches) return;
     if (e.target.matches('[data-field]')) commitField(e.target);
     else if (e.target.matches('[data-flag]')) Store.saveFlag(e.target.getAttribute('data-flag'), !!e.target.checked);
+    else if (e.target.matches('[data-rep]')) {
+      var on = !!e.target.checked;
+      Store.saveFlag('rep_' + e.target.getAttribute('data-rep'), on);
+      toast(on ? 'Esta sección irá en el reporte.' : 'Esta sección no irá en el reporte que compartas.');
+    }
     else if (e.target.matches('[data-setting]')) {
       S.settings[e.target.getAttribute('data-setting')] = parseInt(e.target.value, 10);
       save(); precisionBanner();

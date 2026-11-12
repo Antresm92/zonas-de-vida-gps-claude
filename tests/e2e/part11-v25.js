@@ -95,7 +95,9 @@ module.exports = async function (c) {
     await seed();
     await tab('informe');
     const h2 = await page.$$eval('#tab-informe .block h2', (els) => els.map((e) => e.textContent));
-    assert.ok(h2.indexOf('Clima actual') === h2.indexOf('Datos usados') + 1, JSON.stringify(h2));
+    // desde la 2.18.0 entre los dos va «Otras clasificaciones del clima» (cuando hay temperatura)
+    assert.ok(h2.indexOf('Clima actual') > h2.indexOf('Datos usados') && h2.indexOf('Clima actual') <= h2.indexOf('Datos usados') + 2, JSON.stringify(h2));
+    assert.ok(h2.indexOf('Clima actual') < h2.indexOf('Fotos de los puntos'), JSON.stringify(h2));
     assert.equal(await text('#nowBlock [data-act="fetchNow"]'), 'Consultar clima actual');
     assert.match(await nowText(), /no es el promedio de varios años y no cambia el cálculo de la zona de vida/i);
     assert.equal(await page.locator('#nowBlock .nowcard').count(), 0, 'sin consulta no hay tarjeta');

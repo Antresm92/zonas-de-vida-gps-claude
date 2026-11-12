@@ -152,7 +152,7 @@ test('blocks: reporte completo, con todas las secciones del HTML y en su orden',
     layers: [{ id: 'l1', name: 'Lote vecino', kind: 'polygon', color: '#E67E22', visible: true, points: [{ lat: 4.62, lon: -74.1 }, { lat: 4.62, lon: -74.09 }, { lat: 4.63, lon: -74.09 }] }] });
   const o = { date: DATE, walter: walter(), satellite: { svg: SVG, caption: 'Imagen de Esri.' }, topo: { svg: SVG, caption: 'Mapa topográfico.' } };
   const bl = ReportPdf.blocks(project, a, o, ALL());
-  assert.deepEqual(h2s(bl), ['Datos del clima', 'Clima actual', 'Terreno', 'Puntos', 'Croquis', 'Croquis satelital', 'Croquis topográfico', 'Perfil del relieve',
+  assert.deepEqual(h2s(bl), ['Datos del clima', 'Otras clasificaciones del clima', 'Clima actual', 'Terreno', 'Puntos', 'Croquis', 'Croquis satelital', 'Croquis topográfico', 'Perfil del relieve',
     'Zonas según la altitud de cada punto', 'Calidad de los datos', 'Diagrama de Walter-Lieth', 'Diagrama de Holdridge']);
   assert.equal(bl[0].t, 'head'); assert.equal(bl[0].title, 'Reporte de zona de vida');
   assert.equal(bl[0].lines[0], 'Proyecto: Finca La Esperanza'); assert.match(bl[0].lines[bl[0].lines.length - 1], /^Fecha: .*2026$/);

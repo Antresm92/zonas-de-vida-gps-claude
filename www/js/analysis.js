@@ -6,9 +6,9 @@
  *   2. promedio de la altitud de los puntos (GPS, escrita a mano o de internet)
  *   3. elevación obtenida de internet para el centro */
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory(require('./geo.js'), require('./holdridge.js'), require('./climate.js'));
-  else root.Analysis = factory(root.Geo, root.Holdridge, root.Climate);
-})(typeof self !== 'undefined' ? self : this, function (Geo, H, Climate) {
+  if (typeof module === 'object' && module.exports) module.exports = factory(require('./geo.js'), require('./holdridge.js'), require('./climate.js'), require('./clasif.js'));
+  else root.Analysis = factory(root.Geo, root.Holdridge, root.Climate, root.Clasif);
+})(typeof self !== 'undefined' ? self : this, function (Geo, H, Climate, Clasif) {
   'use strict';
 
   function isNum(x) { return typeof x === 'number' && isFinite(x); }
@@ -126,6 +126,8 @@
     res.warnings.forEach(function (w) { out.warnings.push(w); });
     if (resolved.P === null) { out.needs = 'precipitacion'; }
     altSpan(out, resolved);
+    // Otras clasificaciones del clima (2.18.0): Caldas-Lang (IDEAM), De Martonne y Köppen-Geiger, con los mismos datos
+    out.clasif = Clasif.all({ T: resolved.T, P: resolved.P, alt: out.alt.value, monthlyT: resolved.chartT || resolved.monthlyT, monthlyP: resolved.chartP, lat: out.center.lat });
 
     // Calidad de los datos: manda el eslabón más débil
     var rT = RANK[resolved.TSrc] || 1;

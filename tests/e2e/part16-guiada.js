@@ -81,8 +81,8 @@ module.exports = async function (c) {
     await page.reload(); await page.waitForSelector('#tab-puntos');
     for (const p of ['4.6000, -74.0800', '4.6000, -74.0770', '4.6027, -74.0785']) await addPointManual(p, 2600);
     await tab('clima'); await field('pManual', '1200'); await tab('informe');
-    const estado = () => page.$$eval('#tab-informe .block', (b) => b.map((x) => { const h = x.querySelector('h2'); return h ? h.firstChild.textContent + ':' + (x.classList.contains('folded') ? 'cerrada' : 'abierta') : null; }).filter(Boolean));
-    assert.deepEqual(await estado(), ['Datos usados:abierta', 'Clima actual:cerrada', 'Fotos de los puntos:cerrada', 'Perfil del relieve:cerrada', 'Croquis satelital:cerrada', 'Croquis topográfico:cerrada', 'Diagrama de Holdridge:cerrada', 'Más opciones:cerrada']);
+    const estado = () => page.$$eval('#tab-informe .block', (b) => b.map((x) => { const h = x.querySelector('h2'); return h ? (h.getAttribute('data-key') || h.firstChild.textContent) + ':' + (x.classList.contains('folded') ? 'cerrada' : 'abierta') : null; }).filter(Boolean));
+    assert.deepEqual(await estado(), ['Datos usados:abierta', 'Otras clasificaciones del clima:cerrada', 'Clima actual:cerrada', 'Fotos de los puntos:cerrada', 'Perfil del relieve:cerrada', 'Croquis satelital:cerrada', 'Croquis topográfico:cerrada', 'Diagrama de Holdridge:cerrada', 'Más opciones:cerrada']);
     assert.equal(await page.locator('#tab-informe .result').isVisible(), true, 'el resultado siempre arriba');
     const alto = await page.evaluate(() => document.querySelector('#tab-informe').getBoundingClientRect().height);
     assert.ok(alto < 1500, 'el reporte plegado mide ' + Math.round(alto) + ' px (desplegado pasaba de 3.300)');

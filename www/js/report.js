@@ -1,8 +1,8 @@
 /* report.js — reporte de zona de vida: texto plano y página HTML autocontenida (con el diagrama). */
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory(require('./fmt.js'), require('./geo.js'), require('./diagram.js'), require('./perfil.js'), require('./climate.js'), require('./predio.js'));
-  else root.Report = factory(root.Fmt, root.Geo, root.Diagram, root.Perfil, root.Climate, root.Predio);
-})(typeof self !== 'undefined' ? self : this, function (Fmt, Geo, Diagram, Perfil, Climate, Predio) {
+  if (typeof module === 'object' && module.exports) module.exports = factory(require('./fmt.js'), require('./geo.js'), require('./diagram.js'), require('./perfil.js'), require('./climate.js'), require('./predio.js'), require('./clasif.js'));
+  else root.Report = factory(root.Fmt, root.Geo, root.Diagram, root.Perfil, root.Climate, root.Predio, root.Clasif);
+})(typeof self !== 'undefined' ? self : this, function (Fmt, Geo, Diagram, Perfil, Climate, Predio, Clasif) {
   'use strict';
 
   function esc(s) { return String(s === null || s === undefined ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
@@ -87,7 +87,7 @@
       L.push('Diagrama de Walter-Lieth (datos mensuales):');
       o.walter.lines.forEach(function (x) { L.push('  ' + x); });
     }
-    var cur = currentRows(project.weatherNow);
+    var cur = skips(o, 'actual') ? [] : currentRows(project.weatherNow);
     if (cur.length) {
       L.push('');
       L.push('Clima actual (' + currentStamp(project.weatherNow) + '):');
@@ -105,6 +105,8 @@
       L.push('Capas importadas (no cuentan para el área ni la zona de vida):');
       project.layers.forEach(function (l) { L.push('  ' + l.name + ': ' + l.points.length + (l.points.length === 1 ? ' punto' : ' puntos') + (l.file ? ' (' + l.file + ')' : '')); });
     }
+    var cr = skips(o, 'clasif') ? [] : clasifRows(a);
+    if (cr.length) { L.push(''); L.push('Otras clasificaciones del clima:'); cr.forEach(function (x) { L.push('  ' + x[0] + ': ' + x[1]); }); }
     if (a.quality !== undefined) { L.push(''); L.push('Calidad de los datos: ' + QUALITY[a.quality]); }
     (a.warnings || []).forEach(function (w) { L.push('Aviso: ' + w); });
     (a.info || []).forEach(function (w) { L.push('Nota: ' + w); });
@@ -297,6 +299,12 @@
     return h + '</header>';
   }
   // Todo lo que va debajo del encabezado: resultado, clima, terreno, puntos, croquis, perfil, fotos, calidad y diagramas
+  /* ---------- Secciones que la persona puede dejar fuera del reporte (2.18.0) ----------
+   * o.skip = { clave: true }. Lo esencial (zona de vida, datos del clima, terreno, puntos, croquis y calidad) va siempre. */
+  var SECTIONS = [['clasif', 'Otras clasificaciones del clima'], ['actual', 'Clima actual'], ['fotos', 'Fotos de los puntos'], ['zonas', 'Zonas según la altitud de cada punto'],
+    ['perfil', 'Perfil del relieve'], ['sat', 'Croquis satelital'], ['topo', 'Croquis topográfico'], ['walter', 'Diagrama de Walter-Lieth'], ['holdridge', 'Diagrama de Holdridge']];
+  function skips(o, key) { return !!(o && o.skip && o.skip[key] === true); }
+  function clasifRows(a) { return a && a.clasif ? Clasif.rows(a.clasif) : []; }
   function bodyHtml(project, a, o) {
     o = o || {};
     var r = a.result, h = '';
@@ -312,7 +320,13 @@
       h += '<p class="small">Con el margen de error de los datos (±' + Fmt.num(a.margins.t, 1) + ' °C y ±' + Fmt.num(a.margins.p * 100, 0) + ' % en precipitación, supuestos) el punto también podría caer en: ' +
         a.alternatives.map(function (z) { return esc(z.name) + ' (' + esc(z.symbol) + ')'; }).join('; ') + '.</p>';
     }
-    var cur = currentRows(project.weatherNow);
+    var cr = skips(o, 'clasif') ? [] : clasifRows(a);
+    if (cr.length) {
+      h += '<h2>Otras clasificaciones del clima</h2><table>';
+      cr.forEach(function (x) { h += '<tr><th>' + esc(x[0]) + '</th><td><b>' + esc(x[1]) + '</b><br><span class="small">' + esc(x[2]) + '</span></td></tr>'; });
+      h += '</table><p class="small">' + esc(Clasif.NOTE) + '</p>';
+    }
+    var cur = skips(o, 'actual') ? [] : currentRows(project.weatherNow);
     if (cur.length) {
       h += '<h2>Clima actual</h2><table>';
       cur.forEach(function (x) { h += '<tr><th>' + esc(x[0]) + '</th><td>' + esc(x[1]) + '</td></tr>'; });
@@ -329,10 +343,10 @@
       });
       h += '</table>' + (anyPlana(project, a) ? '<p class="small">' + esc(Fmt.PLANA_NOTE) + '</p>' : '');
       if (a.n >= 2) h += '<h2>Croquis</h2><div style="max-width:560px;margin-top:12px">' + Diagram.polygonSVG(project.points, { width: 560, height: 380, center: a.center, bad: a.selfIntersects, dots: !!project.dots, layers: project.layers, color: project.mainColor }) + Diagram.legendHTML(project.layers, project.mainColor, project.lotName || 'Mis puntos', true) + '</div>';
-      if (a.n >= 2) h += sketchHtml('Croquis satelital', 'croquis satelital', o.satellite) + sketchHtml('Croquis topográfico', 'croquis topográfico', o.topo) + profileHtml(project);
+      if (a.n >= 2) h += (skips(o, 'sat') ? '' : sketchHtml('Croquis satelital', 'croquis satelital', o.satellite)) + (skips(o, 'topo') ? '' : sketchHtml('Croquis topográfico', 'croquis topográfico', o.topo)) + (skips(o, 'perfil') ? '' : profileHtml(project));
     }
-    h += photosHtml(project, o);
-    if (a.vertexZones && a.vertexZones.length && a.distinctZones && a.distinctZones.length > 1) {
+    if (!skips(o, 'fotos')) h += photosHtml(project, o);
+    if (!skips(o, 'zonas') && a.vertexZones && a.vertexZones.length && a.distinctZones && a.distinctZones.length > 1) {
       h += '<h2>Zonas según la altitud de cada punto</h2><table>';
       a.vertexZones.forEach(function (v) { h += '<tr><th>' + esc(v.name) + ' (' + esc(Fmt.num(v.alt, 0)) + ' m)</th><td>' + esc(v.zone) + ' (' + esc(v.symbol) + ')</td></tr>'; });
       h += '</table><p class="small">Se usa la misma precipitación para todos los puntos; la temperatura se ajusta con la altitud.</p>';
@@ -344,12 +358,12 @@
       (a.info || []).forEach(function (w) { h += '<p class="small">' + esc(w) + '</p>'; });
       ((a.climate && a.climate.notes) || []).forEach(function (n) { h += '<p class="small">' + esc(n) + '</p>'; });
     }
-    if (o.walter && o.walter.svg) {
+    if (!skips(o, 'walter') && o.walter && o.walter.svg) {
       h += '<h2>Diagrama de Walter-Lieth</h2><div style="max-width:620px">' + o.walter.svg + '</div><ul>' +
         (o.walter.lines || []).map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>' +
         '<p class="small">' + esc(o.walter.source || '') + ' Mes seco: la lluvia mensual (mm) es menor que el doble de la temperatura media mensual (°C).</p>';
     }
-    if (r && r.ok) {
+    if (!skips(o, 'holdridge') && r && r.ok) {
       h += '<h2 class="diag">Diagrama de Holdridge</h2>' + Diagram.staticSVG({ hex: r.hex, point: r.point, vertices: (a.vertexZones || []).map(function (v) { return { point: v.point, name: v.name }; }), width: 1100 });
       h += '<p class="small">El anillo rojo marca la posición del punto de análisis; el hexágono resaltado es su zona de vida.</p>';
     }
@@ -361,5 +375,5 @@
 
   }
 
-  return { lotTitle: lotTitle, kindText: kindText, overview: overview, summary: summary, htmlAll: htmlAll, textAll: textAll, bodyHtml: bodyHtml, reid: reid, headLines: headLines, authorOf: authorOf, withPlana: withPlana, anyPlana: anyPlana, text: text, html: html, rows: rows, dot: dot, currentRows: currentRows, currentStamp: currentStamp, CURRENT_NOTE: CURRENT_NOTE, QUALITY: QUALITY, DISCLAIMER: DISCLAIMER, SRC_T: SRC_T, SRC_P: SRC_P };
+  return { CLASIF_NOTE: Clasif.NOTE, SECTIONS: SECTIONS, skips: skips, clasifRows: clasifRows, lotTitle: lotTitle, kindText: kindText, overview: overview, summary: summary, htmlAll: htmlAll, textAll: textAll, bodyHtml: bodyHtml, reid: reid, headLines: headLines, authorOf: authorOf, withPlana: withPlana, anyPlana: anyPlana, text: text, html: html, rows: rows, dot: dot, currentRows: currentRows, currentStamp: currentStamp, CURRENT_NOTE: CURRENT_NOTE, QUALITY: QUALITY, DISCLAIMER: DISCLAIMER, SRC_T: SRC_T, SRC_P: SRC_P };
 });
