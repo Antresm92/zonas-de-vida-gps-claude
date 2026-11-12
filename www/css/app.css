@@ -498,3 +498,5 @@ details.why summary { min-height: 32px; padding: 6px 0; color: var(--blue); font
 .kv.clasif dd { text-align: left; }
 .block > h2.haschk { display: flex; align-items: center; min-height: 44px; }
 .block > h2.haschk > span { margin-left: 8px; }
+.guide-h { margin: 14px 0 2px; }
+.guide-h:first-child { margin-top: 0; }

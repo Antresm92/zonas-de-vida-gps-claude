@@ -99,6 +99,13 @@ Sube la carpeta `www/` a cualquier alojamiento web con HTTPS (por ejemplo GitHub
 - **Exportar**: KML, GeoJSON y GPX llevan todos los lotes (el elegido como polígono principal, los demás como capas con su nombre); el CSV añade la columna `Lote` y el Shapefile la columna `LOTE`, con una figura por lote.
 - **Guardado**: los proyectos de versiones anteriores pasan solos a tener un «Lote 1» con todo lo que tenían. La copia de seguridad lleva los lotes, y una copia hecha con una versión anterior se sigue pudiendo restaurar. Una copia hecha con la 2.15.0 (formato 2) no se puede restaurar en una versión anterior de la app: esta avisa que hay que actualizar.
 
+**2.19.0: ayudas al día y «Para qué sirve la app».** No cambia ninguna función; solo los textos de ayuda:
+- **«Cómo usar la app»** (sale sola la primera vez y está en *Herramientas › Ayuda*): ahora en dos grupos, «Los tres pasos» y «Lo demás», y nombra todo lo que la app hace hoy: coordenadas planas, fotos, otras clasificaciones del clima, pendiente, exportar a Shapefile, lotes, fincas y áreas, casillas del reporte, reporte de todo el proyecto, encabezado con logo, copia de seguridad y qué funciona sin internet.
+- **«Cómo usar el mapa»** (sale sola la primera vez que se abre el mapa): en cuatro grupos, con «＋ Polígono», el candado de la finca, el relleno de puntos de las áreas, el pegado a esquinas, la casilla «Orden» y el «+» que inserta y renumera.
+- **«Para qué sirve la app»** (nuevo, en *Herramientas › Ayuda*): qué es, qué dice cada parte del reporte (croquis, mapas, perfil y pendiente, Walter-Lieth, Holdridge, Caldas-Lang), usos por área (agrícola y pecuaria, forestal, ambiental, estudio y docencia, predios y trámites) y hasta dónde llega (precisión del GPS y del clima; resultado orientativo).
+- **«Fuentes y licencias»**: se añaden el IDEAM (Caldas-Lang), Köppen-Geiger y De Martonne, Walter-Lieth, las clases de pendiente del IGAC y el Origen Nacional.
+- Quien ya tenía la app instalada no vuelve a ver la ayuda de primera vez: la encuentra actualizada en *Herramientas › Ayuda*.
+
 **2.18.0: otras clasificaciones del clima y secciones del reporte a elección.**
 - **Otras clasificaciones del clima** (nueva sección en *Reporte*, en el HTML, el PDF y el resumen), calculadas con el mismo clima que la zona de vida, que sigue siendo el resultado principal:
   - **Caldas-Lang, versión del IDEAM** (Nota técnica NT_IDEAM-2025-003): piso térmico por **temperatura media anual** (cálido > 24 °C, templado 18–24, frío 12–18, muy frío 6–12, extremadamente frío 1,5–6, nival < 1,5; la altitud de la tabla es solo de referencia) y humedad por el **factor de Lang modificado** (lluvia ÷ temperatura, 9 clases de desértico a extremadamente húmedo). Ejemplo: «Templado ligeramente húmedo (TLh)».

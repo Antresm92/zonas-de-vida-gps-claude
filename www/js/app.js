@@ -5,7 +5,7 @@
   var Geo = window.Geo, H = window.Holdridge, Climate = window.Climate, A = window.Analysis, Fmt = window.Fmt,
       Gps = window.Gps, Store = window.Store, Diagram = window.Diagram, Report = window.Report,
       Gis = window.Gis, Backup = window.Backup, IO = window.IO, WL = window.WalterLieth, Mapa = window.Mapa, MapView = window.MapView, Satelite = window.Satelite, Perfil = window.Perfil, Fotos = window.Fotos, Zip = window.Zip, Units = window.Units;
-  var APP_VERSION = '2.18.0';
+  var APP_VERSION = '2.19.0';
 
   var S = Store.loadState();
   var hadSaved = Store.hasSavedState();      // ¿había datos guardados al abrir? (solo entonces se limpian las fotos sin uso)
@@ -1650,16 +1650,38 @@
       '<div class="btns"><button class="btn" data-act="mapReorder">Ordenar los puntos</button></div>' +
       '<h3 class="sub" style="margin-top:18px">Ayuda</h3><div class="btns"><button class="btn" data-act="mapGuide">Cómo usar el mapa</button></div>');
   }
+  function guideHtml(groups) {
+    return groups.map(function (g) {
+      return (g[0] ? '<h3 class="sub guide-h">' + esc(g[0]) + '</h3>' : '') + '<dl class="guide">' + g[1].map(function (r) { return '<div><dt>' + esc(r[0]) + '</dt><dd>' + esc(r[1]) + '</dd></div>'; }).join('') + '</dl>';
+    }).join('');
+  }
+  var MAP_GUIDE = [
+    ['Lo básico', [
+      ['Toca un punto', 'para ver sus datos, abrir su ficha, moverlo, eliminarlo o ir hasta él (con el GPS encendido te guía con una flecha y los metros que faltan). El número dentro de cada punto es su orden en el recorrido.'],
+      ['Arriba', 'el área, el perímetro y el número de puntos del polígono elegido se actualizan solos. Si dice «Los lados se cruzan», tócalo para ordenar los puntos.'],
+      ['Botones de la izquierda', 'bajo el menú ⋮: cambiar la capa (calles, satélite o topográfico), ver todo el terreno, pantalla completa y deshacer el último cambio, paso a paso. A la derecha, acercar y alejar.'],
+      ['Mi posición', 'el botón redondo de abajo centra el mapa donde estás y te sigue hasta que muevas el mapa.']
+    ]],
+    ['Crear y cambiar puntos', [
+      ['Marcar punto', 'el botón azul de abajo guarda el lugar donde estás, con el GPS.'],
+      ['Menú ⋮', '«Ingresar puntos» crea un punto donde toques. «Posición manual» deja mover un punto manteniéndolo pulsado un segundo y arrastrándolo.'],
+      ['Insertar entre dos', 'con «Posición manual» aparece un «+» en la mitad de cada lado: al tocarlo entre P4 y P5, el nuevo es P5 y los que siguen suben un número. La forma del polígono no cambia.'],
+      ['Cambiar el orden', 'en la tarjeta del punto, marca la casilla «Orden» y usa las flechas ◀ ▶. La casilla viene desmarcada para que el orden no cambie por descuido.'],
+      ['Más opciones', '«Agregar con mira» (una cruz fija en el centro, más precisa que el dedo), «Caminar el lindero» (el GPS deja los puntos mientras recorres el borde) y «Ordenar los puntos».']
+    ]],
+    ['Lotes, fincas y áreas', [
+      ['＋ Polígono', 'crea una finca (el terreno completo) o un área dentro de ella: potrero, cafetal, cultivo… o el nombre que escribas. Queda elegido y listo para marcar.'],
+      ['Elegir otro', 'toca dentro de otro polígono o su nombre en la fila de arriba. Los cambios se hacen solo en el polígono elegido; los demás se ven más tenues.'],
+      ['Cómo se ven', 'la finca y los lotes, con relleno liso; las áreas, con relleno de puntos de su color.'],
+      ['Candado 🔒', 'al pasar de una finca a otro polígono, su lindero se bloquea solo. Para cambiarlo, toca «Editar» en el aviso del candado.'],
+      ['Linderos compartidos', 'si marcas o sueltas un punto muy cerca de la esquina de otro polígono, se pega a ella y los dos comparten el lindero exacto. Se apaga en Herramientas › Preferencias.']
+    ]],
+    ['Medir', [
+      ['Medir distancia', 'toca el mapa para ir sumando tramos; al cerrar la figura da también el área. No cambia tus puntos.']
+    ]]
+  ];
   function openMapGuide() {
-    var rows = [
-      ['Toca un punto', 'para ver sus datos, abrir su ficha, moverlo, eliminarlo, cambiar su puesto en el recorrido o ir hasta él (con el GPS encendido te guía con una flecha y los metros que faltan). El número dentro de cada punto es su orden.'],
-      ['Menú ⋮', '«Ingresar puntos» crea un punto donde toques. «Posición manual» deja mover un punto manteniéndolo pulsado e insertar uno nuevo con el «+» de cada lado.'],
-      ['Botones de la izquierda', 'bajo el menú ⋮: cambiar la capa (calles, satélite o topográfico), ver todo el terreno, pantalla completa y deshacer el último cambio (mover, crear, insertar, borrar u ordenar puntos), paso a paso. A la derecha, acercar y alejar.'],
-      ['Mi posición', 'el botón redondo de abajo centra el mapa donde estás y te sigue hasta que muevas el mapa.'],
-      ['Barra de abajo', 'mostrar u ocultar el polígono, ir al último punto, medir (varios tramos seguidos; al cerrar la figura da el área), más opciones (mira y caminar el lindero) y marcar un punto con el GPS.'],
-      ['Arriba', 'el área, el perímetro y el número de puntos se actualizan solos.']
-    ];
-    openSheet('Cómo usar el mapa', '<dl class="guide">' + rows.map(function (r) { return '<div><dt>' + esc(r[0]) + '</dt><dd>' + esc(r[1]) + '</dd></div>'; }).join('') + '</dl>' +
+    openSheet('Cómo usar el mapa', guideHtml(MAP_GUIDE) +
       '<p class="small muted">Puedes volver a ver esta ayuda en «Más opciones».</p><div class="btns"><button class="btn btn-primary" data-act="closeSheet">Entendido</button></div>');
   }
 
@@ -2312,7 +2334,7 @@
       '<input type="checkbox" data-flag="reportOpen"' + (Store.loadFlag('reportOpen') === true ? ' checked' : '') + '></label>' +
       '<label class="menurow"><span><b>Pegar puntos a las esquinas de otros lotes</b><small>Al marcar o mover un punto en el mapa muy cerca de la esquina de otro lote, queda exactamente sobre ella.</small></span>' +
       '<input type="checkbox" data-flag="lotSnap"' + (Store.loadFlag('lotSnap') === false ? '' : ' checked') + '></label></div>';
-    h += '<h3 class="sub">Ayuda</h3><div class="menu">' + menuRow('appGuide', 'Cómo usar la app', 'Los tres pasos') + menuRow('mapGuide', 'Cómo usar el mapa', '') +
+    h += '<h3 class="sub">Ayuda</h3><div class="menu">' + menuRow('appGuide', 'Cómo usar la app', 'Los tres pasos y todo lo demás') + menuRow('usesGuide', 'Para qué sirve la app', 'Usos por área y hasta dónde llega') + menuRow('mapGuide', 'Cómo usar el mapa', 'Puntos, polígonos, fincas y áreas') +
       menuRow('licenses', 'Fuentes y licencias', 'Mapas y datos de clima') + '</div>';
     h += '<p class="small muted" style="margin-top:14px">Zonas de Vida · versión ' + APP_VERSION + '. Funciona sin internet, salvo los mapas y los datos de clima.</p>';
     return h;
@@ -2385,16 +2407,53 @@
   function hasSteps(t) { return t === 'puntos' || t === 'clima' || t === 'informe' || (t === 'area' && ui.polyView !== 'mapa'); }
 
   /* ---------- Ayuda y licencias ---------- */
-  function openAppGuide() {
-    var rows = [
-      ['1 · Puntos', 'Marca los linderos del terreno con el GPS, escribe sus coordenadas o importa un archivo. Con un punto ya hay zona de vida; con tres o más, también el área.'],
+  var APP_GUIDE = [
+    ['Los tres pasos', [
+      ['1 · Puntos', 'Marca los linderos del terreno con el GPS, escribe sus coordenadas (también salen en planas, Origen Nacional) o importa un archivo de Google Earth, GeoJSON o GPX. Con un punto ya hay zona de vida; con tres o más, también el área. Cada punto puede llevar fotos.'],
       ['2 · Información', 'Pulsa «Completar con internet» para traer la altitud, la temperatura y la lluvia. Si tienes datos medidos, escríbelos: mandan sobre lo estimado. Sin la lluvia no hay zona de vida.'],
-      ['3 · Reporte', 'En «Reporte» está la zona de vida de Holdridge con su diagrama, el perfil del relieve y los croquis. Compártelo en PDF o HTML.'],
-      ['Polígono', 'El croquis con las medidas y, en «Mapa», el terreno sobre calles, satélite o topográfico: ahí también se crean, mueven y ordenan los puntos.'],
-      ['Arriba', 'La franja de tres pasos dice qué está listo y qué falta. Tócala para ir a ese paso.']
-    ];
-    openSheet('Cómo usar la app', '<dl class="guide">' + rows.map(function (r) { return '<div><dt>' + esc(r[0]) + '</dt><dd>' + esc(r[1]) + '</dd></div>'; }).join('') + '</dl>' +
-      '<p class="small muted">Puedes volver a ver esta ayuda en «Herramientas».</p><div class="btns"><button class="btn btn-primary" data-act="closeSheet">Entendido</button></div>');
+      ['3 · Reporte', 'La zona de vida de Holdridge con su diagrama, otras clasificaciones del clima (Caldas-Lang del IDEAM, De Martonne y Köppen), el clima actual, el perfil del relieve con la pendiente y los croquis. Compártelo en PDF o HTML.']
+    ]],
+    ['Lo demás', [
+      ['Polígono', 'El croquis con las medidas y para exportar (KML, GeoJSON, GPX, CSV y Shapefile). En «Mapa», el terreno sobre calles, satélite o topográfico: ahí se crean, mueven y ordenan los puntos, y se mide.'],
+      ['Lotes, fincas y áreas', 'Un proyecto puede tener varios polígonos: lotes sueltos, fincas y, dentro de ellas, áreas (potrero, cafetal, cultivo…). Cada uno con sus puntos, su clima y su zona de vida. Se eligen en la fila bajo el nombre del proyecto; «＋ Lote» o «＋ Polígono» crean otro.'],
+      ['Qué va en el reporte', 'En «Reporte», la casilla a la izquierda de cada sección decide si esa parte sale en el reporte que compartes. Con varios polígonos puedes compartir todo el proyecto o solo el elegido.'],
+      ['Herramientas', 'Conversor de unidades, clima y GPS en vivo, proyectos y copia de seguridad, el encabezado del reporte (tu nombre y tu logo), preferencias y estas ayudas.'],
+      ['Arriba', 'La franja de tres pasos dice qué está listo y qué falta. Tócala para ir a ese paso.'],
+      ['Sin internet', 'La app abre y guarda puntos sin conexión. Los mapas, «Completar con internet» y el clima actual sí la necesitan.']
+    ]]
+  ];
+  function openAppGuide() {
+    openSheet('Cómo usar la app', guideHtml(APP_GUIDE) +
+      '<p class="small muted">Puedes volver a ver esta ayuda en «Herramientas», donde también está «Para qué sirve la app».</p><div class="btns"><button class="btn btn-primary" data-act="closeSheet">Entendido</button></div>');
+  }
+  // Mini tutorial de usos (2.19.0): qué se puede hacer con cada parte del reporte y a quién le sirve
+  var USES_GUIDE = [
+    ['Qué es', [
+      ['En una frase', 'Una mezcla de mapa y medidor de terrenos con enfoque ambiental: delimitas un predio en campo y la app entrega un reporte de su zona de vida, su clima y su relieve.'],
+      ['De dónde salen los datos', 'Los puntos, de tu GPS o de lo que escribas. La altitud, la temperatura y la lluvia, de servicios públicos de internet (promedios de varios años), o de tus propias mediciones si las tienes. La app calcula con eso: no reemplaza una estación meteorológica ni un levantamiento topográfico.']
+    ]],
+    ['Qué te dice cada parte del reporte', [
+      ['Croquis', 'Cuál es el predio: su forma, su tamaño y sus linderos, para reconocerlo y mostrarlo.'],
+      ['Croquis satelital y topográfico', 'Qué hay dentro y alrededor (bosque, potreros, caminos, quebradas) y cómo es el terreno: las curvas de nivel muestran dónde sube y dónde baja.'],
+      ['Perfil del relieve y pendiente', 'A qué altura está cada punto, cuál es el más alto y el más bajo, y qué tan inclinado es el terreno. Sirve para planear por dónde llegar, por dónde baja el agua o dónde cuesta más trabajar.'],
+      ['Diagrama de Walter-Lieth', 'Cómo se reparte la lluvia en el año: meses húmedos y meses secos. Sirve para pensar cuándo sembrar, cuándo hay riesgo de falta de agua y qué labores hacer en cada época.'],
+      ['Zona de vida de Holdridge', 'Qué tipo de vegetación natural corresponde a ese clima. Es la base para comparar el uso actual con lo que el sitio da de forma natural.'],
+      ['Caldas-Lang (IDEAM)', 'El piso térmico y la humedad en el lenguaje que usa la asistencia técnica en Colombia: «templado húmedo», «frío semihúmedo».']
+    ]],
+    ['Usos por área', [
+      ['Agrícola y pecuaria', 'Medir lotes y potreros, llevar las áreas de cultivo, de rotación o de riego dentro de la finca, y saber el piso térmico y los meses secos antes de escoger qué sembrar.'],
+      ['Forestal', 'Delimitar rodales y áreas de reforestación o conservación, con su zona de vida, su pendiente y un croquis para el plan de manejo.'],
+      ['Ambiental', 'Caracterizar un predio para un estudio o una visita técnica: ubicación, área, zona de vida, clima y relieve en un solo documento con fuentes citadas.'],
+      ['Estudio y docencia', 'Prácticas de campo: tomar puntos, ubicar el sitio en el diagrama de Holdridge y comparar varias clasificaciones del clima con los mismos datos.'],
+      ['Predios y trámites', 'Un croquis con coordenadas geográficas y planas (MAGNA-SIRGAS, Origen Nacional) y archivos para Google Earth, QGIS o ArcGIS. No reemplaza un plano hecho por un topógrafo.']
+    ]],
+    ['Hasta dónde llega', [
+      ['Precisión', 'El GPS de un teléfono tiene un error de varios metros: en un predio pequeño el área puede variar varios por ciento. El clima viene de datos en cuadros de varios kilómetros, ajustados con la altitud.'],
+      ['Es orientativo', 'El resultado sirve para orientar decisiones y preparar visitas; para decisiones legales o inversiones grandes, confírmalo con mediciones y con un profesional.']
+    ]]
+  ];
+  function openUses() {
+    openSheet('Para qué sirve la app', guideHtml(USES_GUIDE) + '<div class="btns"><button class="btn btn-primary" data-act="closeSheet">Entendido</button></div>');
   }
   function openLicenses() {
     var rows = [
@@ -2404,7 +2463,12 @@
       ['Clima de la zona', 'NASA POWER (NASA Langley Research Center) y Open-Meteo (CC BY 4.0).'],
       ['Clima actual', 'Open-Meteo (CC BY 4.0).'],
       ['Mapa en pantalla', 'Leaflet (licencia BSD de 2 cláusulas).'],
-      ['Zonas de vida', 'Sistema de clasificación de L. R. Holdridge (1967). El resultado es orientativo.']
+      ['Zonas de vida', 'Sistema de clasificación de L. R. Holdridge (1967). El resultado es orientativo.'],
+      ['Caldas-Lang', 'IDEAM, Nota técnica NT_IDEAM-2025-003, «Actualización de la clasificación climática de Caldas-Lang».'],
+      ['Köppen-Geiger y De Martonne', 'Criterios de Peel, Finlayson y McMahon (2007) para Köppen-Geiger; índice de aridez de E. de Martonne (1926).'],
+      ['Diagrama de Walter-Lieth', 'Climodiagrama de H. Walter y H. Lieth: un mes es seco cuando la lluvia (mm) es menor que el doble de la temperatura (°C).'],
+      ['Clases de pendiente', 'Instituto Geográfico Agustín Codazzi (IGAC), clases de pendiente de sus levantamientos de suelos y geomorfología.'],
+      ['Coordenadas planas', 'MAGNA-SIRGAS / Origen Nacional (EPSG:9377), sistema único adoptado por el IGAC en 2020.']
     ];
     openSheet('Fuentes y licencias', '<dl class="guide">' + rows.map(function (r) { return '<div><dt>' + esc(r[0]) + '</dt><dd>' + esc(r[1]) + '</dd></div>'; }).join('') + '</dl>' +
       '<p class="small muted">Los mapas y el clima se piden a esos servicios solo cuando hay internet; la app no envía tus puntos a ningún otro lugar.</p><div class="btns"><button class="btn btn-primary" data-act="closeSheet">Cerrar</button></div>');
@@ -2592,7 +2656,7 @@
   var ACTIONS = {
     tab: function (t) { showTab(t.getAttribute('data-tab')); },
     step: function (t) { showTab(t.getAttribute('data-tab')); },
-    appGuide: openAppGuide, licenses: openLicenses, goExport: goExport,
+    appGuide: openAppGuide, usesGuide: openUses, licenses: openLicenses, goExport: goExport,
     convert: function (t) { openConverter(t.getAttribute('data-tool')); }, cvCopy: function (t) { copyText(t.getAttribute('data-t'), 'Copiado: ' + t.getAttribute('data-t')); },
     toolGps: openGpsTool, toolGpsOn: function () { gpsStart(); renderGpsTool(); }, toolGpsOff: gpsStop,
     toolGpsCopy: function () { if (ui.fix) copyText(Fmt.latlon(ui.fix.lat, ui.fix.lon), 'Coordenadas copiadas.'); },

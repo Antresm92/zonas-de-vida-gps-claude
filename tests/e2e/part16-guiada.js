@@ -135,7 +135,7 @@ module.exports = async function (c) {
     assert.deepEqual(await page.$$eval('.tcard[data-act="convert"] b', (b) => b.map((x) => x.textContent)), ['Área', 'Distancia', 'Temperatura']);
     const fila = await page.$$eval('.tcard[data-act="convert"]', (b) => b.map((x) => Math.round(x.getBoundingClientRect().top)));
     assert.ok(fila.every((y) => y === fila[0]), 'los tres en una fila');
-    assert.deepEqual(await page.$$eval('#tab-herramientas .menurow b', (b) => b.map((x) => x.textContent)), ['Proyectos', 'Copia de seguridad y restaurar', 'Encabezado del reporte', 'Reporte con todas las secciones abiertas', 'Pegar puntos a las esquinas de otros lotes', 'Cómo usar la app', 'Cómo usar el mapa', 'Fuentes y licencias']);
+    assert.deepEqual(await page.$$eval('#tab-herramientas .menurow b', (b) => b.map((x) => x.textContent)), ['Proyectos', 'Copia de seguridad y restaurar', 'Encabezado del reporte', 'Reporte con todas las secciones abiertas', 'Pegar puntos a las esquinas de otros lotes', 'Cómo usar la app', 'Para qué sirve la app', 'Cómo usar el mapa', 'Fuentes y licencias']);
     assert.match(await text('#tab-herramientas'), /Zonas de Vida · versión \d+\.\d+\.\d+\./);
     await shot('174-herramientas');
     await page.click('#tab-herramientas .menurow[data-act="projects"] >> nth=0');
@@ -154,7 +154,30 @@ module.exports = async function (c) {
     await page.click('#sheet .btn-primary'); await waitSheetClosed();
     await act('appGuide'); await page.waitForSelector('#sheet:not([hidden])');
     assert.equal(await sheetTitle(), 'Cómo usar la app');
-    assert.deepEqual(await page.$$eval('.guide dt', (d) => d.map((x) => x.textContent)), ['1 · Puntos', '2 · Información', '3 · Reporte', 'Polígono', 'Arriba']);
+    assert.deepEqual(await page.$$eval('#sheet .guide dt', (d) => d.map((x) => x.textContent)), ['1 · Puntos', '2 · Información', '3 · Reporte', 'Polígono', 'Lotes, fincas y áreas', 'Qué va en el reporte', 'Herramientas', 'Arriba', 'Sin internet']);
+    assert.deepEqual(await page.$$eval('#sheet .guide-h', (d) => d.map((x) => x.textContent)), ['Los tres pasos', 'Lo demás']);
+    // la ayuda nombra lo que la app hace hoy (2.19.0)
+    const ayuda = await text('#sheet');
+    for (const w of ['Origen Nacional', 'fotos', 'Caldas-Lang del IDEAM', 'Köppen', 'pendiente', 'Shapefile', 'fincas', 'potrero', 'casilla a la izquierda', 'todo el proyecto', 'tu logo', 'copia de seguridad']) assert.ok(ayuda.includes(w), 'la ayuda no menciona: ' + w);
+    await page.click('#sheet .btn-primary'); await waitSheetClosed();
+    // la ayuda del mapa, por grupos, con lo nuevo
+    await act('mapGuide'); await page.waitForSelector('#sheet:not([hidden])');
+    assert.deepEqual(await page.$$eval('#sheet .guide-h', (d) => d.map((x) => x.textContent)), ['Lo básico', 'Crear y cambiar puntos', 'Lotes, fincas y áreas', 'Medir']);
+    const mapa = await text('#sheet');
+    for (const w of ['＋ Polígono', 'relleno de puntos', 'Candado', 'se pega a ella', 'casilla «Orden»', 'suben un número', 'Caminar el lindero', 'Agregar con mira', 'deshacer', 'da también el área']) assert.ok(mapa.includes(w), 'la ayuda del mapa no menciona: ' + w);
+    await page.click('#sheet .btn-primary'); await waitSheetClosed();
+    // mini tutorial de usos
+    await act('usesGuide'); await page.waitForSelector('#sheet:not([hidden])');
+    assert.equal(await sheetTitle(), 'Para qué sirve la app');
+    assert.deepEqual(await page.$$eval('#sheet .guide-h', (d) => d.map((x) => x.textContent)), ['Qué es', 'Qué te dice cada parte del reporte', 'Usos por área', 'Hasta dónde llega']);
+    assert.deepEqual(await page.$$eval('#sheet .guide:nth-of-type(3) dt', (d) => d.map((x) => x.textContent)), ['Agrícola y pecuaria', 'Forestal', 'Ambiental', 'Estudio y docencia', 'Predios y trámites']);
+    const usos = await text('#sheet');
+    for (const w of ['Walter-Lieth', 'cuándo sembrar', 'el más alto y el más bajo', 'curvas de nivel', 'No reemplaza un plano hecho por un topógrafo', 'orientativo']) assert.ok(usos.includes(w), 'los usos no mencionan: ' + w);
+    await shot('177-para-que-sirve');
+    await page.click('#sheet .btn-primary'); await waitSheetClosed();
+    // fuentes: también las de las clasificaciones nuevas
+    await act('licenses'); await page.waitForSelector('#sheet:not([hidden])');
+    for (const w of ['NT_IDEAM-2025-003', 'Peel, Finlayson y McMahon', 'de Martonne', 'IGAC', 'EPSG:9377', 'OpenStreetMap', 'NASA POWER']) assert.ok((await text('#sheet')).includes(w), 'las fuentes no mencionan: ' + w);
     await page.click('#sheet .btn-primary'); await waitSheetClosed();
   });
 
