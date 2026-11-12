@@ -107,6 +107,7 @@
     }
     if (a.quality !== undefined) { L.push(''); L.push('Calidad de los datos: ' + QUALITY[a.quality]); }
     (a.warnings || []).forEach(function (w) { L.push('Aviso: ' + w); });
+    (a.info || []).forEach(function (w) { L.push('Nota: ' + w); });
     L.push('');
     L.push(DISCLAIMER);
     return L.join('\n');
@@ -336,10 +337,11 @@
       a.vertexZones.forEach(function (v) { h += '<tr><th>' + esc(v.name) + ' (' + esc(Fmt.num(v.alt, 0)) + ' m)</th><td>' + esc(v.zone) + ' (' + esc(v.symbol) + ')</td></tr>'; });
       h += '</table><p class="small">Se usa la misma precipitación para todos los puntos; la temperatura se ajusta con la altitud.</p>';
     }
-    if (a.quality !== undefined || (a.warnings && a.warnings.length)) {
+    if (a.quality !== undefined || (a.warnings && a.warnings.length) || (a.info && a.info.length)) {
       h += '<h2>Calidad de los datos</h2>';
       if (a.quality !== undefined) h += '<p>' + esc(QUALITY[a.quality]) + '</p>';
       (a.warnings || []).forEach(function (w) { h += '<div class="note">' + esc(w) + '</div>'; });
+      (a.info || []).forEach(function (w) { h += '<p class="small">' + esc(w) + '</p>'; });
       ((a.climate && a.climate.notes) || []).forEach(function (n) { h += '<p class="small">' + esc(n) + '</p>'; });
     }
     if (o.walter && o.walter.svg) {

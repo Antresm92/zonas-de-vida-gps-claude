@@ -184,10 +184,11 @@
       B.push({ t: 'table', rows: a.vertexZones.map(function (v) { return [v.name + ' (' + Fmt.num(v.alt, 0) + ' m)', v.zone + ' (' + v.symbol + ')']; }) });
       B.push({ t: 'p', small: true, text: 'Se usa la misma precipitación para todos los puntos; la temperatura se ajusta con la altitud.' });
     }
-    if (a.quality !== undefined || (a.warnings && a.warnings.length)) {
+    if (a.quality !== undefined || (a.warnings && a.warnings.length) || (a.info && a.info.length)) {
       B.push({ t: 'h2', text: 'Calidad de los datos' });
       if (a.quality !== undefined) B.push({ t: 'p', text: Report.QUALITY[a.quality] });
       (a.warnings || []).forEach(function (w) { B.push({ t: 'note', text: w }); });
+      (a.info || []).forEach(function (w) { B.push({ t: 'p', small: true, text: w }); });
       ((a.climate && a.climate.notes) || []).forEach(function (n) { B.push({ t: 'p', small: true, text: n }); });
     }
     if (o.walter && o.walter.svg) {

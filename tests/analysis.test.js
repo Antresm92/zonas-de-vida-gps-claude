@@ -152,7 +152,7 @@ test('analyze: terreno con desnivel toca varias zonas', () => {
   const a = A.analyze({ points: sq, climate: { pManual: 1500 } });
   assert.ok(a.vertexZones.length === 4);
   assert.ok(a.distinctZones.length >= 2, JSON.stringify(a.distinctZones));
-  assert.ok(a.warnings.some(w => /pisos térmicos/.test(w)));
+  assert.ok(a.warnings.some(w => /toca 2 pisos altitudinales de Holdridge \(de abajo hacia arriba: Premontano y Montano bajo\)/.test(w)), a.warnings.join(' | '));
 });
 test('analyze: polígono con lados cruzados avisa', () => {
   const sq = square(4.7, -74.05, 100, 2600, 'gps');

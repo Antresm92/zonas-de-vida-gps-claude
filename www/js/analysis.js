@@ -102,9 +102,7 @@
 
     // Altitud
     out.alt = altitudeOf(points, climate);
-    if (out.alt.min !== null && out.alt.max - out.alt.min > 150) {
-      out.warnings.push('Los puntos van de ' + Math.round(out.alt.min) + ' a ' + Math.round(out.alt.max) + ' m: el terreno cubre varios pisos térmicos y el resultado del centro es solo una referencia.');
-    }
+    out.info = [];            // notas que explican, sin ser avisos (2.17.1)
 
     // Clima
     var online = climate.online || null;
@@ -127,6 +125,7 @@
     out.result = res;
     res.warnings.forEach(function (w) { out.warnings.push(w); });
     if (resolved.P === null) { out.needs = 'precipitacion'; }
+    altSpan(out, resolved);
 
     // Calidad de los datos: manda el eslabón más débil
     var rT = RANK[resolved.TSrc] || 1;
@@ -167,5 +166,48 @@
     return out;
   }
 
-  return { analyze: analyze, altitudeOf: altitudeOf, T_MARGIN: T_MARGIN, P_MARGIN: P_MARGIN };
+  /* ---------- ¿El terreno cambia de piso altitudinal? (2.17.1) ----------
+   * Antes se avisaba «varios pisos térmicos» con solo pasar de 150 m de diferencia, sin mirar la temperatura. Ahora se calcula:
+   * en el sistema de Holdridge los pisos altitudinales los separa la BIOTEMPERATURA (1,5 · 3 · 6 · 12 · ≈17 y 24 °C), no la altitud.
+   * Se lleva la temperatura del centro al punto más bajo y al más alto con el gradiente de la app (Climate.LAPSE, 0,53 °C por cada
+   * 100 m) y se mira en qué piso cae cada extremo. Solo si son distintos se avisa, y se dice a qué altitud queda el límite.
+   * Con menos de 100 m de diferencia no se dice nada. Deja el cálculo en out.altSpan.
+   */
+  var SPAN_MIN = 100;
+  function d1(x) { return x.toFixed(1).replace('.', ','); }
+  function listY(a) { return a.length < 2 ? a.join('') : a.slice(0, -1).join(', ') + ' y ' + a[a.length - 1]; }
+  function bandRange(b) { return b.btMax === Infinity ? 'más de ' + d1(b.btMin).replace(',0', '') + ' °C' : d1(b.btMin).replace(',0', '') + ' a ' + d1(b.btMax).replace(',0', '') + ' °C'; }
+  function altSpan(out, resolved) {
+    var al = out.alt;
+    if (!al || al.min === null || al.max === null || al.value === null || !isNum(resolved.T)) return;
+    var diff = al.max - al.min;
+    if (diff < SPAN_MIN) return;
+    function at(alt) {
+      var shift = Climate.LAPSE * (al.value - alt);
+      var bt = H.biotemperature(resolved.T + shift, resolved.monthlyT ? resolved.monthlyT.map(function (t) { return t + shift; }) : null);
+      return { bt: bt, band: H.thermalBand(bt) };
+    }
+    var lo = at(al.min), hi = at(al.max);            // abajo hace más calor que arriba
+    if (!lo.band || !hi.band) return;
+    var head = 'Los puntos van de ' + Math.round(al.min) + ' a ' + Math.round(al.max) + ' m (' + Math.round(diff) + ' m de diferencia). Con un gradiente de ' +
+      (Climate.LAPSE * 100).toFixed(2).replace('.', ',') + ' °C por cada 100 m, la biotemperatura va de ' + d1(hi.bt) + ' °C arriba a ' + d1(lo.bt) + ' °C abajo';
+    var span = { min: al.min, max: al.max, diff: diff, btLow: lo.bt, btHigh: hi.bt, belts: [lo.band.belt], limits: [], same: lo.band === hi.band };
+    if (span.same) {
+      out.info.push(head + ': todo el terreno queda en el piso ' + lo.band.belt + ' de Holdridge (' + bandRange(lo.band) + '), así que el resultado del centro lo representa.');
+    } else {
+      // los pisos que hay entre el extremo de abajo y el de arriba, y a qué altitud cae cada límite
+      var i0 = H.BANDS.indexOf(hi.band), i1 = H.BANDS.indexOf(lo.band), belts = [], limits = [];
+      for (var i = i1; i >= i0; i--) {
+        belts.push(H.BANDS[i].belt);
+        if (i > i0) limits.push({ bt: H.BANDS[i].btMin, alt: al.min + (lo.bt - H.BANDS[i].btMin) / Climate.LAPSE });
+      }
+      span.belts = belts; span.limits = limits;
+      out.warnings.push(head + ' y cruza ' + (limits.length === 1 ? 'el límite' : 'los límites') + ' de ' +
+        listY(limits.map(function (l) { return d1(l.bt).replace(',0', '') + ' °C (cerca de los ' + Math.round(l.alt / 10) * 10 + ' m)'; })) +
+        ': el terreno toca ' + belts.length + ' pisos altitudinales de Holdridge (de abajo hacia arriba: ' + listY(belts) + '). El resultado del centro es solo una referencia.');
+    }
+    out.altSpan = span;
+  }
+
+  return { altSpan: altSpan, SPAN_MIN: SPAN_MIN, analyze: analyze, altitudeOf: altitudeOf, T_MARGIN: T_MARGIN, P_MARGIN: P_MARGIN };
 });

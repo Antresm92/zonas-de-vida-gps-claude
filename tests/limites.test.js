@@ -74,11 +74,43 @@ test('avisa cuando la temperatura anual sale de 0–30 °C, por arriba o por aba
 });
 
 /* ---------- Análisis ---------- */
-test('aviso de varios pisos térmicos: más de 150 m de diferencia, no 150 exactos', () => {
-  const proyecto = (altMax) => ({ climate: { tManual: 14, pManual: 1200 }, points: [
-    { id: 'a', name: 'A', lat: 4.60, lon: -74.10, alt: 2600 }, { id: 'b', name: 'B', lat: 4.61, lon: -74.10, alt: altMax }, { id: 'c', name: 'C', lat: 4.61, lon: -74.09, alt: 2650 }] });
-  assert.doesNotMatch(Analysis.analyze(proyecto(2750), {}).warnings.join(' '), /varios pisos/);
-  assert.match(Analysis.analyze(proyecto(2751), {}).warnings.join(' '), /varios pisos/);
+test('pisos altitudinales: el aviso sale de la biotemperatura (Holdridge), no de la diferencia de altitud', () => {
+  const Climate = require('../www/js/climate.js');
+  const mk = (alts, T) => Analysis.analyze({ climate: { tManual: T, pManual: 1500 }, points: alts.map((alt, i) => ({ id: 'p' + i, name: 'P' + (i + 1), lat: 4.93 + i * 0.001, lon: -74.95 + (i % 2) * 0.002 + i * 0.0001, alt })) }, { memory: new Climate.Memory() });
+  // El caso del usuario: 832 a 1056 m con 23,0 °C en el centro. 224 m son 1,2 °C: todo queda en el piso Premontano (17 a 24 °C).
+  const a = mk([832, 899, 1056], 23.0);
+  assert.doesNotMatch(a.warnings.join(' '), /pisos/);
+  assert.equal(a.info.length, 1);
+  assert.equal(a.info[0], 'Los puntos van de 832 a 1056 m (224 m de diferencia). Con un gradiente de 0,53 °C por cada 100 m, la biotemperatura va de 22,3 °C arriba a 23,5 °C abajo: todo el terreno queda en el piso Premontano de Holdridge (17 a 24 °C), así que el resultado del centro lo representa.');
+  assert.equal(a.altSpan.same, true); assert.deepEqual(a.altSpan.belts, ['Premontano']); assert.deepEqual(a.altSpan.limits, []);
+  assert.ok(Math.abs(a.altSpan.btLow - a.altSpan.btHigh - 224 * Climate.LAPSE) < 1e-9);
+  // La misma diferencia de altitud, un poco más caliente: ahora sí cruza los 24 °C y lo dice, con la altitud del límite
+  const b = mk([832, 899, 1056], 23.9);
+  assert.equal(b.info.length, 0);
+  const w = b.warnings.filter((x) => /pisos altitudinales/.test(x));
+  assert.equal(w.length, 1);
+  assert.match(w[0], /^Los puntos van de 832 a 1056 m \(224 m de diferencia\)\. Con un gradiente de 0,53 °C por cada 100 m, la biotemperatura va de 23,2 °C arriba a 24,4 °C abajo y cruza el límite de 24 °C \(cerca de los 9[01]0 m\): el terreno toca 2 pisos altitudinales de Holdridge \(de abajo hacia arriba: Basal y Premontano\)\. El resultado del centro es solo una referencia\.$/);
+  assert.equal(b.altSpan.same, false); assert.equal(b.altSpan.limits.length, 1); assert.equal(b.altSpan.limits[0].bt, 24);
+  // el límite queda donde la biotemperatura vale exactamente 24 °C
+  const lim = b.altSpan.limits[0].alt, c0 = b.alt.value;
+  assert.ok(Math.abs((23.9 + Climate.LAPSE * (c0 - lim)) - 24) < 1e-9);
+  // 3000 m de diferencia: cuatro pisos y tres límites, en orden de abajo hacia arriba
+  const c = mk([500, 2000, 3500], 17.3);
+  assert.deepEqual(c.altSpan.belts, ['Basal', 'Premontano', 'Montano bajo', 'Montano']);
+  assert.deepEqual(c.altSpan.limits.map((l) => Math.round(l.bt)), [24, 17, 12]);
+  assert.ok(c.altSpan.limits[0].alt < c.altSpan.limits[1].alt && c.altSpan.limits[1].alt < c.altSpan.limits[2].alt);
+  assert.match(c.warnings.join(' '), /cruza los límites de 24 °C \(cerca de los \d+ m\), 17 °C \(cerca de los \d+ m\) y 12 °C \(cerca de los \d+ m\): el terreno toca 4 pisos/);
+  // con menos de 100 m de diferencia no se dice nada; con 100 exactos sí
+  const poco = mk([1000, 1050, 1099], 22);
+  assert.equal(poco.info.length, 0); assert.equal(poco.altSpan, undefined); assert.doesNotMatch(poco.warnings.join(' '), /pisos/);
+  assert.equal(mk([1000, 1050, 1100], 22).info.length, 1);
+  assert.equal(Analysis.SPAN_MIN, 100);
+  // sin temperatura (ni altitud para estimarla) o sin altitudes no hay nada que calcular
+  const sinAlt = Analysis.analyze({ climate: { tManual: 22, pManual: 1500 }, points: [{ lat: 4.9, lon: -74.9 }, { lat: 4.91, lon: -74.9 }, { lat: 4.91, lon: -74.91 }] }, { memory: new Climate.Memory() });
+  assert.deepEqual(sinAlt.info, []); assert.equal(sinAlt.altSpan, undefined);
+  // con temperaturas mensuales se usa la biotemperatura de los doce meses
+  const m = Analysis.analyze({ climate: { monthlyManual: { T: Array(12).fill(23.9), P: Array(12).fill(125) } }, points: [832, 899, 1056].map((alt, i) => ({ lat: 4.93 + i * 0.001, lon: -74.95 + (i % 2) * 0.002, alt })) }, { memory: new Climate.Memory() });
+  assert.equal(m.altSpan.same, false); assert.deepEqual(m.altSpan.belts, ['Basal', 'Premontano']);
 });
 
 /* ---------- CSV ---------- */
