@@ -5,7 +5,7 @@
   var Geo = window.Geo, H = window.Holdridge, Climate = window.Climate, A = window.Analysis, Fmt = window.Fmt,
       Gps = window.Gps, Store = window.Store, Diagram = window.Diagram, Report = window.Report,
       Gis = window.Gis, Backup = window.Backup, IO = window.IO, WL = window.WalterLieth, Mapa = window.Mapa, MapView = window.MapView, Satelite = window.Satelite, Perfil = window.Perfil, Fotos = window.Fotos, Zip = window.Zip, Units = window.Units;
-  var APP_VERSION = '2.15.1';
+  var APP_VERSION = '2.16.0';
 
   var S = Store.loadState();
   var hadSaved = Store.hasSavedState();      // ¿había datos guardados al abrir? (solo entonces se limpian las fotos sin uso)
@@ -502,9 +502,13 @@
   }
   function layerById(id) { return proj().layers.filter(function (l) { return l.id === id; })[0]; }
 
-  function colorPalette(current) {
+  // used (opcional): { '#RRGGBB': 'nombre de quien ya lo usa' } → esos colores llevan una marca y lo dicen al lector de pantalla
+  function colorPalette(current, used) {
+    used = used || {};
     return '<div class="palette" role="group" aria-label="Color">' + Gis.COLORS.map(function (c) {
-      return '<button class="sw" style="background:' + c + '" data-act="pickColor" data-color="' + c + '" aria-pressed="' + (c.toLowerCase() === String(current).toLowerCase()) + '" aria-label="Color ' + c + '"></button>';
+      var who = used[c.toUpperCase()];
+      return '<button class="sw' + (who ? ' used' : '') + '" style="background:' + c + '" data-act="pickColor" data-color="' + c + '" aria-pressed="' + (c.toLowerCase() === String(current).toLowerCase()) +
+        '" aria-label="Color ' + c + (who ? ' (ya lo usa «' + esc(who) + '»)' : '') + '"></button>';
     }).join('') + '</div>';
   }
   /* ---------- Lotes (2.15.0): la fila de lotes, la lista y sus acciones ---------- */
@@ -559,11 +563,14 @@
     var used = {}, color = l ? l.mainColor : '';
     p.lots.forEach(function (x) { used[x.mainColor.toUpperCase()] = true; });
     if (!l) color = LOT_COLORS.filter(function (c) { return !used[c]; })[0] || LOT_COLORS[p.lots.length % LOT_COLORS.length];   // el primer color que ningún lote usa
+    var others = {};
+    p.lots.forEach(function (x) { if (x !== l) others[x.mainColor.toUpperCase()] = x.name; });      // colores de los demás lotes
     ui.edit = { kind: 'lot', id: id || '', color: color };
     hideSheet();
     openSheet(l ? 'Editar lote' : 'Nuevo lote',
       '<label class="f"><span>Nombre del lote</span><input type="text" id="lotName" value="' + esc(l ? l.name : 'Lote ' + (p.lots.length + 1)) + '" maxlength="' + Store.LOT_NAME_MAX + '" autocomplete="off"></label>' +
-      '<div class="f"><span style="display:block;margin-bottom:6px;font-weight:650">Color</span>' + colorPalette(color) + '</div>' +
+      '<div class="f"><span style="display:block;margin-bottom:6px;font-weight:650">Color</span>' + colorPalette(color, others) +
+      (Object.keys(others).length ? '<span class="f-hint" id="lotColorHint">Los colores con un punto blanco ya los usa otro lote.</span>' : '') + '</div>' +
       (l ? '<p class="small muted">' + esc(lotSub(l)) + '</p>' : '<p class="small muted">El lote nuevo empieza vacío y queda elegido: los puntos que marques después se guardan en él.</p>') +
       '<div class="btns"><button class="btn btn-primary" data-act="lotSave">' + (l ? 'Guardar' : 'Crear lote') + '</button>' +
       (l && p.lots.length > 1 ? '<button class="btn btn-danger" data-act="lotDelete" data-id="' + esc(l.id) + '">Eliminar lote</button>' : '') + '</div>');
@@ -1130,15 +1137,26 @@
     addManualAt(ll);
   }
   // Crea un punto a mano en ese lugar (toque con «Ingresar puntos», la mira o el «+» de un lado). after: posición tras la que se inserta; sin ella va al final.
+  // Si el punto queda muy cerca de la esquina de otro lote, se pega a ella (así los dos lotes comparten el lindero exacto).
+  // Se apaga en Herramientas › Preferencias. Devuelve la esquina ({ lat, lon, alt, name, lot }) o null.
+  function snapFor(ll) {
+    var p = proj();
+    if (!multi(p) || Store.loadFlag('lotSnap') === false || !ui.map) return null;
+    var z = ui.map.info().zoom;
+    return Mapa.snapVertex(ll, lotLayers(p), Mapa.snapRadius(z, ll.lat));
+  }
+  function snapNote(sn) { return sn ? ' Quedó pegado a ' + sn.name + ' de «' + sn.lot + '».' : ''; }
   function addManualAt(ll, after) {
-    var p = proj(), prevNext = p.nextPoint;
+    var p = proj(), prevNext = p.nextPoint, sn = snapFor(ll);
     undoMark(isNum(after) ? 'insertar un punto' : 'crear un punto');
-    var pt = addPoint({ lat: ll.lat, lon: ll.lon, src: 'manual' });
-    var msg = pt.name + ' creado (sin altitud).';
+    var np = sn ? { lat: sn.lat, lon: sn.lon, src: 'manual' } : { lat: ll.lat, lon: ll.lon, src: 'manual' };
+    if (sn && isNum(sn.alt)) { np.alt = sn.alt; np.altSrc = 'manual'; }      // la esquina compartida trae su altitud
+    var pt = addPoint(np), sinAlt = isNum(pt.alt) ? '' : ' (sin altitud)';
+    var msg = pt.name + ' creado' + sinAlt + '.' + snapNote(sn);
     if (isNum(after) && after >= 0 && after < p.points.length - 1) {
       var a = p.points[after], b = p.points[(after + 1) % (p.points.length - 1)];
       p.points.pop(); p.points.splice(after + 1, 0, pt); save();
-      msg = pt.name + ' insertado entre ' + a.name + ' y ' + b.name + ' (sin altitud).';
+      msg = pt.name + ' insertado entre ' + a.name + ' y ' + b.name + sinAlt + '.' + snapNote(sn);
     }
     ui.mapFitKey = mapKey();
     renderTab('area');
@@ -1154,12 +1172,12 @@
   function onPointDrop(id, ll) {
     var pt = pointById(id);
     if (!pt || Geo.haversine(pt.lat, pt.lon, ll.lat, ll.lon) < 0.5) return;
-    var before = { lat: pt.lat, lon: pt.lon, src: pt.src, acc: pt.acc };
+    var before = { lat: pt.lat, lon: pt.lon, src: pt.src, acc: pt.acc }, sn = snapFor(ll);
     undoMark('mover ' + pt.name);
-    relocate(pt, ll.lat, ll.lon);
+    relocate(pt, sn ? sn.lat : ll.lat, sn ? sn.lon : ll.lon);
     ui.mapFitKey = mapKey();
     save(); renderTab('area');
-    toast(pt.name + ' movido.', { action: 'Deshacer', fn: function () {
+    toast(pt.name + ' movido.' + snapNote(sn), { action: 'Deshacer', fn: function () {
       var q = pointById(id);
       if (!q) return;
       q.lat = before.lat; q.lon = before.lon; q.src = before.src; q.acc = before.acc;
@@ -2122,7 +2140,9 @@
     var au = Store.loadAuthor(), auSub = [au.name, au.org, au.logo ? 'con logo' : ''].filter(Boolean).join(' · ');
     h += '<h3 class="sub">Reporte</h3><div class="menu">' + menuRow('authorEdit', 'Encabezado del reporte', auSub || 'Autor, entidad y logo') + '</div>';
     h += '<h3 class="sub">Preferencias</h3><div class="menu"><label class="menurow"><span><b>Reporte con todas las secciones abiertas</b><small>Si no, cada sección se abre al tocar su título.</small></span>' +
-      '<input type="checkbox" data-flag="reportOpen"' + (Store.loadFlag('reportOpen') === true ? ' checked' : '') + '></label></div>';
+      '<input type="checkbox" data-flag="reportOpen"' + (Store.loadFlag('reportOpen') === true ? ' checked' : '') + '></label>' +
+      '<label class="menurow"><span><b>Pegar puntos a las esquinas de otros lotes</b><small>Al marcar o mover un punto en el mapa muy cerca de la esquina de otro lote, queda exactamente sobre ella.</small></span>' +
+      '<input type="checkbox" data-flag="lotSnap"' + (Store.loadFlag('lotSnap') === false ? '' : ' checked') + '></label></div>';
     h += '<h3 class="sub">Ayuda</h3><div class="menu">' + menuRow('appGuide', 'Cómo usar la app', 'Los tres pasos') + menuRow('mapGuide', 'Cómo usar el mapa', '') +
       menuRow('licenses', 'Fuentes y licencias', 'Mapas y datos de clima') + '</div>';
     h += '<p class="small muted" style="margin-top:14px">Zonas de Vida · versión ' + APP_VERSION + '. Funciona sin internet, salvo los mapas y los datos de clima.</p>';
@@ -2136,7 +2156,7 @@
       '<label class="f"><span>Entidad o empresa (opcional)</span><input type="text" id="auOrg" maxlength="' + Store.AUTHOR_MAX + '" value="' + esc(au.org) + '" autocomplete="organization" placeholder="Ej.: Finca La Esperanza"></label>' +
       '<div class="f f-logo"><span class="f-label">Logo (opcional)</span><div class="logobox" id="auLogo">' + (au.logo ? '<img src="data:image/jpeg;base64,' + au.logo + '" alt="Logo elegido">' : '<span class="small muted">Sin logo</span>') + '</div>' +
       '<div class="btns"><button class="btn" data-act="authorLogo">' + (au.logo ? 'Cambiar logo' : 'Elegir logo') + '</button>' + (au.logo ? '<button class="btn" data-act="authorLogoDel">Quitar logo</button>' : '') + '</div>' +
-      '<span class="f-hint">Se reduce a 400 píxeles y se guarda como JPEG (lo transparente queda blanco).</span></div>' +
+      '<span class="f-hint">Se recortan los bordes de un solo color, se reduce a 400 píxeles y se guarda como JPEG (lo transparente queda blanco).</span></div>' +
       '<div class="btns"><button class="btn btn-primary" data-act="authorSave">Guardar</button></div>';
   }
   function openAuthor(keep) {
@@ -2155,11 +2175,12 @@
   }
   function setAuthorLogo(file) {
     if (!ui.authorDraft) return;
-    Fotos.shrink(file, { max: 400, quality: 0.86 }).then(function (r) {
+    Fotos.shrink(file, { max: 400, quality: 0.86, trim: true }).then(function (r) {
       var b64 = Fotos.toBase64(r.bytes);
       if (b64.length > Store.LOGO_MAX) throw new Error('El logo sigue siendo muy pesado; prueba con una imagen más sencilla.');
       ui.authorDraft.logo = b64;
       refreshAuthor();
+      if (r.trimmed) toast('Se recortaron los bordes lisos del logo.');
     }).catch(function (e) { toast('No se pudo usar esa imagen: ' + (e && e.message || e), { err: true }); });
   }
   function saveAuthor() {

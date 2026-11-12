@@ -66,7 +66,38 @@
       .then(wrap, viaImage);
   }
 
-  // file: Blob/File (la foto elegida o ya guardada). opts: { max, quality }. Devuelve { bytes: Uint8Array JPEG, w, h }.
+  /* ---------- Recortar los bordes de un solo color (para el logo, 2.16.0) ---------- */
+  // data: píxeles RGBA (como los da getImageData), w × h. Devuelve { x, y, w, h } con la parte que no es borde.
+  // El color del borde es el de las cuatro esquinas: si no se parecen entre sí, la imagen no tiene borde liso y no se recorta.
+  // Una fila o columna es «borde» si casi todos sus píxeles (≥ 99 %) son de ese color (tolerancia para el ruido del JPEG).
+  // Se deja un margen del 3 % alrededor; si lo que queda es casi todo (menos de 4 % de recorte) o casi nada, no se recorta.
+  var TRIM_TOL = 24, TRIM_PAD = 0.03, TRIM_SIDE = 1000;      // el borde se busca con la imagen a 1000 px de lado como mucho
+  function trimBox(data, w, h, tol) {
+    var full = { x: 0, y: 0, w: w, h: h };
+    if (!data || !(w > 8 && h > 8) || data.length < w * h * 4) return full;
+    tol = isNum(tol) ? tol : TRIM_TOL;
+    function px(x, y) { var i = (y * w + x) * 4; return [data[i], data[i + 1], data[i + 2]]; }
+    function near(a, b) { return Math.abs(a[0] - b[0]) <= tol && Math.abs(a[1] - b[1]) <= tol && Math.abs(a[2] - b[2]) <= tol; }
+    var bg = px(0, 0);
+    if (!near(bg, px(w - 1, 0)) || !near(bg, px(0, h - 1)) || !near(bg, px(w - 1, h - 1))) return full;
+    function rowIsBg(y) { var bad = 0, lim = w * 0.01; for (var x = 0; x < w; x++) if (!near(px(x, y), bg) && ++bad > lim) return false; return true; }
+    function colIsBg(x, y0, y1) { var bad = 0, lim = (y1 - y0 + 1) * 0.01; for (var y = y0; y <= y1; y++) if (!near(px(x, y), bg) && ++bad > lim) return false; return true; }
+    var top = 0, bottom = h - 1, left = 0, right = w - 1;
+    while (top < h && rowIsBg(top)) top++;
+    if (top >= h) return full;                                   // toda la imagen es de un solo color
+    while (bottom > top && rowIsBg(bottom)) bottom--;
+    while (left < w && colIsBg(left, top, bottom)) left++;
+    while (right > left && colIsBg(right, top, bottom)) right--;
+    var bw = right - left + 1, bh = bottom - top + 1;
+    if (bw < 8 || bh < 8) return full;
+    var pad = Math.round(Math.max(bw, bh) * TRIM_PAD);
+    var x0 = Math.max(0, left - pad), y0 = Math.max(0, top - pad), x1 = Math.min(w - 1, right + pad), y1 = Math.min(h - 1, bottom + pad);
+    var out = { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 };
+    return out.w * out.h > w * h * 0.96 ? full : out;
+  }
+
+  // file: Blob/File (la foto elegida o ya guardada). opts: { max, quality, trim }. Devuelve { bytes: Uint8Array JPEG, w, h }.
+  // Con trim: true se recortan antes los bordes de un solo color (ver trimBox) y el resultado dice cuánto en `trimmed`.
   function shrink(file, opts, env) {
     opts = opts || {}; env = env || root;
     var max = opts.max || MAX_SIDE, q = opts.quality || QUALITY;
@@ -75,7 +106,7 @@
     if (file.size > MAX_INPUT) return Promise.reject(new Error('La foto es demasiado grande (más de 40 MB).'));
     if (file.type && !/^image\//i.test(file.type)) return Promise.reject(new Error('El archivo no es una imagen.'));
     return decode(file, env).then(function (img) {
-      var s = fit(img.width, img.height, max);
+      var s = fit(img.width, img.height, opts.trim ? Math.max(max, TRIM_SIDE) : max);
       if (!(s.w > 0 && s.h > 0)) { if (img.close) img.close(); throw new Error('La imagen no tiene tamaño.'); }
       var canvas = env.document.createElement('canvas');
       canvas.width = s.w; canvas.height = s.h;
@@ -84,13 +115,26 @@
       ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, s.w, s.h);       // el JPEG no tiene transparencia: lo transparente queda blanco
       ctx.drawImage(img.source, 0, 0, s.w, s.h);
       if (img.close) img.close();
+      var trimmed = false;
+      if (opts.trim) {
+        // se mira la imagen a buen tamaño, se busca el borde liso y se vuelve a dibujar solo la parte útil, ya reducida a `max`
+        var box = { x: 0, y: 0, w: s.w, h: s.h };
+        try { box = trimBox(ctx.getImageData(0, 0, s.w, s.h).data, s.w, s.h); } catch (e) { /* sin acceso a los píxeles: se deja entera */ }
+        trimmed = box.w < s.w || box.h < s.h;
+        var t = fit(box.w, box.h, max), c2 = env.document.createElement('canvas');
+        c2.width = t.w; c2.height = t.h;
+        var ctx2 = c2.getContext('2d');
+        if (ctx2) { ctx2.fillStyle = '#fff'; ctx2.fillRect(0, 0, t.w, t.h); ctx2.drawImage(canvas, box.x, box.y, box.w, box.h, 0, 0, t.w, t.h); canvas = c2; s = t; }
+        else trimmed = false;
+        if (!ctx2 && (s.w > max || s.h > max)) throw new Error('Este dispositivo no puede preparar la foto.');
+      }
       return new Promise(function (resolve, reject) {
         canvas.toBlob(function (blob) { if (blob) resolve(blob); else reject(new Error('No se pudo preparar la foto.')); }, 'image/jpeg', q);
       }).then(function (blob) { return blob.arrayBuffer(); }).then(function (buf) {
         var bytes = new Uint8Array(buf);
         if (!isJpeg(bytes)) throw new Error('No se pudo preparar la foto.');
         if (bytes.length > MAX_PHOTO) throw new Error('La foto reducida sigue siendo demasiado grande.');
-        return { bytes: bytes, w: s.w, h: s.h };
+        return opts.trim ? { bytes: bytes, w: s.w, h: s.h, trimmed: trimmed } : { bytes: bytes, w: s.w, h: s.h };
       });
     });
   }
@@ -222,7 +266,7 @@
 
   return {
     MAX_PER_POINT: MAX_PER_POINT, MAX_SIDE: MAX_SIDE, QUALITY: QUALITY, REPORT_SIDE: REPORT_SIDE, REPORT_QUALITY: REPORT_QUALITY, MAX_INPUT: MAX_INPUT, MAX_PHOTO: MAX_PHOTO,
-    isId: isId, newId: newId, isJpeg: isJpeg, fit: fit, cleanList: cleanList, shrink: shrink, createStore: createStore, sweep: sweep,
+    trimBox: trimBox, isId: isId, newId: newId, isJpeg: isJpeg, fit: fit, cleanList: cleanList, shrink: shrink, createStore: createStore, sweep: sweep,
     importAll: importAll, createUrls: createUrls, usedIds: usedIds, countAll: countAll, toBase64: toBase64, fromBase64: fromBase64
   };
 });

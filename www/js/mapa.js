@@ -140,6 +140,33 @@
     return hit;
   }
 
+  /* ---------- Pegar un punto a la esquina de otro lote (2.16.0) ---------- */
+  // Para que dos lotes vecinos compartan exactamente el mismo lindero: si el punto que se marca o se suelta en el mapa queda
+  // muy cerca de una esquina de otro lote, toma las coordenadas de esa esquina.
+  var SNAP_PX = 14, SNAP_MAX_M = 10, SNAP_MIN_M = 0.5;
+  // Metros que mide un píxel del mapa a ese zoom y esa latitud (proyección de los mapas web)
+  function metersPerPixel(zoom, lat) { return 156543.03392 * Math.cos(lat * Math.PI / 180) / Math.pow(2, zoom); }
+  // Radio de pegado en metros: lo que cubren SNAP_PX píxeles, sin pasar de SNAP_MAX_M (con el mapa lejos no se pega a nada que esté a más de 10 m)
+  function snapRadius(zoom, lat) {
+    if (!isNum(zoom) || !isNum(lat)) return 0;
+    return Math.max(SNAP_MIN_M, Math.min(SNAP_MAX_M, SNAP_PX * metersPerPixel(zoom, lat)));
+  }
+  // La esquina de otro lote más cercana a `ll` dentro de `radius` metros: { lat, lon, alt, name, lot, dist } o null.
+  // Solo mira las capas que son lotes (no las importadas).
+  function snapVertex(ll, layers, radius) {
+    if (!ll || !isNum(ll.lat) || !isNum(ll.lon) || !(radius > 0)) return null;
+    var best = null;
+    (layers || []).forEach(function (l) {
+      if (!l || !l.lot) return;
+      (l.points || []).forEach(function (p, i) {
+        if (!validLL(p)) return;
+        var d = haversine(ll.lat, ll.lon, p.lat, p.lon);
+        if (d <= radius && (!best || d < best.dist)) best = { lat: p.lat, lon: p.lon, alt: isNum(p.alt) ? p.alt : null, name: p.name || 'P' + (i + 1), lot: l.name, dist: d };
+      });
+    });
+    return best;
+  }
+
   function labelsVisible(zoom) { return isNum(zoom) && zoom >= LABEL_MIN_ZOOM; }
 
   // Texto de aviso cuando el mapa de fondo no puede cargar. state: { online, errors }. '' si no hace falta avisar.
@@ -384,6 +411,7 @@
   function toolId(t) { return TOOLS.indexOf(t) >= 0 ? t : ''; }
 
   return {
+    metersPerPixel: metersPerPixel, snapRadius: snapRadius, snapVertex: snapVertex, SNAP_PX: SNAP_PX, SNAP_MAX_M: SNAP_MAX_M,
     lotAt: lotAt, haversine: haversine, bearing: bearing, compass: compass, sides: sides, sideShows: sideShows, SIDE_LABEL_MIN_PX: SIDE_LABEL_MIN_PX, SIDE_PLUS_MIN_PX: SIDE_PLUS_MIN_PX,
     summaryText: summaryText, relText: relText, measureText: measureText, measureAdd: measureAdd, measureLength: measureLength, MEASURE_MAX: MEASURE_MAX, undoStack: undoStack,
     TRACK_STEPS: TRACK_STEPS, TRACK_STEP_DEFAULT: TRACK_STEP_DEFAULT, TRACK_MAX_ACC: TRACK_MAX_ACC, trackStep: trackStep, trackDecision: trackDecision, trackText: trackText,
