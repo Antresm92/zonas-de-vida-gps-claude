@@ -90,3 +90,37 @@ test('recorte: no toca la imagen si no hay borde liso, si es de un solo color, s
   assert.deepEqual(Fotos.trimBox(img(8, 8, W), 8, 8), full(8, 8)); assert.deepEqual(Fotos.trimBox(null, 50, 50), full(50, 50));
   assert.deepEqual(Fotos.trimBox(new Uint8ClampedArray(10), 50, 50), full(50, 50), 'faltan píxeles');
 });
+
+/* ---------- Insertar un punto entre dos y renumerar (2.17.2) ---------- */
+test('insertar entre dos puntos: el nuevo toma el número que sigue y los demás suben uno; la forma no cambia', () => {
+  const P = (n) => n.map((x, i) => ({ id: 'i' + i, name: x, lat: 4 + i, lon: -74 - i, alt: 100 + i }));
+  const names = (r) => r.points.map((p) => p.name).join(' ');
+  const base = P(['P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7']), copia = JSON.stringify(base);
+  const r = Mapa.insertRenumber(base, 3, { id: 'n', name: 'P8', lat: 9, lon: 9 });
+  assert.equal(names(r), 'P1 P2 P3 P4 P5 P6 P7 P8'); assert.equal(r.next, 9);
+  assert.deepEqual(r.points.map((p) => p.id), ['i0', 'i1', 'i2', 'i3', 'n', 'i4', 'i5', 'i6']);
+  assert.deepEqual(r.renamed, [{ id: 'i4', from: 'P5', to: 'P6' }, { id: 'i5', from: 'P6', to: 'P7' }, { id: 'i6', from: 'P7', to: 'P8' }]);
+  assert.deepEqual(r.points.filter((p) => p.id !== 'n').map((p) => [p.lat, p.lon, p.alt]), base.map((p) => [p.lat, p.lon, p.alt]), 'las coordenadas no cambian');
+  assert.equal(JSON.stringify(base), copia, 'la lista original no se toca');
+  assert.equal(r.point.id, 'n'); assert.equal(r.point.lat, 9);
+  // entre el 1 y el 2
+  assert.equal(names(Mapa.insertRenumber(P(['P1', 'P2', 'P3']), 0, { id: 'n' })), 'P1 P2 P3 P4');
+  // después del último no hay nada que subir
+  const fin = Mapa.insertRenumber(P(['P1', 'P2', 'P3']), 2, { id: 'n' });
+  assert.equal(names(fin), 'P1 P2 P3 P4'); assert.deepEqual(fin.renamed, []); assert.equal(fin.next, 5);
+  // los nombres puestos por la persona no se tocan; el número sale del último automático hacia atrás
+  const mix = Mapa.insertRenumber(P(['P1', 'Portada', 'P3', 'P7']), 1, { id: 'n' });
+  assert.equal(names(mix), 'P1 Portada P2 P4 P8'); assert.equal(mix.next, 9);
+  const sin = Mapa.insertRenumber(P(['Portón', 'Quebrada', 'Cerca']), 0, { id: 'n' });
+  assert.equal(names(sin), 'Portón P1 Quebrada Cerca'); assert.equal(sin.next, 2);
+  // con huecos en la numeración (se borró el P3): suben los de número igual o mayor, y no quedan dos iguales
+  const hueco = Mapa.insertRenumber(P(['P1', 'P2', 'P4', 'P5']), 1, { id: 'n' });
+  assert.equal(names(hueco), 'P1 P2 P3 P5 P6');
+  const rep = Mapa.insertRenumber(P(['P5', 'P1', 'P2']), 1, { id: 'n' });       // orden cambiado a mano: el P5 va primero
+  assert.equal(names(rep), 'P6 P1 P2 P3'); assert.equal(new Set(rep.points.map((p) => p.name)).size, 4);
+  // datos raros: índice fuera de rango va al final; lista vacía; nombres que parecen automáticos pero no lo son
+  assert.equal(names(Mapa.insertRenumber(P(['P1', 'P2']), 99, { id: 'n' })), 'P1 P2 P3');
+  assert.equal(names(Mapa.insertRenumber([], 0, { id: 'n' })), 'P1'); assert.equal(names(Mapa.insertRenumber(null, null, null)), 'P1');
+  assert.equal(names(Mapa.insertRenumber(P(['P01x', 'p2', 'P 3', 'P2']), 3, { id: 'n' })), 'P01x p2 P 3 P2 P3');
+  assert.equal(Mapa.autoNum({ name: 'P12' }), 12); assert.equal(Mapa.autoNum({ name: 'P' }), null); assert.equal(Mapa.autoNum(null), null); assert.equal(Mapa.autoNum({ name: 7 }), null);
+});

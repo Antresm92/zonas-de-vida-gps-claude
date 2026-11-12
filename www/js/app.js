@@ -5,7 +5,7 @@
   var Geo = window.Geo, H = window.Holdridge, Climate = window.Climate, A = window.Analysis, Fmt = window.Fmt,
       Gps = window.Gps, Store = window.Store, Diagram = window.Diagram, Report = window.Report,
       Gis = window.Gis, Backup = window.Backup, IO = window.IO, WL = window.WalterLieth, Mapa = window.Mapa, MapView = window.MapView, Satelite = window.Satelite, Perfil = window.Perfil, Fotos = window.Fotos, Zip = window.Zip, Units = window.Units;
-  var APP_VERSION = '2.17.1';
+  var APP_VERSION = '2.17.2';
 
   var S = Store.loadState();
   var hadSaved = Store.hasSavedState();      // ¿había datos guardados al abrir? (solo entonces se limpian las fotos sin uso)
@@ -1293,10 +1293,17 @@
     if (sn && isNum(sn.alt)) { np.alt = sn.alt; np.altSrc = 'manual'; }      // la esquina compartida trae su altitud
     var pt = addPoint(np), sinAlt = isNum(pt.alt) ? '' : ' (sin altitud)';
     var msg = pt.name + ' creado' + sinAlt + '.' + snapNote(sn);
+    var before = null;
     if (isNum(after) && after >= 0 && after < p.points.length - 1) {
-      var a = p.points[after], b = p.points[(after + 1) % (p.points.length - 1)];
-      p.points.pop(); p.points.splice(after + 1, 0, pt); save();
-      msg = pt.name + ' insertado entre ' + a.name + ' y ' + b.name + sinAlt + '.' + snapNote(sn);
+      var a = p.points[after], b = p.points[(after + 1) % (p.points.length - 1)], an = a.name, bn = b.name;
+      p.points.pop();
+      // el nuevo toma el número que sigue al de antes y los demás suben uno: los nombres siguen el recorrido (2.17.2)
+      before = { names: p.points.map(function (q) { return q.name; }), next: prevNext };
+      var r = Mapa.insertRenumber(p.points, after, pt);
+      r.renamed.forEach(function (x) { var q = pointById(x.id); if (q) q.name = x.to; });
+      pt.name = r.point.name;
+      p.points.splice(after + 1, 0, pt); p.nextPoint = Math.max(r.next, 1); save();
+      msg = pt.name + ' insertado entre ' + an + ' y ' + bn + sinAlt + '.' + (r.renamed.length ? ' Los que siguen subieron un número (' + r.renamed[0].from + ' ahora es ' + r.renamed[0].to + ').' : '') + snapNote(sn);
     }
     ui.mapFitKey = mapKey();
     renderTab('area');
@@ -1304,7 +1311,8 @@
       var i = p.points.indexOf(pt);
       if (i < 0) return;
       p.points.splice(i, 1);
-      if (p.nextPoint === prevNext + 1) p.nextPoint = prevNext;   // el siguiente punto vuelve a llamarse como habría sido
+      if (before) { p.points.forEach(function (q, k) { if (before.names[k] !== undefined) q.name = before.names[k]; }); p.nextPoint = before.next; }   // los nombres vuelven a ser los de antes
+      else if (p.nextPoint === prevNext + 1) p.nextPoint = prevNext;   // el siguiente punto vuelve a llamarse como habría sido
       save(); renderTab(ui.tab);
     } });
   }
@@ -1478,9 +1486,12 @@
     // Arriba a la derecha: el puesto del punto en el recorrido y dos flechas para pasarlo antes o después (así la tarjeta no crece y tapa menos mapa)
     el.innerHTML = '<button class="mapcard-x" data-act="mapCardClose" aria-label="Cerrar la tarjeta del punto">×</button>' +
       '<div class="mapcard-order" role="group" aria-label="Orden en el recorrido">' +
-      '<button data-act="mapCardOrder" data-d="-1" aria-label="Antes: pasar este punto un puesto antes en el recorrido"' + (ord.first ? ' disabled' : '') + '>◀</button>' +
+      // Las flechas solo funcionan con la casilla marcada (2.17.2): así un toque por descuido no cambia el orden. Viene desmarcada cada vez
+      // que se abre la app y, una vez marcada, vale para todos los polígonos hasta que se desmarque.
+      '<label class="mapcard-ordchk"><input type="checkbox" id="mapOrderOn" data-act="mapOrderToggle"' + (ui.orderEdit ? ' checked' : '') + ' aria-label="Permitir cambiar el orden de los puntos con las flechas"><span>Orden</span></label>' +
+      '<button data-act="mapCardOrder" data-d="-1" aria-label="Antes: pasar este punto un puesto antes en el recorrido"' + (ord.first || !ui.orderEdit ? ' disabled' : '') + '>◀</button>' +
       '<span id="mapCardOrder">' + ord.pos + ' de ' + ord.n + '</span>' +
-      '<button data-act="mapCardOrder" data-d="1" aria-label="Después: pasar este punto un puesto después en el recorrido"' + (ord.last ? ' disabled' : '') + '>▶</button></div>' +
+      '<button data-act="mapCardOrder" data-d="1" aria-label="Después: pasar este punto un puesto después en el recorrido"' + (ord.last || !ui.orderEdit ? ' disabled' : '') + '>▶</button></div>' +
       '<b class="mapcard-name"><i style="background:' + Mapa.pointColor(pt, proj().mainColor) + '"></i>' + esc(pt.name) + '</b>' +
       '<p class="small">' + (isNum(pt.alt) ? 'Altitud ' + Fmt.num(pt.alt, 0) + ' m' : 'Sin altitud') + ' · ' + src + ' · ' + esc(Fmt.latlon(pt.lat, pt.lon)) + '</p>' +
       '<p class="small mapcard-rel" id="mapCardRel"' + (rel ? '' : ' hidden') + '>' + esc(rel) + '</p>' +
@@ -2590,9 +2601,10 @@
     mapMeasureClose: function () { ui.measureClosed = !ui.measureClosed && ui.measure.length >= 3; drawMeasure(); },
     mapUndo: mapUndo,
     mapMore: openMapMore, mapGuide: openMapGuide,
+    mapOrderToggle: function (t) { ui.orderEdit = !!t.checked; syncMapCard(); },
     mapCardOrder: function (t) {
       var p = proj(), d = Number(t.getAttribute('data-d'));
-      if (!ui.mapSel) return;
+      if (!ui.mapSel || !ui.orderEdit) return;
       undoMark('cambiar el orden de ' + pointById(ui.mapSel).name);
       p.points = Mapa.moveInOrder(p.points, ui.mapSel, d); save();
       renderTab('area');                        // el polígono y los números se redibujan; la tarjeta sigue abierta en el mismo punto

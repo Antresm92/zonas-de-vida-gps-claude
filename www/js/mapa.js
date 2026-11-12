@@ -270,6 +270,40 @@
     }
     return out;
   }
+  /* ---------- Insertar un punto entre dos y renumerar (2.17.2) ----------
+   * Al meter un punto entre P4 y P5, el nuevo pasa a llamarse P5 y los que siguen suben uno (el P5 de antes es P6…), para que
+   * los nombres sigan el recorrido. La forma del polígono no cambia: solo cambian nombres. Reglas:
+   *   · solo se renumeran los nombres automáticos («P» y un número); un nombre puesto por la persona («Portada») no se toca;
+   *   · el nuevo toma el número del punto anterior más uno; si el anterior no tiene nombre automático, se busca hacia atrás el
+   *     último que sí lo tenga (si no hay ninguno, el nuevo es P1);
+   *   · suben uno todos los nombres automáticos con número igual o mayor, estén donde estén (así no quedan dos iguales).
+   * points: la lista en orden; after: índice del punto tras el cual va el nuevo; pt: el punto nuevo (se le cambia el nombre).
+   * Devuelve { points (lista nueva), renamed: [{ id, from, to }], next: el número que sigue al mayor } y no cambia la lista original.
+   */
+  var AUTO_NAME = /^P(\d{1,6})$/;
+  function autoNum(p) { var m = p && typeof p.name === 'string' ? AUTO_NAME.exec(p.name) : null; return m ? parseInt(m[1], 10) : null; }
+  function insertRenumber(points, after, pt) {
+    var list = (points || []).slice(), n = list.length;
+    var at = isNum(after) && after >= 0 && after < n ? Math.floor(after) : n - 1;
+    var k = 0;
+    for (var i = at; i >= 0; i--) { var num = autoNum(list[i]); if (num !== null) { k = num; break; } }
+    var renamed = [], max = 0;
+    list.forEach(function (q) {
+      var num = autoNum(q);
+      if (num === null) return;
+      if (num >= k + 1) { renamed.push({ id: q.id, from: q.name, to: 'P' + (num + 1) }); num += 1; }
+      if (num > max) max = num;
+    });
+    var out = list.map(function (q) {
+      var r = renamed.filter(function (x) { return x.id === q.id && x.from === q.name; })[0];
+      if (!r) return q;
+      var c = {}; Object.keys(q).forEach(function (key) { c[key] = q[key]; }); c.name = r.to; return c;
+    });
+    var np = {}; Object.keys(pt || {}).forEach(function (key) { np[key] = pt[key]; }); np.name = 'P' + (k + 1);
+    out.splice(at + 1, 0, np);
+    return { points: out, point: np, renamed: renamed, next: Math.max(max, k + 1) + 1 };
+  }
+
   // Un lado se rotula solo si en pantalla mide lo suficiente para que el rótulo no tape sus puntos; el «+» de insertar pide un poco más
   var SIDE_LABEL_MIN_PX = 64, SIDE_PLUS_MIN_PX = 96;
   function sideShows(px) { return { label: isNum(px) && px >= SIDE_LABEL_MIN_PX, plus: isNum(px) && px >= SIDE_PLUS_MIN_PX }; }
@@ -412,6 +446,7 @@
   function toolId(t) { return TOOLS.indexOf(t) >= 0 ? t : ''; }
 
   return {
+    insertRenumber: insertRenumber, autoNum: autoNum,
     metersPerPixel: metersPerPixel, snapRadius: snapRadius, snapVertex: snapVertex, SNAP_PX: SNAP_PX, SNAP_MAX_M: SNAP_MAX_M,
     lotAt: lotAt, haversine: haversine, bearing: bearing, compass: compass, sides: sides, sideShows: sideShows, SIDE_LABEL_MIN_PX: SIDE_LABEL_MIN_PX, SIDE_PLUS_MIN_PX: SIDE_PLUS_MIN_PX,
     summaryText: summaryText, relText: relText, measureText: measureText, measureAdd: measureAdd, measureLength: measureLength, MEASURE_MAX: MEASURE_MAX, undoStack: undoStack,

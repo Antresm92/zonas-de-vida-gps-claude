@@ -146,9 +146,14 @@ module.exports = async function (c) {
     assert.ok(pb.width >= 26 && pb.height >= 26);
     await shot('152-insertar-punto');
     const a = (await pts())[0], b = (await pts())[1], m = await xyOf((a.lat + b.lat) / 2, (a.lon + b.lon) / 2);
+    const antes = await pts();
     await page.mouse.click(m.x, m.y);
-    await waitToast(/^P4 insertado entre P1 y P2 \(sin altitud\)\.Deshacer$/);
-    assert.deepEqual(await names(), ['P1', 'P4', 'P2', 'P3']);
+    // el nuevo toma el número que sigue (P2) y los demás suben uno: los nombres siguen el recorrido y la forma no cambia (2.17.2)
+    await waitToast(/^P2 insertado entre P1 y P2 \(sin altitud\)\. Los que siguen subieron un número \(P2 ahora es P3\)\.Deshacer$/);
+    assert.deepEqual(await names(), ['P1', 'P2', 'P3', 'P4']);
+    const despues = await pts();
+    assert.deepEqual([despues[0], despues[2], despues[3]].map((q) => [q.id, q.lat, q.lon]), antes.map((q) => [q.id, q.lat, q.lon]), 'los puntos de antes siguen en su sitio, solo cambió el nombre');
+    assert.equal((await c.state()).projects[0].nextPoint, 5);
     const p4 = (await pts())[1];
     near(p4.lat, 4.6, 1e-9, 'lat'); near(p4.lon, -74.0785, 1e-9, 'lon');
     assert.equal(p4.src, 'manual'); assert.ok(p4.alt == null, 'sin altitud');
@@ -156,6 +161,7 @@ module.exports = async function (c) {
     assert.match(await text('#mapSum'), /· 4 puntos$/);
     await undo();
     assert.deepEqual(await names(), ['P1', 'P2', 'P3']);
+    assert.deepEqual((await pts()).map((q) => q.id), antes.map((q) => q.id), 'al deshacer, cada punto recupera su nombre');
     // el último lado (de P3 a P1) inserta al final de la lista
     const c3 = (await pts())[2], m2 = await xyOf((c3.lat + a.lat) / 2, (c3.lon + a.lon) / 2);
     await page.mouse.click(m2.x, m2.y);
@@ -414,6 +420,14 @@ module.exports = async function (c) {
     const p3 = await tapPoint('P3');
     await page.waitForSelector('#mapCard:not([hidden])');
     assert.equal(await text('#mapCardOrder'), '3 de 4');
+    // la casilla «Orden» viene desmarcada: las flechas no hacen nada hasta marcarla (2.17.2)
+    assert.equal(await page.isChecked('#mapOrderOn'), false);
+    assert.deepEqual(await page.$$eval('[data-act="mapCardOrder"]', (b) => b.map((x) => x.disabled)), [true, true]);
+    const antesOrden = (await c.state()).projects[0].points.map((q) => q.name).join(' ');
+    await page.evaluate(() => document.querySelector('[data-act="mapCardOrder"][data-d="1"]').click());
+    assert.equal((await c.state()).projects[0].points.map((q) => q.name).join(' '), antesOrden, 'sin la casilla, el orden no cambia');
+    await page.check('#mapOrderOn');
+    assert.equal(await page.isChecked('#mapOrderOn'), true, 'la casilla sigue marcada al redibujar la tarjeta');
     assert.deepEqual(await page.$$eval('[data-act="mapCardOrder"]', (b) => b.map((x) => x.textContent + '|' + x.disabled)), ['◀|false', '▶|false']);
     await shot('159-orden-de-los-puntos');
     await page.click('[data-act="mapCardOrder"][data-d="1"]');            // P3 pasa al final: P1 P2 P4 P3, que sí sigue el borde
@@ -583,12 +597,13 @@ module.exports = async function (c) {
     await pickMode('move');
     const a = (await pts())[0], b = (await pts())[1], mid = await xyOf((a.lat + b.lat) / 2, (a.lon + b.lon) / 2);
     await page.mouse.click(mid.x, mid.y);
-    await waitToast(/^P4 insertado/);
+    await waitToast(/^P2 insertado entre P1 y P2/);
     const e1 = await estado();
     assert.equal(await page.isDisabled('#mapUndoBtn'), false);
     assert.equal(await label(), 'Deshacer: insertar un punto');
     await page.click('#mapMode [data-act="mapMode"]');                    // salir de «Posición manual»
     await tapPoint('P3'); await page.waitForSelector('#mapCard:not([hidden])');
+    if (!(await page.isChecked('#mapOrderOn'))) await page.check('#mapOrderOn');
     await page.click('[data-act="mapCardOrder"][data-d="-1"]');
     const e2 = await estado();
     assert.equal(await label(), 'Deshacer: cambiar el orden de P3');
