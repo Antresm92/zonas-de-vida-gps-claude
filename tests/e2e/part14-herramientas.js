@@ -46,7 +46,7 @@ module.exports = async function (c) {
     assert.equal(await page.isVisible('#tab-puntos'), false);
     assert.equal(await text('#tab-herramientas h2'), 'Herramientas');
     const h3 = await page.$$eval('#tab-herramientas h3', (els) => els.map((e) => e.textContent));
-    assert.deepEqual(h3, ['Conversor de unidades', 'Utilidades de campo', 'Proyectos y copias', 'Preferencias', 'Ayuda']);
+    assert.deepEqual(h3, ['Conversor de unidades', 'Utilidades de campo', 'Proyectos y copias', 'Reporte', 'Preferencias', 'Ayuda']);
     assert.equal(await page.locator('#tab-herramientas [data-act="convert"]').count(), 3, 'peso, volumen, energía, velocidad y potencia ya no están');
     const tarjetas = await page.$$eval('#tab-herramientas .tcard', (els) => els.map((e) => { const s = e.querySelector('span'); return [e.querySelector('b').textContent, s ? s.textContent : null, e.getAttribute('data-act')]; }));
     assert.deepEqual(tarjetas, [...CATS.map((x) => [x[1], null, 'convert']), ['Clima', 'Condiciones actuales', 'toolWeather'], ['GPS', 'Coordenadas y precisión', 'toolGps']]);

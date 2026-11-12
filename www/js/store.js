@@ -73,6 +73,20 @@
   function loadFlag(name) { var f = flagBag(); return Object.prototype.hasOwnProperty.call(f, name) ? f[name] : null; }
   function saveFlag(name, value) { var f = flagBag(); f[name] = value; return write(KEY_FLAGS, f); }
 
-  return { loadState: loadState, saveState: saveState, hasSavedState: hasSavedState, loadMemory: loadMemory, saveMemory: saveMemory, loadFlag: loadFlag, saveFlag: saveFlag,
+  /* ---------- Autor del reporte (2.14.0): nombre, entidad y logo que salen en el encabezado del reporte ---------- */
+  // Se guarda aparte del estado (el logo es una imagen) y no viaja en las copias de seguridad.
+  var KEY_AUTHOR = 'zvg.v1.author';
+  var AUTHOR_MAX = 80, LOGO_MAX = 200000;          // largo del nombre y de la entidad; el logo en base64 (unos 150 KB de JPEG)
+  var B64 = /^[A-Za-z0-9+/]+={0,2}$/;
+  function cleanText(v) { return typeof v === 'string' ? v.replace(/[\u0000-\u001F\u007F]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, AUTHOR_MAX) : ''; }
+  function cleanAuthor(a) {
+    a = a && typeof a === 'object' && !Array.isArray(a) ? a : {};
+    var logo = typeof a.logo === 'string' && a.logo.length <= LOGO_MAX && a.logo.length % 4 === 0 && B64.test(a.logo) && a.logo.indexOf('/9j/') === 0 ? a.logo : '';   // solo JPEG («/9j/» es FF D8 FF)
+    return { name: cleanText(a.name), org: cleanText(a.org), logo: logo };
+  }
+  function loadAuthor() { return cleanAuthor(read(KEY_AUTHOR)); }
+  function saveAuthor(a) { return write(KEY_AUTHOR, cleanAuthor(a)); }
+
+  return { loadAuthor: loadAuthor, saveAuthor: saveAuthor, cleanAuthor: cleanAuthor, AUTHOR_MAX: AUTHOR_MAX, LOGO_MAX: LOGO_MAX, loadState: loadState, saveState: saveState, hasSavedState: hasSavedState, loadMemory: loadMemory, saveMemory: saveMemory, loadFlag: loadFlag, saveFlag: saveFlag,
            newProject: newProject, uid: uid, setBackend: setBackend, defaultState: defaultState, MAIN_COLOR: MAIN_COLOR, MIN_ACC: MIN_ACC };
 });

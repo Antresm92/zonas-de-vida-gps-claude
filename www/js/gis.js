@@ -535,11 +535,12 @@
     // se le antepone un apóstrofo, como recomienda OWASP. Solo el nombre es texto libre; las demás celdas son números.
     function safe(s) { s = String(s); return /^[=+\-@\t\r]/.test(s) ? "'" + s : s; }
     function cell(s) { s = safe(s); return /[";,\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
-    var rows = [['Punto', 'Latitud', 'Longitud', 'Altitud', 'Rumbo', 'Distancia al vértice siguiente'].join(sep)];
+    var rows = [['Punto', 'Latitud', 'Longitud', 'Altitud', 'Rumbo', 'Distancia al vértice siguiente', 'Este (Origen Nacional)', 'Norte (Origen Nacional)'].join(sep)];
     pts.forEach(function (p, i) {
       var nxt = ring ? pts[(i + 1) % n] : (i + 1 < n ? pts[i + 1] : null);
       var brg = nxt ? Geo.bearing(p.lat, p.lon, nxt.lat, nxt.lon) : null, dist = nxt ? Geo.distance(p.lat, p.lon, nxt.lat, nxt.lon) : null;
-      rows.push([cell(p.name || ('P' + (i + 1))), num(p.lat, 7), num(p.lon, 7), num(p.alt, 1), num(brg, 1), num(dist, 2)].join(sep));
+      var on = Geo.origenNacional(p.lat, p.lon);      // coordenadas planas de Colombia; vacías fuera del país
+      rows.push([cell(p.name || ('P' + (i + 1))), num(p.lat, 7), num(p.lon, 7), num(p.alt, 1), num(brg, 1), num(dist, 2), num(on ? on.e : null, 2), num(on ? on.n : null, 2)].join(sep));
     });
     return '﻿' + rows.join('\r\n') + '\r\n';
   }

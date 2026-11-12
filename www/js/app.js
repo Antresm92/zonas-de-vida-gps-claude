@@ -5,7 +5,7 @@
   var Geo = window.Geo, H = window.Holdridge, Climate = window.Climate, A = window.Analysis, Fmt = window.Fmt,
       Gps = window.Gps, Store = window.Store, Diagram = window.Diagram, Report = window.Report,
       Gis = window.Gis, Backup = window.Backup, IO = window.IO, WL = window.WalterLieth, Mapa = window.Mapa, MapView = window.MapView, Satelite = window.Satelite, Perfil = window.Perfil, Fotos = window.Fotos, Zip = window.Zip, Units = window.Units;
-  var APP_VERSION = '2.13.0';
+  var APP_VERSION = '2.14.0';
 
   var S = Store.loadState();
   var hadSaved = Store.hasSavedState();      // ¿había datos guardados al abrir? (solo entonces se limpian las fotos sin uso)
@@ -641,19 +641,21 @@
     kml: { ext: 'kml', mime: 'application/vnd.google-earth.kml+xml', label: 'KML', sub: 'Google Earth' },
     geojson: { ext: 'geojson', mime: 'application/geo+json', label: 'GeoJSON', sub: 'QGIS, web' },
     gpx: { ext: 'gpx', mime: 'application/gpx+xml', label: 'GPX', sub: 'GPS de mano' },
-    csv: { ext: 'csv', mime: 'text/csv', label: 'CSV', sub: 'Excel' }
+    csv: { ext: 'csv', mime: 'text/csv', label: 'CSV', sub: 'Excel' },
+    shp: { ext: 'zip', mime: 'application/zip', label: 'Shapefile', sub: 'ArcGIS, QGIS' }
   };
   function exportBlock() {
-    var h = '<div class="block" id="exportBlock"><h2>Exportar</h2><p class="lead">Para abrir tu terreno en Google Earth, QGIS, Excel o un GPS.</p><div class="expgrid">';
+    var h = '<div class="block" id="exportBlock"><h2>Exportar</h2><p class="lead">Para abrir tu terreno en Google Earth, QGIS, ArcGIS, Excel o un GPS.</p><div class="expgrid">';
     Object.keys(EXPORTS).forEach(function (k) { h += '<button class="btn" data-act="export" data-fmt="' + k + '">' + EXPORTS[k].label + '<small>' + EXPORTS[k].sub + '</small></button>'; });
     h += '</div><div class="seg" role="group" aria-label="Formato del CSV" style="margin-top:12px">';
     [['es', 'CSV para Excel en español'], ['std', 'CSV estándar']].forEach(function (o) { h += '<button data-act="csvStyle" data-s="' + o[0] + '" aria-pressed="' + (S.settings.csvStyle === o[0]) + '">' + o[1] + '</button>'; });
-    h += '</div><p class="small muted">KML, GeoJSON y GPX llevan tus puntos y las capas visibles. El CSV trae solo tus puntos: Punto, Latitud, Longitud, Altitud, Rumbo y Distancia al vértice siguiente (' + (S.settings.csvStyle === 'es' ? 'separado por «;» y con coma decimal' : 'separado por «,» y con punto decimal') + ').</p></div>';
+    h += '</div><p class="small muted">KML, GeoJSON y GPX llevan tus puntos y las capas visibles. El CSV trae solo tus puntos: Punto, Latitud, Longitud, Altitud, Rumbo, Distancia al vértice siguiente y las coordenadas planas Este y Norte (Origen Nacional), ' + (S.settings.csvStyle === 'es' ? 'separado por «;» y con coma decimal' : 'separado por «,» y con punto decimal') + '. El Shapefile es un .zip con dos capas, tus puntos y el polígono, en grados WGS84.</p></div>';
     return h;
   }
   function exportAs(fmt) {
     var p = proj(), spec = EXPORTS[fmt];
     if (!spec) return;
+    if (fmt === 'shp') { exportShp(p, spec); return; }
     if (!p.points.length && !(fmt !== 'csv' && p.layers.some(function (l) { return l.visible !== false; }))) { toast('Todavía no hay puntos para exportar.', { err: true }); return; }
     var model = { name: p.name, points: p.points, layers: p.layers, mainColor: p.mainColor, date: Date.now() }, text;
     try {
@@ -661,6 +663,18 @@
     } catch (e) { toast('No se pudo preparar el archivo: ' + (e && e.message || e), { err: true }); return; }
     var name = IO.slug(p.name, spec.ext);
     IO.saveText(name, spec.mime, text, { title: p.name + ' (' + spec.label + ')', dialogTitle: 'Exportar ' + spec.label }).then(function (r) {
+      if (r.how === 'download') toast('Archivo descargado: ' + name);
+      else if (r.how === 'share') toast('Archivo listo: ' + name);
+    }).catch(function (e) { toast('No se pudo guardar el archivo: ' + (e && e.message || e), { err: true }); });
+  }
+
+  // El Shapefile son varios archivos: se entregan juntos en un .zip (QGIS y ArcGIS lo abren así)
+  function exportShp(p, spec) {
+    if (!p.points.length) { toast('Todavía no hay puntos para exportar.', { err: true }); return; }
+    var name = IO.slug(p.name) + '-shapefile.zip', bytes;
+    try { bytes = Shp.zip({ name: p.name, base: IO.slug(p.name).replace(/-/g, '_'), points: p.points }, Date.now()); }
+    catch (e) { toast('No se pudo preparar el archivo: ' + (e && e.message || e), { err: true }); return; }
+    IO.saveBytes(name, spec.mime, bytes, { title: p.name + ' (' + spec.label + ')', dialogTitle: 'Exportar ' + spec.label }).then(function (r) {
       if (r.how === 'download') toast('Archivo descargado: ' + name);
       else if (r.how === 'share') toast('Archivo listo: ' + name);
     }).catch(function (e) { toast('No se pudo guardar el archivo: ' + (e && e.message || e), { err: true }); });
@@ -717,7 +731,7 @@
       if (!v) { prev.textContent = ''; prev.className = 'preview'; return; }
       var r = Geo.parsePair(v);
       if (r.error) { prev.textContent = r.error; prev.className = 'preview err'; }
-      else { prev.textContent = Geo.toDMS(r.lat, 'lat', 1) + '   ' + Geo.toDMS(r.lon, 'lon', 1); prev.className = 'preview'; }
+      else { var pl = Fmt.plana(r.lat, r.lon); prev.textContent = Geo.toDMS(r.lat, 'lat', 1) + '   ' + Geo.toDMS(r.lon, 'lon', 1) + (pl ? '\nPlanas (Origen Nacional): ' + pl : ''); prev.className = 'preview'; }
     }
     inp.addEventListener('input', upd); upd();
   }
@@ -856,6 +870,8 @@
     h += '<div><dt>Perímetro</dt><dd>' + Fmt.dist(a.perimeter) + '</dd></div>';
     h += '<div><dt>Vértices</dt><dd>' + a.n + '</dd></div>';
     h += '<div><dt>Centro</dt><dd>' + Fmt.latlon(a.center.lat, a.center.lon) + '</dd></div>';
+    var cpl = Fmt.plana(a.center.lat, a.center.lon);
+    if (cpl) h += '<div><dt>Centro en planas (Origen Nacional)</dt><dd id="areaPlana">' + esc(cpl) + '</dd></div>';
     if (a.alt.min !== null && a.alt.n > 1) h += '<div><dt>Altitud de los puntos</dt><dd>' + Fmt.num(a.alt.min, 0) + ' a ' + Fmt.num(a.alt.max, 0) + ' m</dd></div>';
     h += '</dl><p class="small muted">Área calculada sobre el elipsoide WGS84. La precisión depende de la de las coordenadas: con GPS de teléfono (±5 m) una finca pequeña puede variar varios por ciento.</p></div>';
 
@@ -1696,7 +1712,7 @@
 
   function reportOpts(a) {
     var w = walterModel(a);
-    return { walter: w ? { svg: w.svg, lines: w.lines, source: w.source } : null };
+    return { walter: w ? { svg: w.svg, lines: w.lines, source: w.source } : null, author: Store.loadAuthor() };
   }
   // «Compartir reporte» pregunta el formato: HTML (se abre en cualquier navegador) o PDF (hoja A4 lista para imprimir)
   function shareReport() {
@@ -1905,6 +1921,8 @@
     h += '<h3 class="sub">Proyectos y copias</h3><div class="menu">' +
       menuRow('projects', 'Proyectos', S.projects.length + (S.projects.length === 1 ? ' proyecto' : ' proyectos') + ' · actual: ' + p.name) +
       menuRow('projects', 'Copia de seguridad y restaurar', '.zip recomendado') + '</div>';
+    var au = Store.loadAuthor(), auSub = [au.name, au.org].filter(Boolean).join(' · ') + (au.logo ? ((au.name || au.org) ? ' · con logo' : 'Con logo') : '');
+    h += '<h3 class="sub">Reporte</h3><div class="menu">' + menuRow('authorEdit', 'Autor y logo del reporte', auSub || 'Sin nombre ni logo') + '</div>';
     h += '<h3 class="sub">Preferencias</h3><div class="menu"><label class="menurow"><span><b>Reporte con todas las secciones abiertas</b><small>Si no, cada sección se abre al tocar su título.</small></span>' +
       '<input type="checkbox" data-flag="reportOpen"' + (Store.loadFlag('reportOpen') === true ? ' checked' : '') + '></label></div>';
     h += '<h3 class="sub">Ayuda</h3><div class="menu">' + menuRow('appGuide', 'Cómo usar la app', 'Los tres pasos') + menuRow('mapGuide', 'Cómo usar el mapa', '') +
@@ -1912,6 +1930,49 @@
     h += '<p class="small muted" style="margin-top:14px">Zonas de Vida · versión ' + APP_VERSION + '. Funciona sin internet, salvo los mapas y los datos de clima.</p>';
     return h;
   }
+  /* ---------- Autor y logo del reporte (2.14.0) ---------- */
+  function authorBody() {
+    var au = ui.authorDraft;
+    return '<p class="lead">Salen en el encabezado del reporte (PDF, HTML y resumen). Se guardan en este teléfono; no van en la copia de seguridad.</p>' +
+      '<label class="f"><span>Nombre de quien elabora</span><input type="text" id="auName" maxlength="' + Store.AUTHOR_MAX + '" value="' + esc(au.name) + '" autocomplete="name" placeholder="Ej.: Ana Pérez, ingeniera forestal"></label>' +
+      '<label class="f"><span>Entidad o empresa (opcional)</span><input type="text" id="auOrg" maxlength="' + Store.AUTHOR_MAX + '" value="' + esc(au.org) + '" autocomplete="organization" placeholder="Ej.: Finca La Esperanza"></label>' +
+      '<div class="f f-logo"><span class="f-label">Logo (opcional)</span><div class="logobox" id="auLogo">' + (au.logo ? '<img src="data:image/jpeg;base64,' + au.logo + '" alt="Logo elegido">' : '<span class="small muted">Sin logo</span>') + '</div>' +
+      '<div class="btns"><button class="btn" data-act="authorLogo">' + (au.logo ? 'Cambiar logo' : 'Elegir logo') + '</button>' + (au.logo ? '<button class="btn" data-act="authorLogoDel">Quitar logo</button>' : '') + '</div>' +
+      '<span class="f-hint">Se reduce a 400 píxeles y se guarda como JPEG (lo transparente queda blanco).</span></div>' +
+      '<div class="btns"><button class="btn btn-primary" data-act="authorSave">Guardar</button></div>';
+  }
+  function openAuthor(keep) {
+    if (!keep) ui.authorDraft = Store.loadAuthor();
+    openSheet('Autor y logo del reporte', authorBody());
+  }
+  function readAuthorInputs() {
+    var n = $('#auName'), o = $('#auOrg');
+    if (n) ui.authorDraft.name = n.value;
+    if (o) ui.authorDraft.org = o.value;
+  }
+  function refreshAuthor() {          // vuelve a dibujar la hoja sin perder lo escrito
+    readAuthorInputs();
+    var body = $('#sheet .sheet-body');
+    if (body) body.innerHTML = authorBody();
+  }
+  function setAuthorLogo(file) {
+    if (!ui.authorDraft) return;
+    Fotos.shrink(file, { max: 400, quality: 0.86 }).then(function (r) {
+      var b64 = Fotos.toBase64(r.bytes);
+      if (b64.length > Store.LOGO_MAX) throw new Error('El logo sigue siendo muy pesado; prueba con una imagen más sencilla.');
+      ui.authorDraft.logo = b64;
+      refreshAuthor();
+    }).catch(function (e) { toast('No se pudo usar esa imagen: ' + (e && e.message || e), { err: true }); });
+  }
+  function saveAuthor() {
+    readAuthorInputs();
+    var r = Store.saveAuthor(ui.authorDraft);
+    if (!r.ok) { toast(r.error, { err: true }); return; }
+    closeSheet();
+    toast('Autor del reporte guardado.');
+    if (ui.tab === 'herramientas') renderTab('herramientas');
+  }
+
   function menuRow(act, title, sub) {
     return '<button class="menurow" data-act="' + act + '"><span><b>' + esc(title) + '</b>' + (sub ? '<small>' + esc(sub) + '</small>' : '') + '</span><i aria-hidden="true">›</i></button>';
   }
@@ -2019,7 +2080,8 @@
     set('tgLat', Fmt.coord(f.lat) + '°'); set('tgLon', Fmt.coord(f.lon) + '°');
     set('tgAlt', isNum(f.alt) ? Fmt.num(f.alt, 0) + ' <small>m</small>' : '<small>sin dato</small>');
     set('tgAcc', isNum(f.acc) ? '±' + Fmt.num(f.acc, 0) + ' <small>m</small>' : '—');
-    set('tgDms', esc(Fmt.dms(f.lat, f.lon)));
+    var pl = Fmt.plana(f.lat, f.lon);
+    set('tgDms', esc(Fmt.dms(f.lat, f.lon)) + (pl ? '<br><span id="tgPlana">Planas (Origen Nacional): ' + esc(pl) + '</span>' : ''));
   }
   function renderGpsTool() {
     var el = $('#toolBody');
@@ -2222,6 +2284,10 @@
     deleteLayer: function (t) { deleteLayer(t.getAttribute('data-id')); },
     layerToMain: function (t) { layerToMain(t.getAttribute('data-id')); },
     export: function (t) { exportAs(t.getAttribute('data-fmt')); },
+    authorEdit: function () { openAuthor(false); },
+    authorLogo: function () { readAuthorInputs(); $('#logoFile').click(); },
+    authorLogoDel: function () { ui.authorDraft.logo = ''; refreshAuthor(); },
+    authorSave: function () { saveAuthor(); },
     csvStyle: function (t) { S.settings.csvStyle = t.getAttribute('data-s'); save(); renderTab(ui.tab); },
     wlSave: saveWalterSvg, monthly: openMonthly, saveMonthly: saveMonthly, clearMonthly: clearMonthly,
     backupZip: function () { backupExport('zip'); }, backupJson: function () { backupExport('json'); }, backupJsonFotos: function () { backupExport('jsonfotos'); }, backupPick: function () { $('#backupFile').click(); },
@@ -2274,6 +2340,11 @@
       e.target.value = '';
       if (files.length) addPhotos(files);
     });
+  });
+  $('#logoFile').addEventListener('change', function (e) {
+    var f = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (f) setAuthorLogo(f);
   });
   $('#backupFile').addEventListener('change', function (e) {
     var f = e.target.files && e.target.files[0];

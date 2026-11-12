@@ -53,6 +53,7 @@
     var L = [];
     L.push('REPORTE DE ZONA DE VIDA (HOLDRIDGE)');
     L.push(project.name + ' · ' + Fmt.date(o.date || Date.now()));
+    if (authorOf(o).line) L.push(authorOf(o).line);
     L.push('');
     var r = a.result;
     if (r && r.ok) {
@@ -70,7 +71,7 @@
     rows(project, a).forEach(function (x) { L.push(x[0] + ': ' + x[1]); });
     if (a.area) { L.push('Área: ' + Fmt.area(a.area, 'ha') + ' = ' + Fmt.area(a.area, 'm2') + ' = ' + Fmt.area(a.area, 'fanegadas')); }
     if (a.n >= 2) L.push('Perímetro: ' + Fmt.dist(a.perimeter));
-    if (a.center) L.push('Centro: ' + Fmt.latlon(a.center.lat, a.center.lon));
+    if (a.center) L.push('Centro: ' + Fmt.latlon(a.center.lat, a.center.lon) + withPlana(a.center));
     var pf = Perfil.build(project.points);
     if (pf.ok) L.push('Desnivel entre puntos: ' + Fmt.num(pf.relief, 0) + ' m (más alto ' + pf.high.name + ', ' + Fmt.num(pf.high.alt, 0) + ' m; más bajo ' + pf.low.name + ', ' + Fmt.num(pf.low.alt, 0) + ' m)');
     if (a.alternatives && a.alternatives.length) {
@@ -98,7 +99,7 @@
     L.push('Puntos:');
     project.points.forEach(function (p, i) {
       var nf = Array.isArray(p.photos) ? p.photos.length : 0;
-      L.push('  ' + (p.name || 'P' + (i + 1)) + ': ' + Fmt.latlon(p.lat, p.lon) + (isNum(p.alt) ? ', ' + Fmt.num(p.alt, 0) + ' m' : '') + (nf ? ' · ' + nf + (nf === 1 ? ' foto' : ' fotos') : ''));
+      L.push('  ' + (p.name || 'P' + (i + 1)) + ': ' + Fmt.latlon(p.lat, p.lon) + (isNum(p.alt) ? ', ' + Fmt.num(p.alt, 0) + ' m' : '') + withPlana(p) + (nf ? ' · ' + nf + (nf === 1 ? ' foto' : ' fotos') : ''));
     });
     if (project.layers && project.layers.length) {
       L.push('');
@@ -113,7 +114,7 @@
   }
 
   var CSS = 'body{font:16px/1.5 system-ui,-apple-system,Roboto,Segoe UI,sans-serif;color:#14301F;background:#fff;margin:0;padding:24px;max-width:1180px;margin-inline:auto}' +
-    'h1{font-size:26px;margin:0 0 4px}h2{font-size:18px;margin:28px 0 8px;border-bottom:2px solid #2F8F4E;padding-bottom:4px}.sub{color:#5B6F61;margin:0 0 16px}' +
+    '.logo{display:block;max-width:160px;max-height:80px;margin:0 0 12px}.sub.author{margin-top:-10px}h1{font-size:26px;margin:0 0 4px}h2{font-size:18px;margin:28px 0 8px;border-bottom:2px solid #2F8F4E;padding-bottom:4px}.sub{color:#5B6F61;margin:0 0 16px}' +
     '.zone{display:flex;gap:16px;align-items:center;margin:12px 0}.hex{width:92px;height:104px;flex:none}.zn{font-size:24px;font-weight:700;line-height:1.2}.zs{color:#5B6F61}' +
     'table{border-collapse:collapse;width:100%;max-width:760px}td,th{padding:6px 10px;border-bottom:1px solid #D6DED8;text-align:left;vertical-align:top}th{color:#5B6F61;font-weight:500;width:42%}' +
     '.note{background:#F2F5EF;border-left:4px solid #D8353C;padding:8px 12px;margin:8px 0}.small{color:#5B6F61;font-size:14px}svg{max-width:100%;height:auto}' +
@@ -122,6 +123,19 @@
     '@media print{body{padding:0}h2{break-after:avoid}.diag{break-before:page}}';
 
   // Punto de color delante del nombre: el color propio del punto (su ficha) o el de los puntos del proyecto
+  // Coordenadas planas (Origen Nacional) de un punto, para añadir a su línea; '' fuera de Colombia
+  function withPlana(p) { var s = p ? Fmt.plana(p.lat, p.lon) : ''; return s ? ' · ' + s : ''; }
+  function planaHtml(p) { var s = p ? Fmt.plana(p.lat, p.lon) : ''; return s ? '<br><span class="small">' + esc(s) + '</span>' : ''; }
+  function anyPlana(project, a) {
+    return !!((a && a.center && Fmt.plana(a.center.lat, a.center.lon)) || (project.points || []).some(function (p) { return !!Fmt.plana(p.lat, p.lon); }));
+  }
+  // Autor del reporte (o.author = { name, org, logo }): la línea «Elaborado por …» y el logo en base64; vacíos si no hay
+  function authorOf(o) {
+    var a = o && o.author || {}, name = typeof a.name === 'string' ? a.name.trim() : '', org = typeof a.org === 'string' ? a.org.trim() : '';
+    var logo = typeof a.logo === 'string' && /^\/9j\/[A-Za-z0-9+/]*={0,2}$/.test(a.logo) ? a.logo : '';
+    var who = [name, org].filter(Boolean).join(' · ');
+    return { name: name, org: org, logo: logo, line: who ? 'Elaborado por: ' + who : '' };
+  }
   function dot(p, project) {
     var c = /^#[0-9a-fA-F]{6}$/.test(p.color || '') ? p.color : /^#[0-9a-fA-F]{6}$/.test(project.mainColor || '') ? project.mainColor : '#2F8F4E';
     return '<span class="dot" style="background:' + c + '"></span>';
@@ -175,7 +189,10 @@
     o = o || {};
     var r = a.result;
     var h = '<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Reporte de zona de vida · ' + esc(project.name) + '</title><style>' + CSS + '</style></head><body>';
+    var au = authorOf(o);
+    if (au.logo) h += '<img class="logo" src="data:image/jpeg;base64,' + au.logo + '" alt="Logo' + (au.org ? ' de ' + esc(au.org) : '') + '">';
     h += '<h1>Reporte de zona de vida</h1><p class="sub">' + esc(project.name) + ' · ' + esc(Fmt.date(o.date || Date.now())) + '</p>';
+    if (au.line) h += '<p class="sub author">' + esc(au.line) + '</p>';
     if (r && r.ok) {
       h += '<div class="zone">' + hexBadge(r.zone.symbol) + '<div><div class="zn">' + esc(r.zone.name) + '</div><div class="zs">Región latitudinal: ' + esc(r.region) + ' · Piso altitudinal: ' + esc(r.belt) + (r.humidity ? ' · Provincia de humedad: ' + esc(r.humidity.name) : '') + '</div></div></div>';
     } else {
@@ -198,12 +215,12 @@
       h += '<h2>Terreno</h2><table>';
       if (a.area) h += '<tr><th>Área</th><td>' + esc(Fmt.area(a.area, 'ha')) + ' · ' + esc(Fmt.area(a.area, 'm2')) + ' · ' + esc(Fmt.area(a.area, 'fanegadas')) + '</td></tr>';
       if (a.n >= 2) h += '<tr><th>Perímetro</th><td>' + esc(Fmt.dist(a.perimeter)) + '</td></tr>';
-      h += '<tr><th>Centro</th><td>' + esc(Fmt.latlon(a.center.lat, a.center.lon)) + '</td></tr></table>';
+      h += '<tr><th>Centro</th><td>' + esc(Fmt.latlon(a.center.lat, a.center.lon)) + planaHtml(a.center) + '</td></tr></table>';
       h += '<h2>Puntos</h2><table>';
       project.points.forEach(function (p, i) {
-        h += '<tr><th>' + dot(p, project) + esc(p.name || 'P' + (i + 1)) + '</th><td>' + esc(Fmt.latlon(p.lat, p.lon)) + (isNum(p.alt) ? ' · ' + esc(Fmt.num(p.alt, 0)) + ' m' : '') + '</td></tr>';
+        h += '<tr><th>' + dot(p, project) + esc(p.name || 'P' + (i + 1)) + '</th><td>' + esc(Fmt.latlon(p.lat, p.lon)) + (isNum(p.alt) ? ' · ' + esc(Fmt.num(p.alt, 0)) + ' m' : '') + planaHtml(p) + '</td></tr>';
       });
-      h += '</table>';
+      h += '</table>' + (anyPlana(project, a) ? '<p class="small">' + esc(Fmt.PLANA_NOTE) + '</p>' : '');
       if (a.n >= 2) h += '<h2>Croquis</h2><div style="max-width:560px;margin-top:12px">' + Diagram.polygonSVG(project.points, { width: 560, height: 380, center: a.center, bad: a.selfIntersects, layers: project.layers, color: project.mainColor }) + Diagram.legendHTML(project.layers, project.mainColor, 'Mis puntos', true) + '</div>';
       if (a.n >= 2) h += sketchHtml('Croquis satelital', 'croquis satelital', o.satellite) + sketchHtml('Croquis topográfico', 'croquis topográfico', o.topo) + profileHtml(project);
     }
@@ -232,5 +249,5 @@
     return h;
   }
 
-  return { text: text, html: html, rows: rows, dot: dot, currentRows: currentRows, currentStamp: currentStamp, CURRENT_NOTE: CURRENT_NOTE, QUALITY: QUALITY, DISCLAIMER: DISCLAIMER, SRC_T: SRC_T, SRC_P: SRC_P };
+  return { authorOf: authorOf, withPlana: withPlana, anyPlana: anyPlana, text: text, html: html, rows: rows, dot: dot, currentRows: currentRows, currentStamp: currentStamp, CURRENT_NOTE: CURRENT_NOTE, QUALITY: QUALITY, DISCLAIMER: DISCLAIMER, SRC_T: SRC_T, SRC_P: SRC_P };
 });

@@ -290,7 +290,7 @@ test('exportar CSV: estilo Excel en español (; y coma decimal) y estándar, con
   const es = Gis.toCSV(sq);
   assert.equal(es.charCodeAt(0), 0xFEFF);
   const lines = es.slice(1).split('\r\n');
-  assert.equal(lines[0], 'Punto;Latitud;Longitud;Altitud;Rumbo;Distancia al vértice siguiente');
+  assert.equal(lines[0], 'Punto;Latitud;Longitud;Altitud;Rumbo;Distancia al vértice siguiente;Este (Origen Nacional);Norte (Origen Nacional)');
   const a = lines[1].split(';');
   assert.deepEqual(a.slice(0, 4), ['A', '5,0000000', '-75,0000000', '1000,0']);
   close(parseFloat(a[4].replace(',', '.')), 90, 0.2);                  // de A a B: hacia el este
@@ -300,14 +300,19 @@ test('exportar CSV: estilo Excel en español (; y coma decimal) y estándar, con
   close(parseFloat(c[4].replace(',', '.')), 270, 0.2);
   const d = lines[4];
   assert.ok(d.startsWith('"D, ""x""";'), 'comillas en nombres con coma');
-  close(parseFloat(d.split(';').pop().replace(',', '.')), Geo.distance(5.001, -75, 5, -75), 0.01);   // último → primero
+  close(parseFloat(d.split(';')[5].replace(',', '.')), Geo.distance(5.001, -75, 5, -75), 0.01);   // último → primero
+  // coordenadas planas de Colombia (Origen Nacional) al final de cada fila
+  const on = Geo.origenNacional(5, -75);
+  close(parseFloat(a[6].replace(',', '.')), on.e, 0.006); close(parseFloat(a[7].replace(',', '.')), on.n, 0.006);
   assert.equal(lines[5], '');                                          // termina con salto de línea
   const std = Gis.toCSV(sq, { style: 'std' }).slice(1).split('\r\n');
-  assert.equal(std[0], 'Punto,Latitud,Longitud,Altitud,Rumbo,Distancia al vértice siguiente');
+  assert.equal(std[0], 'Punto,Latitud,Longitud,Altitud,Rumbo,Distancia al vértice siguiente,Este (Origen Nacional),Norte (Origen Nacional)');
   assert.equal(std[1].split(',').slice(0, 4).join('|'), 'A|5.0000000|-75.0000000|1000.0');
   // sin polígono: la última fila no tiene rumbo ni distancia
   const two = Gis.toCSV(sq.slice(0, 2), { style: 'std' }).slice(1).split('\r\n');
-  assert.equal(two[2].split(',').slice(4).join('|'), '|');
+  assert.equal(two[2].split(',').slice(4, 6).join('|'), '|');
+  // fuera de Colombia las columnas planas quedan vacías
+  assert.equal(Gis.toCSV([{ name: 'Madrid', lat: 40.4, lon: -3.7 }], { style: 'std' }).slice(1).split('\r\n')[1].split(',').slice(6).join('|'), '|');
   assert.equal(Gis.toCSV([]).slice(1).split('\r\n').length, 2);
 });
 

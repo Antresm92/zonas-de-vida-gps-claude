@@ -331,7 +331,7 @@
     return 0;
   };
   // Una imagen nunca mide más que una hoja menos el espacio de un título, para que un título y su imagen siempre quepan juntos en una hoja nueva
-  Doc.prototype.imageMaxH = function (b) { return PAGE.h - M.t - M.b - 60 - this.captionHeight(b) - 6; };
+  Doc.prototype.imageMaxH = function (b) { var h = PAGE.h - M.t - M.b - 60 - this.captionHeight(b) - 6; return b.maxH > 0 ? Math.min(h, b.maxH) : h; };
   Doc.prototype.captionHeight = function (b) { return b.caption ? wrap(norm(b.caption), 9, false, this.W).length * 12.5 + 5 : 0; };
 
   Doc.prototype.image = function (b) {

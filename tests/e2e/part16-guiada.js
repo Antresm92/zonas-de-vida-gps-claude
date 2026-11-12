@@ -131,11 +131,11 @@ module.exports = async function (c) {
 
   await step('Herramientas: tres conversores de campo, proyectos y copias, ayuda, licencias y la versión', async () => {
     await fresh(); await tab('herramientas');
-    assert.deepEqual(await page.$$eval('#tab-herramientas h3', (h) => h.map((x) => x.textContent)), ['Conversor de unidades', 'Utilidades de campo', 'Proyectos y copias', 'Preferencias', 'Ayuda']);
+    assert.deepEqual(await page.$$eval('#tab-herramientas h3', (h) => h.map((x) => x.textContent)), ['Conversor de unidades', 'Utilidades de campo', 'Proyectos y copias', 'Reporte', 'Preferencias', 'Ayuda']);
     assert.deepEqual(await page.$$eval('.tcard[data-act="convert"] b', (b) => b.map((x) => x.textContent)), ['Área', 'Distancia', 'Temperatura']);
     const fila = await page.$$eval('.tcard[data-act="convert"]', (b) => b.map((x) => Math.round(x.getBoundingClientRect().top)));
     assert.ok(fila.every((y) => y === fila[0]), 'los tres en una fila');
-    assert.deepEqual(await page.$$eval('#tab-herramientas .menurow b', (b) => b.map((x) => x.textContent)), ['Proyectos', 'Copia de seguridad y restaurar', 'Reporte con todas las secciones abiertas', 'Cómo usar la app', 'Cómo usar el mapa', 'Fuentes y licencias']);
+    assert.deepEqual(await page.$$eval('#tab-herramientas .menurow b', (b) => b.map((x) => x.textContent)), ['Proyectos', 'Copia de seguridad y restaurar', 'Autor y logo del reporte', 'Reporte con todas las secciones abiertas', 'Cómo usar la app', 'Cómo usar el mapa', 'Fuentes y licencias']);
     assert.match(await text('#tab-herramientas'), /Zonas de Vida · versión \d+\.\d+\.\d+\./);
     await shot('174-herramientas');
     await page.click('#tab-herramientas .menurow[data-act="projects"] >> nth=0');

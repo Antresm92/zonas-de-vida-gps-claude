@@ -106,7 +106,7 @@ test('build: fuente desconocida o ausente se llama «a mano»; archivo e interne
 });
 
 test('rows: datos para la tabla del reporte', () => {
-  const rows = Perfil.rows(Perfil.build(P));
+  const rows = Perfil.rows(Perfil.build(P)).filter((r) => !/^(Pendiente media|Clase de pendiente)/.test(r[0]));   // la pendiente tiene sus propias pruebas
   assert.deepEqual(rows.map((r) => r[0]), ['Punto más alto', 'Punto más bajo', 'Desnivel entre ambos', 'Ascenso acumulado', 'Descenso acumulado', 'Longitud del recorrido', 'Tramo más inclinado']);
   assert.equal(rows[0][1], 'P2 · 420 m');
   assert.equal(rows[1][1], 'P4 · 317 m');

@@ -73,7 +73,7 @@ test('text: sin altitud ni temperatura no hay zona y la fecha por defecto es hoy
   const { project, a } = build({ points: [{ name: 'P1', lat: 4.6, lon: -74.1 }, { name: 'P2', lat: 4.7, lon: -74.1 }], climate: {} });
   const t = Report.text(project, a);
   assert.match(t, /Resultado incompleto: falta la altitud o la temperatura\./);
-  assert.match(t, /P2: 4\.70000, -74\.10000\n/);                       // sin altitud no agrega « m»
+  assert.match(t, /P2: 4\.70000, -74\.10000 · E 4\.878\.048 m · N 2\.077\.440 m\n/);   // sin altitud no agrega « m»; en Colombia van las planas
   assert.doesNotMatch(t, /Área:/);
   assert.match(t, /\d{4}/);                                            // lleva alguna fecha
 });

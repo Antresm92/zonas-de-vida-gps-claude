@@ -112,8 +112,10 @@
       if (images[key] && images[key].bytes) B.push({ t: 'image', img: images[key], maxW: maxW });
       else B.push({ t: 'note', text: 'No se pudo dibujar ' + noun + ' en el PDF.' });
     }
+    var au = Report.authorOf(o), logo = au.logo ? Fotos.fromBase64(au.logo) : null;
+    if (logo) B.push({ t: 'image', img: { bytes: logo }, maxW: 120, maxH: 60 });
     B.push({ t: 'h1', text: 'Reporte de zona de vida' });
-    B.push({ t: 'sub', text: project.name + ' · ' + Fmt.date(o.date || Date.now()) });
+    B.push({ t: 'sub', text: project.name + ' · ' + Fmt.date(o.date || Date.now()) + (au.line ? '\n' + au.line : '') });
     if (r && r.ok) {
       B.push({ t: 'zone', symbol: r.zone.symbol, name: r.zone.name, detail: 'Región latitudinal: ' + r.region + ' · Piso altitudinal: ' + r.belt + (r.humidity ? ' · Provincia de humedad: ' + r.humidity.name : '') });
     } else {
@@ -135,10 +137,11 @@
       var land = [];
       if (a.area) land.push(['Área', Fmt.area(a.area, 'ha') + ' · ' + Fmt.area(a.area, 'm2') + ' · ' + Fmt.area(a.area, 'fanegadas')]);
       if (a.n >= 2) land.push(['Perímetro', Fmt.dist(a.perimeter)]);
-      land.push(['Centro', Fmt.latlon(a.center.lat, a.center.lon)]);
+      land.push(['Centro', Fmt.latlon(a.center.lat, a.center.lon) + Report.withPlana(a.center)]);
       B.push({ t: 'h2', text: 'Terreno' }); B.push({ t: 'table', rows: land });
       B.push({ t: 'h2', text: 'Puntos' });
-      B.push({ t: 'table', rows: project.points.map(function (p, i) { return [p.name || 'P' + (i + 1), Fmt.latlon(p.lat, p.lon) + (isNum(p.alt) ? ' · ' + Fmt.num(p.alt, 0) + ' m' : ''), pointColor(p, project)]; }) });
+      B.push({ t: 'table', rows: project.points.map(function (p, i) { return [p.name || 'P' + (i + 1), Fmt.latlon(p.lat, p.lon) + (isNum(p.alt) ? ' · ' + Fmt.num(p.alt, 0) + ' m' : '') + Report.withPlana(p), pointColor(p, project)]; }) });
+      if (Report.anyPlana(project, a)) B.push({ t: 'p', small: true, text: Fmt.PLANA_NOTE });
       if (a.n >= 2) {
         B.push({ t: 'h2', text: 'Croquis' });
         pic('croquis', 400, 'el croquis');

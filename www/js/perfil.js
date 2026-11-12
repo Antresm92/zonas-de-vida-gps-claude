@@ -52,21 +52,66 @@
       }
     });
     var relief = hi.alt - lo.alt;
-    var m = { ok: true, items: items, total: total, missing: missing, high: hi, low: lo, relief: relief, ascent: up, descent: down, steepest: steep, srcCounts: srcCounts, notes: [] };
+    var sl = slope(pts);
+    var m = { ok: true, slope: sl, items: items, total: total, missing: missing, high: hi, low: lo, relief: relief, ascent: up, descent: down, steepest: steep, srcCounts: srcCounts, notes: [] };
 
     var gps = srcCounts.gps || 0, kinds = Object.keys(srcCounts).length;
     if (gps) m.notes.push(gps + (gps === 1 ? ' altitud fue tomada' : ' altitudes fueron tomadas') + ' con el GPS del teléfono, que suele tener un error de varios metros (a veces decenas).');
     if (gps && relief < GPS_QUIET_RELIEF) m.notes.push('La diferencia entre el punto más alto y el más bajo (' + Fmt.num(relief, 0) + ' m) es del orden de ese error: el perfil podría mostrar ruido del GPS y no el relieve real.');
     if (kinds > 1) m.notes.push('Las altitudes vienen de varias fuentes (' + Object.keys(srcCounts).map(srcLabel).join(', ') + '): pueden no ser comparables entre sí.');
+    if (sl) m.notes.push('La pendiente media sale de ajustar un plano a los ' + sl.n + ' puntos con altitud: es una aproximación y depende de qué tan buenas sean esas altitudes; no reemplaza un levantamiento topográfico.');
     if (missing) m.notes.push(missing + (missing === 1 ? ' punto sin altitud no aparece' : ' puntos sin altitud no aparecen') + ' en el perfil.');
     return m;
+  }
+
+  /* ---------- Pendiente media del terreno ---------- */
+  // Clases de pendiente que usa el IGAC en sus levantamientos de suelos y geomorfología (letra, límite superior en %, nombre)
+  var SLOPE_CLASSES = [
+    ['a', 3, 'ligeramente plano'], ['b', 7, 'ligeramente inclinado'], ['c', 12, 'moderadamente inclinado'], ['d', 25, 'fuertemente inclinado'],
+    ['e', 50, 'moderadamente escarpado'], ['f', 75, 'escarpado'], ['g', Infinity, 'muy escarpado']
+  ];
+  var WINDS = ['el norte', 'el noreste', 'el este', 'el sureste', 'el sur', 'el suroeste', 'el oeste', 'el noroeste'];
+  function slopeClass(pct) {
+    for (var i = 0; i < SLOPE_CLASSES.length; i++) if (pct < SLOPE_CLASSES[i][1]) break;
+    var c = SLOPE_CLASSES[Math.min(i, SLOPE_CLASSES.length - 1)], from = i ? SLOPE_CLASSES[i - 1][1] : 0;
+    return { code: c[0], name: c[2], range: c[1] === Infinity ? 'más de ' + from + ' %' : from + '–' + c[1] + ' %' };
+  }
+  function wind(brg) { return WINDS[Math.round((((brg % 360) + 360) % 360) / 45) % 8]; }
+  // Ajusta un plano (mínimos cuadrados) a los puntos que tienen altitud. Devuelve { pct, deg, aspect, wind, cls, n } o null
+  // si hay menos de 3 puntos con altitud o si están casi en línea recta (un plano no queda definido).
+  function slope(points) {
+    var pts = (points || []).filter(function (p) { return validLL(p) && isNum(p.alt); });
+    if (pts.length < 3) return null;
+    var fr = Geo.localFrame(pts), xy = pts.map(function (p) { return Geo.toXY(fr, p); }), n = pts.length;
+    var mx = 0, my = 0, mz = 0;
+    xy.forEach(function (q, i) { mx += q.x; my += q.y; mz += pts[i].alt; });
+    mx /= n; my /= n; mz /= n;
+    var sxx = 0, syy = 0, sxy = 0, sxz = 0, syz = 0;
+    xy.forEach(function (q, i) {
+      var dx = q.x - mx, dy = q.y - my, dz = pts[i].alt - mz;
+      sxx += dx * dx; syy += dy * dy; sxy += dx * dy; sxz += dx * dz; syz += dy * dz;
+    });
+    var det = sxx * syy - sxy * sxy;
+    if (!(sxx > 0 && syy > 0) || det < 0.01 * sxx * syy) return null;       // en línea recta (o casi)
+    var a = (sxz * syy - syz * sxy) / det, b = (syz * sxx - sxz * sxy) / det;   // subida por metro hacia el este y hacia el norte
+    var g = Math.sqrt(a * a + b * b), pct = g * 100;
+    var aspect = g > 0 ? (Math.atan2(-a, -b) * 180 / Math.PI + 360) % 360 : null;   // hacia dónde baja el terreno
+    return { pct: pct, deg: Math.atan(g) * 180 / Math.PI, aspect: aspect, wind: aspect === null ? null : wind(aspect), cls: slopeClass(pct), n: n };
+  }
+  function slopeRows(sl) {
+    if (!sl) return [];
+    var flat = sl.pct < 0.5;
+    return [
+      ['Pendiente media del terreno', Fmt.num(sl.pct, sl.pct < 10 ? 1 : 0) + ' % (' + Fmt.num(sl.deg, 1) + '°)' + (flat || !sl.wind ? '' : ' · baja hacia ' + sl.wind)],
+      ['Clase de pendiente (IGAC)', sl.cls.code + ' · ' + sl.cls.name + ' (' + sl.cls.range + ')']
+    ];
   }
 
   // Datos para una tabla: [etiqueta, valor]
   function rows(m) {
     if (!m || !m.ok) return [];
     // build() solo da ok si el recorrido mide más de 0 m, así que siempre hay un tramo más inclinado
-    return [
+    return slopeRows(m.slope).concat([
       ['Punto más alto', m.high.name + ' · ' + Fmt.num(m.high.alt, 0) + ' m'],
       ['Punto más bajo', m.low.name + ' · ' + Fmt.num(m.low.alt, 0) + ' m'],
       ['Desnivel entre ambos', Fmt.num(m.relief, 0) + ' m'],
@@ -74,7 +119,7 @@
       ['Descenso acumulado', Fmt.num(m.descent, 0) + ' m'],
       ['Longitud del recorrido', Fmt.dist(m.total)],
       ['Tramo más inclinado', m.steepest.from + ' → ' + m.steepest.to + ' · ' + Fmt.num(m.steepest.pct, 0) + ' %']
-    ];
+    ]);
   }
 
   function niceStep(range) {
@@ -136,5 +181,5 @@
     return s + '</svg>';
   }
 
-  return { build: build, rows: rows, svg: svg, niceStep: niceStep, srcLabel: srcLabel, COL: COL, GPS_QUIET_RELIEF: GPS_QUIET_RELIEF };
+  return { build: build, rows: rows, svg: svg, niceStep: niceStep, slope: slope, slopeClass: slopeClass, slopeRows: slopeRows, SLOPE_CLASSES: SLOPE_CLASSES, srcLabel: srcLabel, COL: COL, GPS_QUIET_RELIEF: GPS_QUIET_RELIEF };
 });

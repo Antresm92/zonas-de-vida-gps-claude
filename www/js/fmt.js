@@ -23,6 +23,13 @@
   function latlon(lat, lon, d) { return coord(lat, d) + ', ' + coord(lon, d); }
   function dms(lat, lon) { return Geo.toDMS(lat, 'lat', 1) + '  ' + Geo.toDMS(lon, 'lon', 1); }
 
+  // Coordenadas planas de Colombia (Origen Nacional): «E 4.880.248 m · N 2.066.386 m»; '' si el punto está fuera de Colombia
+  function plana(lat, lon) {
+    var o = Geo.origenNacional(lat, lon);
+    return o ? 'E ' + grouped(o.e, 0) + ' m · N ' + grouped(o.n, 0) + ' m' : '';
+  }
+  var PLANA_NOTE = 'Coordenadas planas (E, N): MAGNA-SIRGAS / Origen Nacional (EPSG:9377), en metros.';
+
   function dist(m) {
     if (!isNum(m)) return '—';
     if (m >= 10000) return grouped(m / 1000, 2) + ' km';
@@ -57,5 +64,5 @@
     try { return d.toLocaleString('es-CO', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }); } catch (e) { return ''; }
   }
 
-  return { num: num, grouped: grouped, coord: coord, latlon: latlon, dms: dms, dist: dist, area: area, date: date, dateTime: dateTime, UNITS: UNITS };
+  return { num: num, grouped: grouped, coord: coord, latlon: latlon, dms: dms, plana: plana, PLANA_NOTE: PLANA_NOTE, dist: dist, area: area, date: date, dateTime: dateTime, UNITS: UNITS };
 });

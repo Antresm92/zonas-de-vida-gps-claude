@@ -261,17 +261,17 @@ module.exports = async function (c) {
     assert.match(es.name, /\.csv$/);
     assert.equal(es.text.charCodeAt(0), 0xFEFF);
     const lines = es.text.replace(/^﻿/, '').trim().split(/\r?\n/);
-    assert.equal(lines[0], 'Punto;Latitud;Longitud;Altitud;Rumbo;Distancia al vértice siguiente');
+    assert.equal(lines[0], 'Punto;Latitud;Longitud;Altitud;Rumbo;Distancia al vértice siguiente;Este (Origen Nacional);Norte (Origen Nacional)');
     assert.equal(lines.length, 29);
     assert.match(lines[1], /^P1;4,\d{7};-74,\d{7};/);
     await page.click('[data-act="csvStyle"][data-s="std"]');
     assert.equal((await state()).settings.csvStyle, 'std');
     const std = await download(() => page.click('[data-act="export"][data-fmt="csv"]'));
     const l2 = std.text.replace(/^﻿/, '').trim().split(/\r?\n/);
-    assert.equal(l2[0], 'Punto,Latitud,Longitud,Altitud,Rumbo,Distancia al vértice siguiente');
+    assert.equal(l2[0], 'Punto,Latitud,Longitud,Altitud,Rumbo,Distancia al vértice siguiente,Este (Origen Nacional),Norte (Origen Nacional)');
     assert.match(l2[1], /^P1,4\.\d{7},-74\.\d{7},/);
     // suma de distancias = perímetro
-    const sum = l2.slice(1).reduce((s, l) => s + parseFloat(l.split(',').pop()), 0);
+    const sum = l2.slice(1).reduce((s, l) => s + parseFloat(l.split(',')[5]), 0);
     const per = await page.evaluate(() => window.__app.analysis().perimeter);
     near(sum, per, 1, 'suma de distancias del CSV');
     await page.click('[data-act="csvStyle"][data-s="es"]');

@@ -301,11 +301,53 @@
     return (deg(Math.atan2(y, x)) + 360) % 360;
   }
 
+  /* ---------- Coordenadas planas de Colombia: MAGNA-SIRGAS / Origen Nacional (EPSG:9377) ---------- */
+  // Proyección Transversa de Mercator sobre el elipsoide GRS80, con un solo origen para todo el país (adoptado por el IGAC en 2020; parámetros de epsg.org):
+  // latitud de origen 4° N, meridiano central 73° O, factor de escala 0,9992, falso este 5 000 000 m, falso norte 2 000 000 m.
+  // Se calcula con la serie de Krüger (hasta n⁴): el error de la serie es menor que un milímetro en todo el país.
+  var ON = { a: 6378137.0, f: 1 / 298.257222101, lat0: 4, lon0: -73, k0: 0.9992, fe: 5000000, fn: 2000000 };
+  var ON_BOX = { latMin: -4.5, latMax: 16.5, lonMin: -84.8, lonMax: -66.8 };   // Colombia continental, insular y sus mares
+  function sinh(x) { var e = Math.exp(x); return (e - 1 / e) / 2; }
+  function cosh(x) { var e = Math.exp(x); return (e + 1 / e) / 2; }
+  function atanh(x) { return 0.5 * Math.log((1 + x) / (1 - x)); }
+  var ON_K = (function () {
+    var n = ON.f / (2 - ON.f), n2 = n * n, n3 = n2 * n, n4 = n3 * n;
+    return {
+      c: 2 * Math.sqrt(n) / (1 + n),
+      A: ON.a / (1 + n) * (1 + n2 / 4 + n4 / 64),
+      al: [n / 2 - 2 * n2 / 3 + 5 * n3 / 16 + 41 * n4 / 180, 13 * n2 / 48 - 3 * n3 / 5 + 557 * n4 / 1440, 61 * n3 / 240 - 103 * n4 / 140, 49561 * n4 / 161280]
+    };
+  })();
+  // Transversa de Mercator sin falsos ni origen: { x (este), y (norte desde el ecuador) } en metros
+  function tmRaw(lat, lon) {
+    var phi = rad(lat), dl = rad(lon - ON.lon0), sp = Math.sin(phi);
+    var t = sinh(atanh(sp) - ON_K.c * atanh(ON_K.c * sp));
+    var xi = Math.atan2(t, Math.cos(dl)), eta = atanh(Math.sin(dl) / Math.sqrt(1 + t * t));
+    var x = eta, y = xi;
+    for (var j = 1; j <= 4; j++) {
+      x += ON_K.al[j - 1] * Math.cos(2 * j * xi) * sinh(2 * j * eta);
+      y += ON_K.al[j - 1] * Math.sin(2 * j * xi) * cosh(2 * j * eta);
+    }
+    return { x: ON.k0 * ON_K.A * x, y: ON.k0 * ON_K.A * y };
+  }
+  var ON_Y0 = tmRaw(ON.lat0, ON.lon0).y;
+  function inColombia(lat, lon) {
+    return typeof lat === 'number' && typeof lon === 'number' && isFinite(lat) && isFinite(lon) &&
+      lat >= ON_BOX.latMin && lat <= ON_BOX.latMax && lon >= ON_BOX.lonMin && lon <= ON_BOX.lonMax;
+  }
+  // { e, n } en metros, o null si el punto queda fuera de Colombia (allí esta proyección no se usa)
+  function origenNacional(lat, lon) {
+    if (!inColombia(lat, lon)) return null;
+    var r = tmRaw(lat, lon);
+    return { e: ON.fe + r.x, n: ON.fn + r.y - ON_Y0 };
+  }
+
   return {
     parseAngle: parseAngle, parsePair: parsePair, toDMS: toDMS, fmtDec: fmtDec,
     distance: distance, haversine: haversine, polygonArea: polygonArea, perimeter: perimeter,
     areaUnits: areaUnits, centroid: centroid, localFrame: localFrame, toXY: toXY, fromXY: fromXY,
     selfIntersects: selfIntersects, angularOrder: angularOrder, bearing: bearing,
+    origenNacional: origenNacional, inColombia: inColombia,
     FANEGADA_M2: FANEGADA_M2, RQ: RQ
   };
 });

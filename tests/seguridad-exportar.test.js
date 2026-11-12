@@ -27,7 +27,7 @@ test('CSV: los nombres que empiezan por = + - @ tabulador o retorno llevan un ap
 test('CSV: el apóstrofo va antes de las comillas de la celda, de modo que el campo sigue siendo una sola celda', () => {
   const [fila] = filas(Gis.toCSV([pt('=A;B, "x"')], { style: 'es' }));
   assert.ok(fila.startsWith(`"'=A;B, ""x""";`), fila);
-  assert.equal(fila.split(';').length, 6 + 1, 'el «;» del nombre queda dentro de las comillas');       // seis columnas + el «;» interno del nombre
+  assert.equal(fila.split(';').length, 8 + 1, 'el «;» del nombre queda dentro de las comillas');       // ocho columnas + el «;» interno del nombre
 });
 
 test('CSV: un nombre normal no cambia, ni uno con esos símbolos en medio, ni uno que ya empieza por apóstrofo', () => {

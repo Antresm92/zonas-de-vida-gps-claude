@@ -163,7 +163,7 @@ test('blocks: reporte completo, con todas las secciones del HTML y en su orden',
   const puntos = bl[bl.findIndex((b) => b.text === 'Puntos') + 1];
   assert.equal(puntos.t, 'table');
   assert.deepEqual(puntos.rows.map((r) => r[2]), ['#D8353C', '#2F8F4E', '#2F8F4E', '#2F8F4E']);
-  assert.match(puntos.rows[0][1], /^4\.60000, -74\.10000 · 1800 m$/);
+  assert.match(puntos.rows[0][1], /^4\.60000, -74\.10000 · 1800 m · E 4\.878\.031 m · N 2\.066\.389 m$/);
   // la leyenda aparece porque hay una capa importada
   const leyenda = bl.find((b) => b.t === 'legend');
   assert.deepEqual(leyenda.items, [['#2F8F4E', 'Mis puntos'], ['#E67E22', 'Lote vecino']]);
