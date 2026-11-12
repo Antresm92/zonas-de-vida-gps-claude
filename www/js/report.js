@@ -1,8 +1,8 @@
 /* report.js — reporte de zona de vida: texto plano y página HTML autocontenida (con el diagrama). */
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory(require('./fmt.js'), require('./geo.js'), require('./diagram.js'), require('./perfil.js'), require('./climate.js'));
-  else root.Report = factory(root.Fmt, root.Geo, root.Diagram, root.Perfil, root.Climate);
-})(typeof self !== 'undefined' ? self : this, function (Fmt, Geo, Diagram, Perfil, Climate) {
+  if (typeof module === 'object' && module.exports) module.exports = factory(require('./fmt.js'), require('./geo.js'), require('./diagram.js'), require('./perfil.js'), require('./climate.js'), require('./predio.js'));
+  else root.Report = factory(root.Fmt, root.Geo, root.Diagram, root.Perfil, root.Climate, root.Predio);
+})(typeof self !== 'undefined' ? self : this, function (Fmt, Geo, Diagram, Perfil, Climate, Predio) {
   'use strict';
 
   function esc(s) { return String(s === null || s === undefined ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
@@ -140,7 +140,7 @@
     var name = typeof project.name === 'string' || typeof project.name === 'number' ? String(project.name).trim() : '';
     var L = name ? ['Proyecto: ' + name] : [], au = authorOf(o);
     var lote = typeof project.lotName === 'string' ? project.lotName.trim() : '';
-    if (lote) L.push('Lote: ' + lote);
+    if (lote) L.push(lotTitle(project));
     if (au.line) L.push(au.line);
     L.push('Fecha: ' + Fmt.date(o && o.date || Date.now()));
     return L;
@@ -148,21 +148,43 @@
   /* ---------- Reporte de todo el proyecto (2.15.0): resumen de los lotes y luego el reporte de cada uno ---------- */
   // parts: [{ project (el lote como proyecto: name, lotName, points, layers, mainColor…), a, o }]
   var HEX = /^#[0-9a-fA-F]{6}$/;
+  // «Finca», «Potrero · en «La Esperanza»» … o '' si es un lote de los de siempre (2.17.0)
+  function kindText(project) {
+    var m = project && project.lotMeta;
+    if (!m || !m.kind) return '';
+    return m.kind === 'finca' ? 'Finca' : (m.cat || 'Área') + (m.parentName ? ' · en «' + m.parentName + '»' : '');
+  }
+  // Título de un polígono en el reporte: «Lote: X», «Finca: X» o «Potrero: X (en «Finca»)»
+  function lotTitle(project) {
+    var m = project.lotMeta || {}, name = project.lotName || project.name;
+    return (m.kind === 'finca' ? 'Finca' : m.kind === 'area' ? (m.cat || 'Área') : 'Lote') + ': ' + name + (m.kind === 'area' && m.parentName ? ' (en «' + m.parentName + '»)' : '');
+  }
   function summary(parts) {
-    var rows = [], total = 0, closed = 0, zones = {};
-    (parts || []).forEach(function (pt) {
-      var a = pt.a, r = a.result, m2 = a.area ? a.area.m2 : 0;
-      if (m2 > 0) { total += m2; closed++; }
+    parts = parts || [];
+    var rows = [], zones = {};
+    // los mismos datos que usa la app para no contar dos veces un área que está dentro de su finca
+    var lots = parts.map(function (pt, i) {
+      var m = pt.project.lotMeta || {};
+      return { id: m.id || 'p' + i, name: pt.project.lotName || pt.project.name, kind: m.kind || undefined, cat: m.cat || undefined, parent: m.parent || undefined, points: pt.project.points || [] };
+    });
+    var acc = Predio.account(lots), kinds = lots.some(function (l) { return !!l.kind; });
+    parts.forEach(function (pt, i) {
+      var a = pt.a, r = a.result, m2 = a.area ? a.area.m2 : 0, row = acc.rows[i];
       if (r && r.ok) zones[r.zone.symbol] = r.zone.name;
       rows.push({ name: pt.project.lotName || pt.project.name, color: HEX.test(pt.project.mainColor || '') ? pt.project.mainColor : '#2F8F4E', n: a.n || 0,
-        area: m2 > 0 ? Fmt.area(a.area, 'ha') : '—', alt: a.alt && isNum(a.alt.value) ? Fmt.num(a.alt.value, 0) + ' m' : '—',
+        tipo: kindText(pt.project), dots: !!pt.project.dots,
+        area: m2 > 0 ? Fmt.area(a.area, 'ha') + (row && row.pct !== null ? ' (' + Fmt.num(row.pct, 1) + ' % de la finca)' : '') : '—', alt: a.alt && isNum(a.alt.value) ? Fmt.num(a.alt.value, 0) + ' m' : '—',
         zone: r && r.ok ? r.zone.name + ' (' + r.zone.symbol + ')' : 'incompleto' });
     });
-    var nz = Object.keys(zones).length;
-    var warn = Geo.overlapText((parts || []).map(function (pt) { return { name: pt.project.lotName || pt.project.name, points: pt.project.points || [] }; }));
-    return { rows: rows, total: total, closed: closed, zones: nz, overlap: warn,
+    var nz = Object.keys(zones).length, total = acc.total, closed = acc.closed, nClosed = lots.filter(function (l) { return l.points.length >= 3; }).length;
+    var word = kinds ? ['polígono', 'polígonos'] : ['lote', 'lotes'];
+    var fincas = acc.fincas.filter(function (f) { return f.m2 > 0; }).map(function (f) {
+      return f.lot.name + ': ' + (f.n ? f.n + (f.n === 1 ? ' área' : ' áreas') + ', ' + Fmt.area(Geo.areaUnits(f.used), 'ha') + ' (' + Fmt.num(f.used / f.m2 * 100, 1) + ' %) · sin asignar ' + Fmt.area(Geo.areaUnits(f.free), 'ha') : 'sin áreas');
+    });
+    return { rows: rows, total: total, closed: closed, zones: nz, overlap: Predio.warnings(lots).join(' '), kinds: kinds, fincas: fincas,
       totalText: (closed ? Fmt.area(Geo.areaUnits(total), 'ha') + ' · ' + Fmt.area(Geo.areaUnits(total), 'fanegadas') : '—'),
-      note: rows.length + (rows.length === 1 ? ' lote' : ' lotes') + (closed < rows.length ? ' (' + closed + ' con polígono cerrado)' : '') + ' · ' + nz + (nz === 1 ? ' zona de vida' : ' zonas de vida') };
+      note: rows.length + ' ' + word[rows.length === 1 ? 0 : 1] + (nClosed < rows.length ? ' (' + nClosed + ' con polígono cerrado)' : '') + ' · ' + nz + (nz === 1 ? ' zona de vida' : ' zonas de vida') +
+        (kinds && closed < nClosed ? ' · las áreas que están dentro de una finca no se suman otra vez' : '') };
   }
   // Croquis general: todos los lotes en un solo dibujo, cada uno con su color. Devuelve { svg, items: [[color, nombre]…] } o null
   // si ningún lote tiene al menos 2 puntos. El primero con puntos va como figura principal y los demás como capas.
@@ -173,9 +195,9 @@
     function name(pt) { return pt.project.lotName || pt.project.name || 'Lote'; }
     var main = ok[0], layers = ok.slice(1).map(function (pt) {
       var n = pt.project.points.length;
-      return { name: name(pt), kind: n >= 3 ? 'polygon' : n === 2 ? 'line' : 'points', color: color(pt), visible: true, points: pt.project.points };
+      return { name: name(pt), kind: n >= 3 ? 'polygon' : n === 2 ? 'line' : 'points', color: color(pt), visible: true, points: pt.project.points, dots: !!pt.project.dots };
     });
-    return { svg: Diagram.polygonSVG(main.project.points, { width: 560, height: 380, layers: layers, color: color(main) }),
+    return { svg: Diagram.polygonSVG(main.project.points, { width: 560, height: 380, layers: layers, color: color(main), dots: !!main.project.dots }),
       items: [[color(main), name(main)]].concat(layers.map(function (l) { return [l.color, l.name]; })) };
   }
   // Cada lote lleva sus propios dibujos: para que no choquen dentro de una misma página, se le cambia el nombre interno a cada uno
@@ -185,14 +207,15 @@
   function htmlAll(project, parts, o) {
     o = o || {};
     var s = summary(parts), h = docOpen(project.name) + headHtml({ name: project.name }, o);
-    h += '<h2>Resumen del proyecto</h2><table class="sum"><tr><th>Lote</th><th>Área</th><th>Altitud</th><th>Zona de vida</th></tr>';
-    s.rows.forEach(function (x) { h += '<tr><td><span class="dot" style="background:' + x.color + '"></span>' + esc(x.name) + '</td><td>' + esc(x.area) + '</td><td>' + esc(x.alt) + '</td><td>' + esc(x.zone) + '</td></tr>'; });
+    h += '<h2>Resumen del proyecto</h2><table class="sum"><tr><th>' + (s.kinds ? 'Polígono' : 'Lote') + '</th><th>Área</th><th>Altitud</th><th>Zona de vida</th></tr>';
+    s.rows.forEach(function (x) { h += '<tr><td><span class="dot" style="background:' + x.color + '"></span>' + esc(x.name) + (x.tipo ? ' <span class="small">· ' + esc(x.tipo) + '</span>' : '') + '</td><td>' + esc(x.area) + '</td><td>' + esc(x.alt) + '</td><td>' + esc(x.zone) + '</td></tr>'; });
     h += '<tr class="tot"><td>Total</td><td>' + esc(s.totalText) + '</td><td colspan="2">' + esc(s.note) + '</td></tr></table>';
+    s.fincas.forEach(function (f) { h += '<p class="small">' + esc(f) + '.</p>'; });
     if (s.overlap) h += '<p class="small"><b>Atención:</b> ' + esc(s.overlap) + '</p>';
     var ov = overview(parts);
     if (ov) h += '<h2>Croquis general</h2><div style="max-width:560px;margin-top:12px">' + reid(ov.svg, '-G') + '<div class="legend">' + ov.items.map(function (it) { return '<span><span class="dot" style="background:' + it[0] + '"></span>' + esc(it[1]) + '</span>'; }).join(' ') + '</div></div>';
     parts.forEach(function (pt, i) {
-      h += '<section class="lote"><h1 class="lt">Lote: ' + esc(pt.project.lotName || pt.project.name) + '</h1>' + reid(bodyHtml(pt.project, pt.a, pt.o), '-L' + (i + 1)) + '</section>';
+      h += '<section class="lote"><h1 class="lt">' + esc(lotTitle(pt.project)) + '</h1>' + reid(bodyHtml(pt.project, pt.a, pt.o), '-L' + (i + 1)) + '</section>';
     });
     return h + '<p class="small" style="margin-top:28px">' + esc(DISCLAIMER) + '</p></body></html>';
   }
@@ -200,8 +223,9 @@
     var s = summary(parts), L = ['REPORTE DE ZONA DE VIDA (HOLDRIDGE)'];
     headLines({ name: project.name }, o).forEach(function (x) { L.push(x); });
     L.push(''); L.push('RESUMEN DEL PROYECTO');
-    s.rows.forEach(function (x) { L.push('  ' + x.name + ': ' + x.area + ' · ' + x.alt + ' · ' + x.zone); });
+    s.rows.forEach(function (x) { L.push('  ' + x.name + (x.tipo ? ' [' + x.tipo + ']' : '') + ': ' + x.area + ' · ' + x.alt + ' · ' + x.zone); });
     L.push('  Total: ' + s.totalText + ' · ' + s.note);
+    s.fincas.forEach(function (f) { L.push('  ' + f + '.'); });
     if (s.overlap) L.push('  Atención: ' + s.overlap);
     parts.forEach(function (pt) {
       var t = text(pt.project, pt.a, pt.o).split('\n');
@@ -303,7 +327,7 @@
         h += '<tr><th>' + dot(p, project) + esc(p.name || 'P' + (i + 1)) + '</th><td>' + esc(Fmt.latlon(p.lat, p.lon)) + (isNum(p.alt) ? ' · ' + esc(Fmt.num(p.alt, 0)) + ' m' : '') + planaHtml(p) + '</td></tr>';
       });
       h += '</table>' + (anyPlana(project, a) ? '<p class="small">' + esc(Fmt.PLANA_NOTE) + '</p>' : '');
-      if (a.n >= 2) h += '<h2>Croquis</h2><div style="max-width:560px;margin-top:12px">' + Diagram.polygonSVG(project.points, { width: 560, height: 380, center: a.center, bad: a.selfIntersects, layers: project.layers, color: project.mainColor }) + Diagram.legendHTML(project.layers, project.mainColor, project.lotName || 'Mis puntos', true) + '</div>';
+      if (a.n >= 2) h += '<h2>Croquis</h2><div style="max-width:560px;margin-top:12px">' + Diagram.polygonSVG(project.points, { width: 560, height: 380, center: a.center, bad: a.selfIntersects, dots: !!project.dots, layers: project.layers, color: project.mainColor }) + Diagram.legendHTML(project.layers, project.mainColor, project.lotName || 'Mis puntos', true) + '</div>';
       if (a.n >= 2) h += sketchHtml('Croquis satelital', 'croquis satelital', o.satellite) + sketchHtml('Croquis topográfico', 'croquis topográfico', o.topo) + profileHtml(project);
     }
     h += photosHtml(project, o);
@@ -335,5 +359,5 @@
 
   }
 
-  return { overview: overview, summary: summary, htmlAll: htmlAll, textAll: textAll, bodyHtml: bodyHtml, reid: reid, headLines: headLines, authorOf: authorOf, withPlana: withPlana, anyPlana: anyPlana, text: text, html: html, rows: rows, dot: dot, currentRows: currentRows, currentStamp: currentStamp, CURRENT_NOTE: CURRENT_NOTE, QUALITY: QUALITY, DISCLAIMER: DISCLAIMER, SRC_T: SRC_T, SRC_P: SRC_P };
+  return { lotTitle: lotTitle, kindText: kindText, overview: overview, summary: summary, htmlAll: htmlAll, textAll: textAll, bodyHtml: bodyHtml, reid: reid, headLines: headLines, authorOf: authorOf, withPlana: withPlana, anyPlana: anyPlana, text: text, html: html, rows: rows, dot: dot, currentRows: currentRows, currentStamp: currentStamp, CURRENT_NOTE: CURRENT_NOTE, QUALITY: QUALITY, DISCLAIMER: DISCLAIMER, SRC_T: SRC_T, SRC_P: SRC_P };
 });

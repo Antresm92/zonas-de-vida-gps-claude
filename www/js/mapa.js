@@ -97,7 +97,7 @@
   function shapes(project, opts) {
     opts = opts || {};
     var p = project || {}, pts = (p.points || []).filter(validLL), color = p.mainColor || '#2F8F4E';
-    var out = { color: color, polygon: null, points: [], layers: [], sides: [] };
+    var out = { color: color, polygon: null, points: [], layers: [], sides: [], dots: !!p.dots, locked: !!p.locked };      // dots: el polígono elegido es un área (relleno de puntos)
     if (opts.polyActive !== false && pts.length >= 2) {
       out.polygon = { latlngs: ring(pts), closed: pts.length >= 3, bad: !!opts.bad };
     }
@@ -113,6 +113,7 @@
         var la = 0, lo = 0;
         o.latlngs.forEach(function (q) { la += q[0]; lo += q[1]; });
         o.lot = true; o.lotId = l.lotId; o.label = (l.name || 'Lote') + (l.areaText ? ' · ' + l.areaText : '');
+        if (l.dots) o.dots = true;                // un área (potrero, cafetal…): relleno de puntos
         o.at = [la / o.latlngs.length, lo / o.latlngs.length];
       }
       return o;

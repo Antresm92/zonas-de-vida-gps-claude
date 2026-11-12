@@ -467,3 +467,18 @@ details.why summary { min-height: 32px; padding: 6px 0; color: var(--blue); font
 .sw.used { position: relative; }
 .sw.used::after { content: ""; position: absolute; left: 50%; top: 50%; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 2px rgba(0, 0, 0, .55); }
 #lotColorHint { display: block; margin: -6px 0 12px; font-size: 14px; color: var(--ink-soft); }
+
+/* Fincas y áreas (2.17.0) */
+/* Muestra de color con trama de puntos: así se reconoce un área (potrero, cafetal…) frente a una finca o un lote, de relleno liso */
+.lotchip i.dots, .lotrow i.dots { background-image: radial-gradient(circle, rgba(255, 255, 255, .95) 1.1px, transparent 1.4px); background-size: 4px 4px; }
+.lotchip .lk { font-size: 12px; }
+.lotrow.child { margin-left: 18px; width: auto; }
+.fincaline { margin: 4px 0; color: var(--ink-soft); }
+.f-label2 { display: block; margin-bottom: 6px; font-weight: 650; }
+.seg.seg3 button { flex: 1; }
+.cats { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.cat { min-height: 44px; padding: 6px 14px; border: 1.5px solid var(--line); border-radius: 22px; background: #fff; font: inherit; font-size: 15px; font-weight: 600; color: var(--ink); }
+.cat[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: #fff; }
+#lotKindHint { display: block; margin: 6px 0 4px; font-size: 14px; color: var(--ink-soft); }
+.mapnew { position: absolute; z-index: 5; top: 118px; right: 12px; min-height: 44px; padding: 0 14px; border: 0; border-radius: 22px; background: var(--blue); color: var(--on-blue); font: inherit; font-size: 14px; font-weight: 700; box-shadow: 0 2px 8px rgba(0, 0, 0, .25); }
+.maplock { pointer-events: auto; align-self: flex-start; min-height: 40px; padding: 6px 12px; border: 0; border-radius: 12px; background: #fff; color: var(--ink); font: inherit; font-size: 13.5px; font-weight: 600; text-align: left; box-shadow: 0 1px 6px rgba(0, 0, 0, .25); }

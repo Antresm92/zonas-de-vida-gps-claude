@@ -149,7 +149,7 @@
     (Array.isArray(p.layers) ? p.layers : []).slice(0, LIM.layers).forEach(function (l) { var c = self.layer(l, budget); if (c) layers.push(c); });
     var out = { id: this.id(p.id), name: str(p.name, 60, 'Proyecto sin nombre'), created: num(p.created, 0, 8.64e15) || this.now };
     if (Array.isArray(p.lots)) {                        // desde la 2.15.0: los puntos y el clima van en los lotes
-      var lots = [], used = {}, pick = null;
+      var lots = [], used = {}, pick = null, remap = {}, wants = [];
       p.lots.slice(0, LIM.lots).forEach(function (l, i) {
         l = obj(l);
         if (!l) return;
@@ -158,7 +158,13 @@
         used[c.id] = true;
         c = Object.assign({ id: c.id, name: str(l.name, 40, 'Lote ' + (i + 1)) }, c);
         if (pick === null && old !== null && old === p.lotId) pick = c.id;      // con ids repetidos, el elegido es el primero
+        if (old !== null && remap[old] === undefined) remap[old] = c.id;
+        if (c.kind === 'area' && typeof l.parent === 'string') wants.push([c, l.parent]);
         lots.push(c);
+      });
+      wants.forEach(function (w) {                       // el área sigue colgando de su finca aunque el id haya cambiado
+        var f = remap[w[1]], ok = f && f !== w[0].id && lots.some(function (x) { return x.id === f && x.kind === 'finca'; });
+        if (ok) w[0].parent = f;
       });
       if (!lots.length) lots.push(Object.assign({ id: self.uid(), name: 'Lote 1' }, self.lot({})));
       out.layers = layers; out.lots = lots; out.lotId = pick || lots[0].id;
@@ -177,6 +183,10 @@
     var out = { points: pts, climate: cleanClimate(p.climate), nextPoint: Math.max(nxt, pts.length + 1), mainColor: hex(p.mainColor, MAIN_COLOR) };
     var wn = cleanWeather(p.weatherNow);
     if (wn) out.weatherNow = wn;
+    if (p.kind === 'finca' || p.kind === 'area') out.kind = p.kind;                 // jerarquía (2.17.0)
+    var cat = out.kind === 'area' ? str(p.cat, 30, '') : '';
+    if (cat) out.cat = cat;
+    if (out.kind === 'finca' && p.locked === true) out.locked = true;
     return out;
   };
 

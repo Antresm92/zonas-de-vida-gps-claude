@@ -536,7 +536,9 @@
     function safe(s) { s = String(s); return /^[=+\-@\t\r]/.test(s) ? "'" + s : s; }
     function cell(s) { s = safe(s); return /[";,\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
     var head = ['Punto', 'Latitud', 'Longitud', 'Altitud', 'Rumbo', 'Distancia al vértice siguiente', 'Este (Origen Nacional)', 'Norte (Origen Nacional)'];
-    var rows = [(lots ? ['Lote'].concat(head) : head).join(sep)];
+    var tipos = !!lots && lots.some(function (g) { return g && g.tipo; });          // con fincas y áreas (2.17.0): columna «Tipo»
+    var pre = lots ? (tipos ? ['Lote', 'Tipo'] : ['Lote']) : [];
+    var rows = [pre.concat(head).join(sep)];
     (lots || [{ points: points }]).forEach(function (g, gi) {
       var pts = ((g && g.points) || []).filter(function (p) { return p && validLL(p.lat, p.lon); });
       var n = pts.length, ring = n >= 3;
@@ -545,7 +547,7 @@
         var brg = nxt ? Geo.bearing(p.lat, p.lon, nxt.lat, nxt.lon) : null, dist = nxt ? Geo.distance(p.lat, p.lon, nxt.lat, nxt.lon) : null;
         var on = Geo.origenNacional(p.lat, p.lon);      // coordenadas planas de Colombia; vacías fuera del país
         var r = [cell(p.name || ('P' + (i + 1))), num(p.lat, 7), num(p.lon, 7), num(p.alt, 1), num(brg, 1), num(dist, 2), num(on ? on.e : null, 2), num(on ? on.n : null, 2)];
-        rows.push((lots ? [cell(g.name || ('Lote ' + (gi + 1)))].concat(r) : r).join(sep));
+        rows.push((lots ? [cell(g.name || ('Lote ' + (gi + 1)))].concat(tipos ? [cell(g.tipo || 'Lote')] : [], r) : r).join(sep));
       });
     });
     return '﻿' + rows.join('\r\n') + '\r\n';

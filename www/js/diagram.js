@@ -363,8 +363,20 @@
 
   // Dibuja puntos y polígono sin mapa de fondo, con el norte arriba. closed: unir último con primero.
   // o.layers: capas importadas [{points, kind, color, visible, holes}] que se dibujan debajo; o.color: color de los puntos propios
+  var dotSeq = 0;
   function polygonSVG(points, o) {
     o = o || {};
+    // Relleno de puntos para las áreas (2.17.0): una trama por color, definida dentro del propio dibujo
+    var dotDefs = '', dotIds = {};
+    function dotsFill(color) {
+      var c = /^#[0-9a-fA-F]{6}$/.test(color || '') ? color : '#2980B9';
+      if (!dotIds[c]) {
+        dotIds[c] = 'dots-' + c.slice(1).toLowerCase() + '-' + (++dotSeq);      // único en la página: puede haber varios planos a la vez
+        dotDefs += '<pattern id="' + dotIds[c] + '" width="8" height="8" patternUnits="userSpaceOnUse"><rect width="8" height="8" fill="' + c + '" fill-opacity="0.10"/>' +
+          '<circle cx="2" cy="2" r="1.15" fill="' + c + '" fill-opacity="0.85"/><circle cx="6" cy="6" r="1.15" fill="' + c + '" fill-opacity="0.85"/></pattern>';
+      }
+      return 'url(#' + dotIds[c] + ')';
+    }
     var W = o.width || 360, Hh = o.height || 300, pad = 34;
     var okp = function (p) { return p && isFinite(p.lat) && isFinite(p.lon); };
     var pts = points.filter(okp);
@@ -396,7 +408,7 @@
       if (l.kind === 'polygon' && q.length >= 3) {
         var d = pathOf(q, true);
         (l.holes || []).forEach(function (h) { var hq = h.filter(okp).map(function (p) { return Geo.toXY(fr, p); }); if (hq.length >= 3) d += ' ' + pathOf(hq, true); });
-        out += '<path d="' + d + '" fill-rule="evenodd" fill="' + hexA(l.color, 0.2) + '" stroke="' + esc(l.color) + '" stroke-width="2.2" stroke-linejoin="round"/>';
+        out += '<path d="' + d + '" fill-rule="evenodd" fill="' + (l.dots ? dotsFill(l.color) : hexA(l.color, 0.2)) + '" stroke="' + esc(l.color) + '" stroke-width="2.2" stroke-linejoin="round"/>';
       } else if ((l.kind === 'line' || l.kind === 'polygon') && q.length >= 2) {
         out += '<path d="' + pathOf(q, false) + '" fill="none" stroke="' + esc(l.color) + '" stroke-width="2.2" stroke-dasharray="6 4" stroke-linejoin="round"/>';
       } else {
@@ -404,7 +416,7 @@
       }
     });
     var path = xy.map(function (p, i) { return (i ? 'L' : 'M') + f(X(p.x)) + ' ' + f(Y(p.y)); }).join(' ');
-    if (n >= 3) out += '<path d="' + path + ' Z" fill="' + (o.bad ? 'rgba(216,53,60,0.14)' : hexA(mainCol, 0.2)) + '" stroke="' + (o.bad ? COL.grid : esc(mainCol)) + '" stroke-width="2.4" stroke-linejoin="round"/>';
+    if (n >= 3) out += '<path d="' + path + ' Z" fill="' + (o.bad ? 'rgba(216,53,60,0.14)' : o.dots ? dotsFill(mainCol) : hexA(mainCol, 0.2)) + '" stroke="' + (o.bad ? COL.grid : esc(mainCol)) + '" stroke-width="2.4" stroke-linejoin="round"/>';
     else if (n === 2) out += '<path d="' + path + '" fill="none" stroke="' + esc(mainCol) + '" stroke-width="2.4"/>';
     // rótulos de lado
     if (n >= 2 && n <= 12 && o.sideLabels !== false) {
@@ -433,6 +445,7 @@
     out += '<g transform="translate(14 ' + (Hh - 16) + ')"><line x1="0" y1="0" x2="' + f(barPx) + '" y2="0" stroke="' + COL.ink + '" stroke-width="2.5"/><line x1="0" y1="-4" x2="0" y2="4" stroke="' + COL.ink + '" stroke-width="2"/><line x1="' + f(barPx) + '" y1="-4" x2="' + f(barPx) + '" y2="4" stroke="' + COL.ink + '" stroke-width="2"/><text x="' + f(barPx / 2) + '" y="-7" font-size="11" text-anchor="middle" fill="' + COL.ink + '">' + fmtLen(barM) + '</text></g>';
     // norte
     out += '<g transform="translate(' + (W - 22) + ' 26)"><path d="M0 -14 L7 8 L0 3 L-7 8 Z" fill="' + COL.ink + '"/><text y="22" font-size="11" text-anchor="middle" fill="' + COL.ink + '" font-weight="600">N</text></g>';
+    if (dotDefs) out = out.replace(/^(<svg[^>]*>)/, '$1<defs>' + dotDefs + '</defs>');
     return out + '</svg>';
   }
 

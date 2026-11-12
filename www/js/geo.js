@@ -311,6 +311,24 @@
     }
     return probes(A).some(function (p) { return strictlyInside(p, B, OVERLAP_TOL); }) || probes(B).some(function (p) { return strictlyInside(p, A, OVERLAP_TOL); });
   }
+  // true si el polígono `inner` se sale del polígono `outer`: algún vértice o la mitad de algún lado queda fuera, a más de la
+  // tolerancia del borde (un área que comparte el lindero de la finca no se sale).
+  function sticksOut(inner, outer) {
+    if (!inner || !outer || inner.length < 3 || outer.length < 3) return false;
+    var fr = localFrame(inner.concat(outer));
+    var A = inner.map(function (p) { return toXY(fr, p); }), B = outer.map(function (p) { return toXY(fr, p); });
+    var probes = A.slice();
+    A.forEach(function (p, k) { var q = A[(k + 1) % A.length]; probes.push({ x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 }); });
+    return probes.some(function (p) {
+      var onEdge = false, inside = false, n = B.length;
+      for (var i = 0, j = n - 1; i < n; j = i++) {
+        var a = B[i], b = B[j];
+        if (distSeg(p, a, b) <= OVERLAP_TOL) onEdge = true;
+        if ((a.y > p.y) !== (b.y > p.y) && p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x) inside = !inside;
+      }
+      return !onEdge && !inside;
+    });
+  }
   // Parejas de lotes que se montan: lots = [{ name, points }]; devuelve [[i, j]…] con i < j
   function overlaps(lots) {
     var out = [];
@@ -407,7 +425,7 @@
     distance: distance, haversine: haversine, polygonArea: polygonArea, perimeter: perimeter,
     areaUnits: areaUnits, centroid: centroid, localFrame: localFrame, toXY: toXY, fromXY: fromXY,
     selfIntersects: selfIntersects, angularOrder: angularOrder, bearing: bearing,
-    polygonsOverlap: polygonsOverlap, overlaps: overlaps, overlapText: overlapText,
+    sticksOut: sticksOut, polygonsOverlap: polygonsOverlap, overlaps: overlaps, overlapText: overlapText,
     origenNacional: origenNacional, inColombia: inColombia,
     FANEGADA_M2: FANEGADA_M2, RQ: RQ
   };

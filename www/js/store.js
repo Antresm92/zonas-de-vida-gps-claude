@@ -41,6 +41,7 @@
   var HEX = /^#[0-9a-fA-F]{6}$/;
   function isObj(v) { return !!v && typeof v === 'object' && !Array.isArray(v); }
   function lotName(v, i) { var s = typeof v === 'string' ? v.replace(/[\u0000-\u001F\u007F]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, LOT_NAME_MAX) : ''; return s || 'Lote ' + (i + 1); }
+  var CAT_MAX = 30;
   function newLot(name, color) { return { id: uid(), name: lotName(name, 0), points: [], climate: {}, nextPoint: 1, mainColor: HEX.test(color || '') ? color : MAIN_COLOR }; }
   function cleanLot(l, i) {
     l.id = typeof l.id === 'string' && l.id ? l.id : uid();
@@ -50,6 +51,12 @@
     l.nextPoint = typeof l.nextPoint === 'number' && isFinite(l.nextPoint) ? l.nextPoint : l.points.length + 1;
     l.mainColor = HEX.test(l.mainColor) ? l.mainColor : MAIN_COLOR;
     if (!isObj(l.weatherNow)) delete l.weatherNow;                    // clima actual consultado (2.5.0)
+    // Jerarquía (2.17.0): kind 'finca' (terreno completo) o 'area' (potrero, cafetal… dentro de una finca); sin kind es un lote como siempre.
+    if (l.kind !== 'finca' && l.kind !== 'area') delete l.kind;
+    var cat = l.kind === 'area' && typeof l.cat === 'string' ? l.cat.replace(/[\u0000-\u001F\u007F]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, CAT_MAX) : '';
+    if (cat) l.cat = cat; else delete l.cat;                           // tipo del área, con el título que la persona quiera («Cacaotera», «Casa»)
+    if (!(l.kind === 'area' && typeof l.parent === 'string' && l.parent)) delete l.parent;   // la finca a la que pertenece (se valida en toLots)
+    if (l.kind === 'finca' && l.locked === true) l.locked = true; else delete l.locked;      // lindero bloqueado contra cambios por descuido
     l.points.forEach(function (pt) {                                  // fotos de cada punto (2.5.0): solo la lista de ids; la imagen vive aparte
       if (!pt || typeof pt !== 'object' || pt.photos === undefined) return;
       var ph = Fotos.cleanList(pt.photos);
@@ -69,6 +76,9 @@
     var seen = {};
     p.lots.forEach(function (l) { if (seen[l.id]) l.id = uid(); seen[l.id] = true; });
     if (!p.lots.some(function (l) { return l.id === p.lotId; })) p.lotId = p.lots[0].id;
+    var fincas = {};
+    p.lots.forEach(function (l) { if (l.kind === 'finca') fincas[l.id] = true; });
+    p.lots.forEach(function (l) { if (l.parent !== undefined && !fincas[l.parent]) delete l.parent; });      // un área solo cuelga de una finca que exista
     return p;
   }
   function activeLot(p) { for (var i = 0; i < p.lots.length; i++) if (p.lots[i].id === p.lotId) return p.lots[i]; return p.lots[0]; }
@@ -144,6 +154,6 @@
   function loadAuthor() { return cleanAuthor(read(KEY_AUTHOR)); }
   function saveAuthor(a) { return write(KEY_AUTHOR, cleanAuthor(a)); }
 
-  return { lotify: lotify, toLots: toLots, newLot: newLot, activeLot: activeLot, lotName: lotName, LOT_MAX: LOT_MAX, LOT_NAME_MAX: LOT_NAME_MAX, LOT_KEYS: LOT_KEYS, loadAuthor: loadAuthor, saveAuthor: saveAuthor, cleanAuthor: cleanAuthor, AUTHOR_MAX: AUTHOR_MAX, LOGO_MAX: LOGO_MAX, loadState: loadState, saveState: saveState, hasSavedState: hasSavedState, loadMemory: loadMemory, saveMemory: saveMemory, loadFlag: loadFlag, saveFlag: saveFlag,
+  return { lotify: lotify, toLots: toLots, newLot: newLot, activeLot: activeLot, lotName: lotName, LOT_MAX: LOT_MAX, LOT_NAME_MAX: LOT_NAME_MAX, LOT_KEYS: LOT_KEYS, loadAuthor: loadAuthor, saveAuthor: saveAuthor, cleanAuthor: cleanAuthor, CAT_MAX: CAT_MAX, AUTHOR_MAX: AUTHOR_MAX, LOGO_MAX: LOGO_MAX, loadState: loadState, saveState: saveState, hasSavedState: hasSavedState, loadMemory: loadMemory, saveMemory: saveMemory, loadFlag: loadFlag, saveFlag: saveFlag,
            newProject: newProject, uid: uid, setBackend: setBackend, defaultState: defaultState, MAIN_COLOR: MAIN_COLOR, MIN_ACC: MIN_ACC };
 });

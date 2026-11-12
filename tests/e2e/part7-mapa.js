@@ -75,7 +75,7 @@ module.exports = async function (c) {
     assert.equal(i.base, 'calles');
     assert.equal(i.reference, false);
     assert.deepEqual(i.markers.map((m) => m.label), ['P1 · 2600 m', 'P2 · 2600 m', 'P3 · 2600 m']);
-    assert.deepEqual(i.polygon, { vertices: 3, closed: true, bad: false, color: '#2F8F4E' });
+    assert.deepEqual(i.polygon, { vertices: 3, closed: true, bad: false, color: '#2F8F4E', dots: false, locked: false });
     assert.ok(i.zoom >= 13 && i.zoom <= 16, 'encuadra los tres puntos, zoom ' + i.zoom);
     near(i.center.lat, 4.6050, 0.012, 'centro lat'); near(i.center.lon, -74.075, 0.006, 'centro lon');
     assert.deepEqual(await labels(), ['P1 · 2600 m', 'P2 · 2600 m', 'P3 · 2600 m']);
@@ -307,7 +307,7 @@ module.exports = async function (c) {
     await addPointManual('6.2452, -75.5802', 1500);
     await tab('area');
     i = await waitInfo((x) => x.markers.length === 2 && x.polygon !== null, 3000, 'dos puntos');
-    assert.deepEqual(i.polygon, { vertices: 2, closed: false, bad: false, color: '#2F8F4E' }, 'dos puntos se unen con una línea');
+    assert.deepEqual(i.polygon, { vertices: 2, closed: false, bad: false, color: '#2F8F4E', dots: false, locked: false }, 'dos puntos se unen con una línea');
   });
 
   await step('Lados que se cruzan: el polígono se pinta en rojo', async () => {
@@ -315,7 +315,7 @@ module.exports = async function (c) {
     for (const p of ['4.60, -74.08', '4.61, -74.07', '4.60, -74.07', '4.61, -74.08']) await addPointManual(p, 2600);
     await openMap();
     const i = await waitInfo((x) => x.polygon !== null, 3000, 'polígono');
-    assert.deepEqual(i.polygon, { vertices: 4, closed: true, bad: true, color: '#C42D34' });
+    assert.deepEqual(i.polygon, { vertices: 4, closed: true, bad: true, color: '#C42D34', dots: false, locked: false });
     await shot('73-lados-cruzados');
   });
 

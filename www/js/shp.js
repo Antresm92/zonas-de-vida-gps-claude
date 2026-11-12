@@ -143,30 +143,32 @@
     model = model || {};
     var multi = Array.isArray(model.lots);
     var lots = (multi ? model.lots : [{ name: model.name, points: model.points }]).map(function (l) {
-      return { name: (l && l.name) || '', pts: ((l && l.points) || []).filter(validLL) };
+      return { name: (l && l.name) || '', tipo: (l && l.tipo) || '', pts: ((l && l.points) || []).filter(validLL) };
     }).filter(function (l) { return l.pts.length; });
     var all = [];
     lots.forEach(function (l) { all = all.concat(l.pts); });
     if (!all.length) throw new Error('No hay puntos para exportar.');
     var base = String(model.base || 'terreno'), box = bbox(all), LOTE = { name: 'LOTE', type: 'C', len: 40 };
+    var tipos = multi && lots.some(function (l) { return l.tipo; }), PRE = tipos ? [LOTE, { name: 'TIPO', type: 'C', len: 60 }] : [LOTE];      // con fincas y áreas (2.17.0): columna TIPO
+    function pre(l) { return tipos ? [l.name, l.tipo || 'Lote'] : [l.name]; }
     var prow = [], contents = [];
     lots.forEach(function (l) {
       l.pts.forEach(function (p, i) {
         var on = Geo.origenNacional(p.lat, p.lon);
         var r = [p.name || ('P' + (i + 1)), i + 1, p.lat, p.lon, isNum(p.alt) ? p.alt : null, on ? on.e : null, on ? on.n : null];
-        prow.push(multi ? [l.name].concat(r) : r);
+        prow.push(multi ? pre(l).concat(r) : r);
         contents.push(pointContent(p));
       });
     });
-    var out = set(base + '_puntos', shapeFiles(POINT, contents, box), dbf(multi ? [LOTE].concat(POINT_FIELDS) : POINT_FIELDS, prow, now));
+    var out = set(base + '_puntos', shapeFiles(POINT, contents, box), dbf(multi ? PRE.concat(POINT_FIELDS) : POINT_FIELDS, prow, now));
     var polys = lots.filter(function (l) { return l.pts.length >= 3; });
     if (polys.length) {
       var pall = [];
       polys.forEach(function (l) { pall = pall.concat(l.pts); });
       out = out.concat(set(base + '_poligono', shapeFiles(POLYGON, polys.map(function (l) { return polygonContent(l.pts); }), bbox(pall)),
-        dbf(multi ? [LOTE].concat(POLY_FIELDS) : POLY_FIELDS, polys.map(function (l) {
+        dbf(multi ? PRE.concat(POLY_FIELDS) : POLY_FIELDS, polys.map(function (l) {
           var m2 = Geo.polygonArea(l.pts), r = [(multi ? model.name : l.name) || 'Terreno', m2 / 10000, m2, Geo.perimeter(l.pts, true), l.pts.length];
-          return multi ? [l.name].concat(r) : r;
+          return multi ? pre(l).concat(r) : r;
         }), now)));
     }
     return out;

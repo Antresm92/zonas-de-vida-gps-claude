@@ -30,6 +30,27 @@
     var measureGroup = L.layerGroup().addTo(map);
     var sideRefs = [], selId = null, lastFix = null, measurePts = [], measureClosed = false;
     var model = { markers: [], polygon: null, layers: [], fix: null };
+    // Relleno de puntos para las áreas (2.17.0). Es una trama que el propio lienzo del mapa repite: no añade figuras ni pesa al mover
+    // el mapa, y los puntos miden lo mismo con el mapa cerca o lejos (no se amontonan). Lleva un tinte suave debajo para que un área
+    // pequeña se siga viendo. Si el equipo no puede crear la trama, se usa el relleno liso de siempre.
+    var dotCache = {};
+    function dotFill(color) {
+      if (dotCache[color] !== undefined) return dotCache[color];
+      var pat = null;
+      try {
+        var dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1)), T = 10, c = document.createElement('canvas');
+        c.width = c.height = Math.round(T * dpr);
+        var g = c.getContext('2d');
+        g.scale(c.width / T, c.height / T);
+        g.globalAlpha = 0.10; g.fillStyle = color; g.fillRect(0, 0, T, T);
+        g.globalAlpha = 0.85;
+        [[2.5, 2.5], [7.5, 7.5]].forEach(function (q) { g.beginPath(); g.arc(q[0], q[1], 1.35, 0, Math.PI * 2); g.fill(); });      // dos puntos por baldosa, al tresbolillo
+        pat = g.createPattern(c, 'repeat');
+        if (pat && pat.setTransform && typeof DOMMatrix === 'function') pat.setTransform(new DOMMatrix().scale(T / c.width));       // nítida en pantallas densas
+      } catch (e) { pat = null; }
+      dotCache[color] = pat;
+      return pat;
+    }
     var mode = '';                 // '' · 'add' (Ingresar puntos) · 'move' (Posición manual)
     var lastShapes = null, pending = null, refs = {}, polyLayer = null, drag = null, pid = null, lastTap = null;
 
@@ -140,7 +161,8 @@
       shapes.layers.forEach(function (l) {
         var style = { color: l.color, weight: l.lot ? 2 : 3, opacity: l.lot ? 0.8 : 0.95, interactive: false };
         if (l.kind === 'polygon' && l.latlngs.length >= 3) {
-          L.polygon([l.latlngs].concat(l.holes), { color: l.color, weight: l.lot ? 2 : 3, opacity: l.lot ? 0.8 : 1, fillColor: l.color, fillOpacity: l.lot ? 0.12 : 0.18, interactive: false }).addTo(drawn);
+          var lp = l.dots ? dotFill(l.color) : null;
+          L.polygon([l.latlngs].concat(l.holes), { color: l.color, weight: l.lot ? 2 : 3, opacity: l.lot ? 0.8 : 1, fillColor: lp || l.color, fillOpacity: lp ? (l.lot ? 0.75 : 1) : l.lot ? 0.12 : 0.18, interactive: false }).addTo(drawn);
         } else if (l.kind === 'line' && l.latlngs.length >= 2) {
           L.polyline(l.latlngs, style).addTo(drawn);
         } else if (l.kind === 'points') {
@@ -151,13 +173,14 @@
           tag.className = 'mk-lot-tag'; tag.textContent = l.label; tag.style.borderColor = l.color;
           L.marker(l.at, { icon: L.divIcon({ className: 'mk mk-lot', html: tag, iconSize: [0, 0] }), interactive: false, keyboard: false }).addTo(drawn);
         }
-        model.layers.push({ id: l.id, kind: l.kind, color: l.color, vertices: l.latlngs.length, lot: !!l.lot, label: l.label || '' });
+        model.layers.push({ id: l.id, kind: l.kind, color: l.color, vertices: l.latlngs.length, lot: !!l.lot, label: l.label || '', dots: !!l.dots });
       });
       if (shapes.polygon) {
         var bad = shapes.polygon.bad, col = bad ? '#C42D34' : shapes.color;
-        if (shapes.polygon.closed) polyLayer = L.polygon(shapes.polygon.latlngs, { color: col, weight: 3, fillColor: col, fillOpacity: bad ? 0.14 : 0.2, interactive: false }).addTo(drawn);
+        var mp = shapes.dots && !bad ? dotFill(col) : null;
+        if (shapes.polygon.closed) polyLayer = L.polygon(shapes.polygon.latlngs, { color: col, weight: 3, fillColor: mp || col, fillOpacity: mp ? 1 : bad ? 0.14 : 0.2, interactive: false }).addTo(drawn);
         else polyLayer = L.polyline(shapes.polygon.latlngs, { color: col, weight: 3, interactive: false }).addTo(drawn);
-        model.polygon = { vertices: shapes.polygon.latlngs.length, closed: shapes.polygon.closed, bad: bad, color: col };
+        model.polygon = { vertices: shapes.polygon.latlngs.length, closed: shapes.polygon.closed, bad: bad, color: col, dots: !!mp, locked: !!shapes.locked };
       }
       (shapes.sides || []).forEach(function (sd) {      // sus rótulos los pone syncSides, solo donde caben
         sideRefs.push({ sd: sd, marker: null, a: L.latLng(sd.a), b: L.latLng(sd.b), mid: L.latLng(sd.mid), text: sd.text, hasPlus: mode === 'move', label: false, plus: false, alt: false });

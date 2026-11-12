@@ -5,7 +5,7 @@
   var Geo = window.Geo, H = window.Holdridge, Climate = window.Climate, A = window.Analysis, Fmt = window.Fmt,
       Gps = window.Gps, Store = window.Store, Diagram = window.Diagram, Report = window.Report,
       Gis = window.Gis, Backup = window.Backup, IO = window.IO, WL = window.WalterLieth, Mapa = window.Mapa, MapView = window.MapView, Satelite = window.Satelite, Perfil = window.Perfil, Fotos = window.Fotos, Zip = window.Zip, Units = window.Units;
-  var APP_VERSION = '2.16.0';
+  var APP_VERSION = '2.17.0';
 
   var S = Store.loadState();
   var hadSaved = Store.hasSavedState();      // ¿había datos guardados al abrir? (solo entonces se limpian las fotos sin uso)
@@ -31,8 +31,9 @@
   function multi(p) { return (p || proj()).lots.length > 1; }
   function lotLayers(p) {
     var cur = Store.activeLot(p);
-    return p.lots.filter(function (l) { return l !== cur && l.points.length; }).map(function (l) {
-      return { id: 'lote-' + l.id, lotId: l.id, lot: true, name: l.name, kind: l.points.length >= 3 ? 'polygon' : l.points.length === 2 ? 'line' : 'points', color: l.mainColor, visible: true, points: l.points,
+    // las fincas van primero: así las áreas se dibujan encima de su finca
+    return p.lots.filter(function (l) { return l !== cur && l.points.length; }).sort(function (a, b) { return (Predio.isFinca(b) ? 1 : 0) - (Predio.isFinca(a) ? 1 : 0); }).map(function (l) {
+      return { id: 'lote-' + l.id, lotId: l.id, lot: true, dots: Predio.isArea(l), name: l.name, kind: l.points.length >= 3 ? 'polygon' : l.points.length === 2 ? 'line' : 'points', color: l.mainColor, visible: true, points: l.points,
         areaText: l.points.length >= 3 ? Fmt.area(Geo.areaUnits(Geo.polygonArea(l.points)), S.settings.areaUnit) : '' };
     });
   }
@@ -41,7 +42,9 @@
   function view(p) {
     p = p || proj();
     var l = Store.activeLot(p);
-    var v = { id: p.id + ':' + l.id, name: p.name, lotName: multi(p) ? l.name : '', points: l.points, climate: l.climate, layers: viewLayers(p), mainColor: l.mainColor, nextPoint: l.nextPoint };
+    var par = Predio.parentOf(l, p.lots);
+    var v = { id: p.id + ':' + l.id, name: p.name, lotName: multi(p) ? l.name : '', points: l.points, climate: l.climate, layers: viewLayers(p), mainColor: l.mainColor, nextPoint: l.nextPoint,
+      dots: Predio.isArea(l), locked: !!l.locked, lotMeta: { id: l.id, kind: l.kind || '', cat: l.cat || '', parent: par ? par.id : '', parentName: par ? par.name : '' } };
     if (l.weatherNow) v.weatherNow = l.weatherNow;
     return v;
   }
@@ -515,13 +518,35 @@
   var LOT_COLORS = Gis.COLORS;      // los mismos colores de la paleta, para que el elegido quede marcado
   function lotSub(l) {
     var m2 = lotArea(l), n = l.points.length;
-    return (m2 ? Fmt.area(Geo.areaUnits(m2), S.settings.areaUnit) + ' · ' : '') + n + (n === 1 ? ' punto' : ' puntos') + (!m2 && n ? ' · falta cerrar el polígono' : '');
+    var base = (m2 ? Fmt.area(Geo.areaUnits(m2), S.settings.areaUnit) + ' · ' : '') + n + (n === 1 ? ' punto' : ' puntos') + (!m2 && n ? ' · falta cerrar el polígono' : '');
+    if (!l.kind) return base;
+    // finca o área (2.17.0): su tipo, la finca a la que pertenece y qué parte de ella ocupa
+    var par = Predio.parentOf(l, proj().lots), pm = par ? lotArea(par) : 0;
+    return Predio.kindLabel(l) + (l.locked ? ' · lindero bloqueado' : '') + (par ? ' · en «' + par.name + '»' + (m2 && pm ? ' (' + Fmt.num(m2 / pm * 100, 1) + ' %)' : '') : '') + ' · ' + base;
   }
+  /* ---------- Fincas y áreas (2.17.0) ---------- */
+  // Si el lindero de la finca elegida está bloqueado, avisa (con «Desbloquear») y devuelve true: quien llama no debe cambiar los puntos
+  function lockStop() {
+    var l = lot();
+    if (!l.locked) return false;
+    toast('El lindero de la finca «' + l.name + '» está bloqueado para que no cambie por descuido.', { action: 'Desbloquear', fn: function () { setLock(l, false); } });
+    return true;
+  }
+  function setLock(l, on) {
+    if (on) { l.locked = true; if (l === lot()) { if (ui.track) finishTrack(); if (ui.mapMode) setMapMode(''); if (ui.mapTool === 'mira' || ui.mapTool === 'caminar') setMapTool(''); } }
+    else delete l.locked;
+    save(); renderTab(ui.tab);
+    toast(on ? 'Lindero de «' + l.name + '» bloqueado.' : 'Lindero de «' + l.name + '» desbloqueado: ya puedes editarlo.');
+  }
+  // Acciones que cambian los puntos del polígono elegido: con el lindero bloqueado no se ejecutan
+  var LOCKED_ACTS = { mapAimAdd: 1, mapWalk: 1, mapMark: 1, mark: 1, markAnyway: 1, addCoords: 1, addBulk: 1, saveBulk: 1, saveNew: 1, saveEdit: 1, askDelete: 1, doDelete: 1,
+    mapCardOrder: 1, mapReorder: 1, mapSumTap: 1, mapCardMove: 1, mapUndo: 1, layerToMain: 1, mapMode: 1, mapAim: 1 };
   function lotsBar() {
     var p = proj(), cur = lot(), h = '<div class="lots" role="group" aria-label="Lotes del proyecto">';
     p.lots.forEach(function (l) {
       var m2 = lotArea(l);
-      h += '<button class="lotchip" data-act="lotPick" data-id="' + esc(l.id) + '" aria-pressed="' + (l === cur) + '"><i style="background:' + esc(l.mainColor) + '"></i>' + esc(l.name) +
+      h += '<button class="lotchip" data-act="lotPick" data-id="' + esc(l.id) + '" aria-pressed="' + (l === cur) + '"><i' + (Predio.isArea(l) ? ' class="dots"' : '') + ' style="background-color:' + esc(l.mainColor) + '"></i>' + esc(l.name) +
+        (l.locked ? ' <span class="lk" aria-label="lindero bloqueado">🔒</span>' : '') +
         (m2 ? ' <small>· ' + esc(Fmt.area(Geo.areaUnits(m2), S.settings.areaUnit)) + '</small>' : '') + '</button>';
     });
     if (p.lots.length < Store.LOT_MAX) h += '<button class="lotchip add" data-act="lotAdd" aria-label="Agregar un lote al proyecto">＋ Lote</button>';
@@ -534,66 +559,153 @@
     if (p.lotId === id || !p.lots.some(function (l) { return l.id === id; })) return false;
     if (ui.track) finishTrack();
     if (ui.mapTool) setMapTool('');
+    var was = lot();
+    ui.lockNote = '';
+    if (Predio.isFinca(was) && was.points.length >= 3 && !was.locked) { was.locked = true; ui.lockNote = ' El lindero de «' + was.name + '» quedó bloqueado.'; }   // al salir de una finca, su lindero se protege solo
     p.lotId = id;
+    if (lot().locked && ui.mapMode) setMapMode('');
     ui.mapSel = null; ui.navId = null; ui.unfolded = {};
     save();
-    if (!quiet) { renderTab(ui.tab); toast('Lote elegido: ' + lot().name + '.'); }
+    if (!quiet) { renderTab(ui.tab); toast('Lote elegido: ' + lot().name + '.' + ui.lockNote); }
     return true;
   }
+  // Por cada finca: cuántas áreas tiene, cuánto ocupan y cuánto queda sin asignar
+  function fincaLines(acc) {
+    var u = S.settings.areaUnit, h = '';
+    acc.fincas.forEach(function (f) {
+      if (!f.m2) return;
+      h += '<p class="small fincaline"><b>' + esc(f.lot.name) + '</b>: ' + (f.n ? f.n + (f.n === 1 ? ' área' : ' áreas') + ', ' + esc(Fmt.area(Geo.areaUnits(f.used), u)) + ' (' + Fmt.num(f.used / f.m2 * 100, 1) + ' %) · sin asignar ' +
+        esc(Fmt.area(Geo.areaUnits(f.free), u)) : 'todavía sin áreas') + (f.over ? ' · las áreas suman más que la finca' : '') + '.</p>';
+    });
+    return h;
+  }
   function openLots() {
-    var p = proj(), cur = lot(), total = 0, closed = 0, h = '';
+    var p = proj(), cur = lot(), acc = Predio.account(p.lots), total = acc.total, closed = acc.closed, h = '';
     p.lots.forEach(function (l) {
-      var m2 = lotArea(l);
-      if (m2) { total += m2; closed++; }
-      h += '<div class="lotrow' + (l === cur ? ' on' : '') + '"><i style="background:' + esc(l.mainColor) + '"></i>' +
+      h += '<div class="lotrow' + (l === cur ? ' on' : '') + (Predio.parentOf(l, p.lots) ? ' child' : '') + '"><i' + (Predio.isArea(l) ? ' class="dots"' : '') + ' style="background-color:' + esc(l.mainColor) + '"></i>' +
         '<button class="lotpick" data-act="lotPickClose" data-id="' + esc(l.id) + '"><b>' + esc(l.name) + '</b><small>' + esc(lotSub(l)) + '</small></button>' +
         '<button class="lotmore" data-act="lotEdit" data-id="' + esc(l.id) + '" aria-label="Editar ' + esc(l.name) + ': nombre, color o eliminar">⋮</button></div>';
     });
-    h += '<p class="small muted" id="lotTotal">' + (closed ? 'Total del proyecto: <b>' + esc(Fmt.area(Geo.areaUnits(total), S.settings.areaUnit)) + '</b> en ' + closed + (closed === 1 ? ' lote cerrado' : ' lotes cerrados') + '.' : 'Todavía no hay ningún lote con polígono cerrado.') +
-      ' Cada lote tiene sus propios puntos, su clima y su zona de vida.</p>';
-    var ovl = Geo.overlapText(p.lots);
-    if (ovl) h += '<div class="tip" id="lotOverlap">' + esc(ovl) + '</div>';
+    var kinds = p.lots.some(function (l) { return !!l.kind; });
+    h += '<p class="small muted" id="lotTotal">' + (closed ? 'Total del proyecto: <b>' + esc(Fmt.area(Geo.areaUnits(total), S.settings.areaUnit)) + '</b>' +
+      (kinds ? '. Las áreas que están dentro de una finca no se suman otra vez.' : ' en ' + closed + (closed === 1 ? ' lote cerrado' : ' lotes cerrados') + '.') : 'Todavía no hay ningún lote con polígono cerrado.') +
+      ' Cada ' + (kinds ? 'polígono' : 'lote') + ' tiene sus propios puntos, su clima y su zona de vida.</p>';
+    h += fincaLines(acc);
+    var ovl = Predio.warnings(p.lots);
+    if (ovl.length) h += '<div class="tip" id="lotOverlap">' + ovl.map(esc).join('<br>') + '</div>';
     if (p.lots.length < Store.LOT_MAX) h += '<div class="btns"><button class="btn btn-primary" data-act="lotAdd">＋ Agregar lote</button></div>';
     hideSheet();
     openSheet('Lotes de ' + p.name, h);
   }
-  function lotForm(id) {
+  // from: '' (desde «＋ Lote»: propone un lote como siempre) o 'map' (desde «Crear polígono»: propone finca, o área si ya hay finca)
+  function lotForm(id, from) {
     var p = proj(), l = id ? p.lots.filter(function (x) { return x.id === id; })[0] : null;
     if (id && !l) return;
     var used = {}, color = l ? l.mainColor : '';
     p.lots.forEach(function (x) { used[x.mainColor.toUpperCase()] = true; });
     if (!l) color = LOT_COLORS.filter(function (c) { return !used[c]; })[0] || LOT_COLORS[p.lots.length % LOT_COLORS.length];   // el primer color que ningún lote usa
+    var k = l ? (l.kind || '') : from === 'map' ? (Predio.fincas(p.lots).length ? 'area' : 'finca') : '';
+    var near = ui.map && from === 'map' ? ui.map.center() : null, cur = lot();
+    var gp = l ? Predio.parentOf(l, p.lots) : Predio.guessParent(p.lots, near, Predio.isFinca(cur) ? cur.id : cur.parent);
+    ui.edit = { kind: 'lot', id: id || '', color: color, k: k, cat: l && l.cat || '', parent: gp ? gp.id : '', name: l ? l.name : '', auto: !l, title: l ? 'Editar lote' : from === 'map' ? 'Crear polígono' : 'Nuevo lote' };
+    if (!l) { ui.edit.name = lotDefaultName(); if (k === 'area') ui.edit.color = Predio.catColor(ui.edit.cat); if (k === 'finca') ui.edit.color = Predio.FINCA_COLOR; }
+    hideSheet();
+    openSheet(ui.edit.title, lotFormBody());
+  }
+  // Nombre que se propone mientras la persona no escriba el suyo: «Lote 3», «Finca», «Potrero 2»…
+  function lotDefaultName() {
+    var p = proj(), e = ui.edit, base = e.k === 'finca' ? 'Finca' : e.k === 'area' ? (e.cat || 'Área') : 'Lote';
+    if (!e.k) return 'Lote ' + (p.lots.length + 1);
+    var n = p.lots.filter(function (x) { return x.kind === e.k && (e.k === 'finca' || (x.cat || 'Área') === base); }).length;
+    return n ? base + ' ' + (n + 1) : base;
+  }
+  function lotFormBody() {
+    var p = proj(), e = ui.edit, l = e.id ? p.lots.filter(function (x) { return x.id === e.id; })[0] : null, fs = Predio.fincas(p.lots).filter(function (f) { return f !== l; });
     var others = {};
     p.lots.forEach(function (x) { if (x !== l) others[x.mainColor.toUpperCase()] = x.name; });      // colores de los demás lotes
-    ui.edit = { kind: 'lot', id: id || '', color: color };
-    hideSheet();
-    openSheet(l ? 'Editar lote' : 'Nuevo lote',
-      '<label class="f"><span>Nombre del lote</span><input type="text" id="lotName" value="' + esc(l ? l.name : 'Lote ' + (p.lots.length + 1)) + '" maxlength="' + Store.LOT_NAME_MAX + '" autocomplete="off"></label>' +
-      '<div class="f"><span style="display:block;margin-bottom:6px;font-weight:650">Color</span>' + colorPalette(color, others) +
+    var h = '<div class="f"><span class="f-label2">¿Qué vas a delimitar?</span><div class="seg seg3" role="group" aria-label="Tipo de polígono" id="lotKind">' +
+      [['', 'Lote'], ['finca', 'Finca'], ['area', 'Área']].map(function (o) { return '<button data-act="lotKind" data-k="' + o[0] + '" aria-pressed="' + (e.k === o[0]) + '">' + o[1] + '</button>'; }).join('') + '</div>' +
+      '<span class="f-hint" id="lotKindHint">' + (e.k === 'finca' ? 'La finca o el terreno completo. Su lindero se bloquea solo cuando pasas a otro polígono, para que no cambie por descuido.' :
+        e.k === 'area' ? 'Una parte de trabajo dentro de la finca: potrero, cafetal, cultivo… Se dibuja con relleno de puntos y no cambia el lindero de la finca.' :
+        'Un polígono suelto, como hasta ahora: ni finca ni área.') + '</span></div>';
+    if (e.k === 'area') {
+      h += '<div class="f"><span class="f-label2">Tipo de área</span><div class="cats" role="group" aria-label="Tipo de área">' +
+        Predio.CATS.map(function (c) { return '<button class="cat" data-act="lotCat" data-c="' + esc(c[0]) + '" aria-pressed="' + (e.cat.toLowerCase() === c[0].toLowerCase()) + '">' + esc(c[0]) + '</button>'; }).join('') + '</div>' +
+        '<input type="text" id="lotCat" value="' + esc(e.cat) + '" maxlength="' + Store.CAT_MAX + '" autocomplete="off" placeholder="O escribe el tuyo: Cacaotera, Casa…" aria-label="Tipo de área, con tus palabras"></div>';
+      h += fs.length ? '<label class="f"><span>Pertenece a la finca</span><select id="lotParent"><option value="">Ninguna (área suelta)</option>' +
+        fs.map(function (f) { return '<option value="' + esc(f.id) + '"' + (f.id === e.parent ? ' selected' : '') + '>' + esc(f.name) + '</option>'; }).join('') + '</select></label>' :
+        '<p class="small muted" id="lotNoFinca">Todavía no hay una finca en este proyecto: el área queda suelta. Cuando crees la finca podrás asignársela aquí.</p>';
+    }
+    h += '<label class="f"><span>Nombre</span><input type="text" id="lotName" value="' + esc(e.name) + '" maxlength="' + Store.LOT_NAME_MAX + '" autocomplete="off"></label>' +
+      '<div class="f"><span style="display:block;margin-bottom:6px;font-weight:650">Color</span>' + colorPalette(e.color, others) +
       (Object.keys(others).length ? '<span class="f-hint" id="lotColorHint">Los colores con un punto blanco ya los usa otro lote.</span>' : '') + '</div>' +
-      (l ? '<p class="small muted">' + esc(lotSub(l)) + '</p>' : '<p class="small muted">El lote nuevo empieza vacío y queda elegido: los puntos que marques después se guardan en él.</p>') +
-      '<div class="btns"><button class="btn btn-primary" data-act="lotSave">' + (l ? 'Guardar' : 'Crear lote') + '</button>' +
-      (l && p.lots.length > 1 ? '<button class="btn btn-danger" data-act="lotDelete" data-id="' + esc(l.id) + '">Eliminar lote</button>' : '') + '</div>');
+      (l ? '<p class="small muted">' + esc(lotSub(l)) + '</p>' : '<p class="small muted">' + (e.k ? 'Empieza vacío y queda elegido' : 'El lote nuevo empieza vacío y queda elegido') + ': los puntos que marques después se guardan en él.</p>');
+    if (l && l.kind === 'finca' && e.k === 'finca') h += '<div class="btns"><button class="btn" data-act="lotLock" data-id="' + esc(l.id) + '">' + (l.locked ? '🔓 Desbloquear el lindero para editarlo' : '🔒 Bloquear el lindero') + '</button></div>';
+    return h + '<div class="btns"><button class="btn btn-primary" data-act="lotSave">' + (l ? 'Guardar' : e.k === 'finca' ? 'Crear finca' : e.k === 'area' ? 'Crear área' : 'Crear lote') + '</button>' +
+      (l && p.lots.length > 1 ? '<button class="btn btn-danger" data-act="lotDelete" data-id="' + esc(l.id) + '">Eliminar lote</button>' : '') + '</div>';
+  }
+  // Lee lo escrito y vuelve a dibujar la hoja (al cambiar el tipo o la categoría), sin perder nada
+  function lotFormRead() {
+    var e = ui.edit, n = $('#lotName'), c = $('#lotCat'), s = $('#lotParent');
+    if (n) { if (n.value !== e.name) e.auto = false; e.name = n.value; }
+    if (c) e.cat = c.value.replace(/\s+/g, ' ').trim().slice(0, Store.CAT_MAX);
+    if (s) e.parent = s.value;
+  }
+  function lotFormRefresh() {
+    var e = ui.edit;
+    if (e.auto) e.name = lotDefaultName();
+    var body = $('#sheet .sheet-body');
+    if (body) body.innerHTML = lotFormBody();
+  }
+  function lotSetKind(k) {
+    var e = ui.edit;
+    if (!e || e.kind !== 'lot') return;
+    lotFormRead();
+    e.k = k;
+    if (!e.id) e.color = k === 'finca' ? Predio.FINCA_COLOR : k === 'area' ? Predio.catColor(e.cat) : e.color;
+    lotFormRefresh();
+  }
+  function lotSetCat(c) {
+    var e = ui.edit;
+    if (!e || e.kind !== 'lot') return;
+    lotFormRead();
+    e.cat = c;
+    if (!e.id) e.color = Predio.catColor(c);
+    lotFormRefresh();
+  }
+  function lotApplyMeta(l, e) {
+    if (e.k) l.kind = e.k; else delete l.kind;
+    if (e.k === 'area' && e.cat) l.cat = e.cat; else delete l.cat;
+    if (e.k === 'area' && e.parent) l.parent = e.parent; else delete l.parent;
+    if (e.k !== 'finca') { delete l.locked; proj().lots.forEach(function (x) { if (x.parent === l.id) delete x.parent; }); }      // si deja de ser finca, sus áreas quedan sueltas
   }
   function lotSave() {
     var e = ui.edit, p = proj();
     if (!e || e.kind !== 'lot') return;
-    var name = Store.lotName($('#lotName') ? $('#lotName').value : '', p.lots.length);
+    lotFormRead();
+    if (e.auto && !e.id) e.name = lotDefaultName();          // si no escribió un nombre, toma el del tipo («Cacaotera», «Potrero 2»…)
+    var name = Store.lotName(e.name, p.lots.length);
     if (e.id) {
       var l = p.lots.filter(function (x) { return x.id === e.id; })[0];
       if (!l) return;
-      l.name = name; l.mainColor = e.color;
+      l.name = name; l.mainColor = e.color; lotApplyMeta(l, e);
       save(); closeSheet(); renderTab(ui.tab); toast('Lote guardado.');
       return;
     }
     if (p.lots.length >= Store.LOT_MAX) { toast('Un proyecto admite hasta ' + Store.LOT_MAX + ' lotes.', { err: true }); return; }
-    var nl = Store.newLot(name, e.color), prev = p.lotId;
+    var nl = Store.newLot(name, e.color), prev = p.lotId, wasLocked = lot().locked;
+    lotApplyMeta(nl, e);
     p.lots.push(nl);
     pickLot(nl.id, true);
+    var note = ui.lockNote || '', prevLot = p.lots.filter(function (x) { return x.id === prev; })[0];
     save(); closeSheet(); renderTab(ui.tab);
-    toast('«' + nl.name + '» creado y elegido.', { action: 'Deshacer', fn: function () {
+    if (e.title === 'Crear polígono' && ui.tab === 'area' && ui.polyView === 'mapa' && !ui.mapMode) setMapMode('add');      // desde el mapa: queda listo para marcar tocando
+    toast('«' + nl.name + '» creado y elegido.' + note + (e.title === 'Crear polígono' ? ' Toca el mapa para marcar sus puntos.' : ''), { action: 'Deshacer', fn: function () {
       if (nl.points.length) { toast('El lote ya tiene puntos: elimínalo desde la lista de lotes.', { err: true }); return; }
-      p.lots = p.lots.filter(function (x) { return x !== nl; }); p.lotId = prev; save(); renderTab(ui.tab);
+      p.lots = p.lots.filter(function (x) { return x !== nl; }); p.lotId = prev;
+      if (prevLot && note && !wasLocked) delete prevLot.locked;
+      if (ui.mapMode === 'add') setMapMode('');
+      save(); renderTab(ui.tab);
     } });
   }
   function lotDelete(id) {
@@ -641,6 +753,7 @@
       '<p class="small muted">' + esc(layerSub(l)) + (l.file ? ' · archivo ' + esc(l.file) : '') + '</p>' +
       '<div class="btns"><button class="btn btn-primary" data-act="saveEdit2">Guardar</button>' +
       (l.kind !== 'points' || l.points.length ? '<button class="btn" data-act="layerToMain" data-id="' + esc(id) + '">Usar como polígono del proyecto</button>' : '') +
+      (l.kind === 'polygon' ? '<button class="btn" data-act="layerToFinca" data-id="' + esc(id) + '">Crear una finca con esta capa</button><button class="btn" data-act="layerToArea" data-id="' + esc(id) + '">Crear un área con esta capa</button>' : '') +
       '<button class="btn btn-danger" data-act="deleteLayer" data-id="' + esc(id) + '">Eliminar capa</button></div>');
   }
   function pickColor(t) {
@@ -681,6 +794,28 @@
     toast('Capa «' + l.name + '» eliminada.', { action: 'Deshacer', fn: function () { restoreSnapshot(p, s); } });
   }
   // La capa pasa a ser el polígono del proyecto; tus puntos de antes se guardan como capa (no se pierde nada)
+  // Crea una finca o un área nueva con la figura de una capa importada (2.17.0). No toca los polígonos que ya existen;
+  // la capa se oculta (sigue en la lista) y «Deshacer» deja todo como estaba.
+  function layerToLot(id, kind) {
+    var p = proj(), l = layerById(id);
+    if (!l || l.kind !== 'polygon') return;
+    if (p.lots.length >= Store.LOT_MAX) { toast('Un proyecto admite hasta ' + Store.LOT_MAX + ' lotes.', { err: true }); return; }
+    var pts = Gis.pointsFromLayer(l, Store.uid), prev = p.lotId, wasVisible = l.visible !== false;
+    var nl = Store.newLot(Store.lotName(l.name, p.lots.length), kind === 'finca' ? Predio.FINCA_COLOR : (/^#[0-9a-fA-F]{6}$/.test(l.color || '') ? l.color : Predio.catColor('')));
+    nl.kind = kind; nl.points = pts; nl.nextPoint = pts.length + 1;
+    if (kind === 'area') { var f = Predio.guessParent(p.lots, Predio.centroid(pts), Predio.isFinca(lot()) ? lot().id : lot().parent); if (f) nl.parent = f.id; }
+    p.lots.push(nl); l.visible = false;
+    pickLot(nl.id, true);
+    var note = ui.lockNote || '', prevLot = p.lots.filter(function (x) { return x.id === prev; })[0], wasLocked = prevLot && prevLot.locked && !note;
+    if (kind === 'finca') nl.locked = true;                // viene de un archivo: su lindero queda protegido desde el principio
+    ui.mapFitKey = null;
+    save(); closeSheet(); renderTab(ui.tab);
+    toast('«' + nl.name + '» creada como ' + (kind === 'finca' ? 'finca, con el lindero bloqueado' : 'área' + (nl.parent ? ' de «' + Predio.parentOf(nl, p.lots).name + '»' : '')) + '. La capa quedó oculta.' + note, { action: 'Deshacer', fn: function () {
+      p.lots = p.lots.filter(function (x) { return x !== nl; }); p.lotId = prev; l.visible = wasVisible;
+      if (prevLot && note && !wasLocked) delete prevLot.locked;
+      save(); renderTab(ui.tab);
+    } });
+  }
   function layerToMain(id) {
     var p = proj(), l = layerById(id);
     if (!l) return;
@@ -795,7 +930,9 @@
     h += '</div><p class="small muted">KML, GeoJSON y GPX llevan tus puntos y las capas visibles. El CSV trae solo tus puntos: Punto, Latitud, Longitud, Altitud, Rumbo, Distancia al vértice siguiente y las coordenadas planas Este y Norte (Origen Nacional), ' + (S.settings.csvStyle === 'es' ? 'separado por «;» y con coma decimal' : 'separado por «,» y con punto decimal') + '. El Shapefile es un .zip con dos capas, tus puntos y el polígono, en grados WGS84.</p></div>';
     return h;
   }
-  function exportLots(p) { return p.lots.filter(function (l) { return l.points.length; }).map(function (l) { return { name: l.name, points: l.points }; }); }
+  function exportLots(p) { return p.lots.filter(function (l) { return l.points.length; }).map(function (l) { var par = Predio.parentOf(l, p.lots), o = { name: l.name, points: l.points };
+    if (l.kind) o.tipo = Predio.kindLabel(l) + (par ? ' de ' + par.name : '');      // «Finca», «Potrero de La Esperanza»…
+    return o; }); }
   function exportAs(fmt) {
     var p = proj(), spec = EXPORTS[fmt];
     if (!spec) return;
@@ -995,7 +1132,7 @@
       return h + exportBlock();
     }
     var unit = S.settings.areaUnit || 'ha';
-    var plotOpts = { center: a.center, layers: VL, color: p.mainColor };
+    var plotOpts = { center: a.center, layers: VL, color: p.mainColor, dots: Predio.isArea(lot()) };
     var legend = Diagram.legendHTML(VL, p.mainColor, ownLabel(), true);
     if (!a.polygon) {
       h += '<div class="tip">Hay ' + a.n + ' punto' + (a.n > 1 ? 's' : '') + '. Con 3 o más se calcula el área.</div>';
@@ -1010,7 +1147,7 @@
     if (a.selfIntersects) {
       h += '<div class="warn"><b>Los lados se cruzan.</b> Los puntos no siguen el contorno en orden, y el área puede estar mal. <div class="btns"><button class="btn btn-block" data-act="reorder">Ordenar los puntos alrededor del centro</button></div></div>';
     }
-    h += '<div class="plot">' + Diagram.polygonSVG(p.points, { center: a.center, bad: a.selfIntersects, layers: VL, color: p.mainColor }) + '</div>' + legend;
+    h += '<div class="plot">' + Diagram.polygonSVG(p.points, { center: a.center, bad: a.selfIntersects, layers: VL, color: p.mainColor, dots: Predio.isArea(lot()) }) + '</div>' + legend;
     h += '<p class="small muted">Los puntos se unen en el orden en que están en la lista y el último se une con el primero. El círculo rojo es el centro.</p></div>';
 
     h += '<div class="block"><h2>Medidas</h2><dl class="kv">';
@@ -1018,16 +1155,15 @@
     h += '<div><dt>Perímetro</dt><dd>' + Fmt.dist(a.perimeter) + '</dd></div>';
     h += '<div><dt>Vértices</dt><dd>' + a.n + '</dd></div>';
     if (multi(p)) {
-      var tot = 0, nc = 0;
-      p.lots.forEach(function (l) { var m2 = lotArea(l); if (m2) { tot += m2; nc++; } });
+      var acc0 = Predio.account(p.lots), tot = acc0.total, nc = acc0.closed;      // las áreas que están dentro de una finca no se suman otra vez
       h += '<div><dt>Total del proyecto (' + nc + (nc === 1 ? ' lote cerrado' : ' lotes cerrados') + ')</dt><dd id="areaTotal">' + Fmt.area(Geo.areaUnits(tot), unit) + '</dd></div>';
     }
     h += '<div><dt>Centro</dt><dd>' + Fmt.latlon(a.center.lat, a.center.lon) + '</dd></div>';
     var cpl = Fmt.plana(a.center.lat, a.center.lon);
     if (cpl) h += '<div><dt>Centro en planas (Origen Nacional)</dt><dd id="areaPlana">' + esc(cpl) + '</dd></div>';
     if (a.alt.min !== null && a.alt.n > 1) h += '<div><dt>Altitud de los puntos</dt><dd>' + Fmt.num(a.alt.min, 0) + ' a ' + Fmt.num(a.alt.max, 0) + ' m</dd></div>';
-    var ovl = multi(p) ? Geo.overlapText(p.lots) : '';
-    h += '</dl>' + (ovl ? '<div class="tip" id="areaOverlap">' + esc(ovl) + '</div>' : '') + '<p class="small muted">Área calculada sobre el elipsoide WGS84. La precisión depende de la de las coordenadas: con GPS de teléfono (±5 m) una finca pequeña puede variar varios por ciento.</p></div>';
+    var ovl = multi(p) ? Predio.warnings(p.lots) : [];
+    h += '</dl>' + (multi(p) ? fincaLines(Predio.account(p.lots)) : '') + (ovl.length ? '<div class="tip" id="areaOverlap">' + ovl.map(esc).join('<br>') + '</div>' : '') + '<p class="small muted">Área calculada sobre el elipsoide WGS84. La precisión depende de la de las coordenadas: con GPS de teléfono (±5 m) una finca pequeña puede variar varios por ciento.</p></div>';
 
     h += '<div class="block"><h2>Lados</h2><dl class="kv">';
     var pts = p.points, n = pts.length;
@@ -1067,7 +1203,10 @@
     var p = proj(), h = '';
     h += '<div id="mapBox" class="mapbox' + (ui.mapFull ? ' full' : '') + (multi() ? ' haslots' : '') + '"><div id="mapHost" class="maphost"></div>';
     h += mapMenuHtml();
-    h += '<div class="maptop"><button id="mapSum" class="mapsum" data-act="mapSumTap" hidden></button><div id="mapNotice" class="mapnotice" role="status" hidden></div>' +
+    var lk = lot();
+    h += '<button id="mapNewPoly" class="mapnew" data-act="lotNewMap" aria-label="Crear polígono: una finca o un área">＋ Polígono</button>';
+    h += '<div class="maptop"><button id="mapSum" class="mapsum" data-act="mapSumTap" hidden></button>' +
+      (lk.locked ? '<button id="mapLock" class="maplock" data-act="mapUnlock">🔒 Lindero de «' + esc(lk.name) + '» bloqueado · <u>Editar</u></button>' : '') + '<div id="mapNotice" class="mapnotice" role="status" hidden></div>' +
       '<div id="mapMode" class="mapmode" hidden><span id="mapModeTxt" role="status"></span><button data-act="mapMode" data-mode="">Salir</button></div></div>' +
       '<div id="mapLive" class="maplive" hidden></div>';
     if (ui.sampling) {
@@ -1147,6 +1286,7 @@
   }
   function snapNote(sn) { return sn ? ' Quedó pegado a ' + sn.name + ' de «' + sn.lot + '».' : ''; }
   function addManualAt(ll, after) {
+    if (lockStop()) return;
     var p = proj(), prevNext = p.nextPoint, sn = snapFor(ll);
     undoMark(isNum(after) ? 'insertar un punto' : 'crear un punto');
     var np = sn ? { lat: sn.lat, lon: sn.lon, src: 'manual' } : { lat: ll.lat, lon: ll.lon, src: 'manual' };
@@ -1172,6 +1312,7 @@
   function onPointDrop(id, ll) {
     var pt = pointById(id);
     if (!pt || Geo.haversine(pt.lat, pt.lon, ll.lat, ll.lon) < 0.5) return;
+    if (lockStop()) { renderTab('area'); return; }
     var before = { lat: pt.lat, lon: pt.lon, src: pt.src, acc: pt.acc }, sn = snapFor(ll);
     undoMark('mover ' + pt.name);
     relocate(pt, sn ? sn.lat : ll.lat, sn ? sn.lon : ll.lon);
@@ -1487,7 +1628,9 @@
   function openMapMore() {
     var opts = Mapa.TRACK_STEPS.map(function (m) { return '<option value="' + m + '"' + (m === Mapa.TRACK_STEP_DEFAULT ? ' selected' : '') + '>Un punto cada ' + m + ' m</option>'; }).join('');
     openSheet('Más opciones del mapa',
-      '<h3 class="sub">Agregar con mira</h3><p class="small muted">Una cruz queda fija en el centro: mueves el mapa hasta el lugar exacto y pulsas «Agregar aquí». Es más preciso que tocar con el dedo.</p>' +
+      '<h3 class="sub">Crear polígono</h3><p class="small muted">Una finca (el terreno completo) o un área dentro de ella: potrero, cafetal, cultivo… Queda elegido y listo para marcar sus puntos tocando el mapa.</p>' +
+      '<div class="btns"><button class="btn btn-primary" data-act="lotNewMap">Crear polígono</button></div>' +
+      '<h3 class="sub" style="margin-top:18px">Agregar con mira</h3><p class="small muted">Una cruz queda fija en el centro: mueves el mapa hasta el lugar exacto y pulsas «Agregar aquí». Es más preciso que tocar con el dedo.</p>' +
       '<div class="btns"><button class="btn btn-primary" data-act="mapAim">Agregar con mira</button></div>' +
       '<h3 class="sub" style="margin-top:18px">Caminar el lindero</h3><p class="small muted">Recorres el borde del terreno y el GPS va dejando los puntos en orden. Deja la pantalla encendida y la app abierta; al terminar puedes deshacer todo el recorrido.</p>' +
       '<label class="f"><span>Distancia entre puntos</span><select id="trackStep">' + opts + '</select></label>' +
@@ -2504,9 +2647,14 @@
     layerToMain: function (t) { layerToMain(t.getAttribute('data-id')); },
     export: function (t) { exportAs(t.getAttribute('data-fmt')); },
     lotPick: function (t) { var id = t.getAttribute('data-id'); if (id === proj().lotId) openLots(); else pickLot(id); },
-    lotPickClose: function (t) { var ch = pickLot(t.getAttribute('data-id'), true); closeSheet(); if (ch) { renderTab(ui.tab); toast('Lote elegido: ' + lot().name + '.'); } },
+    lotPickClose: function (t) { var ch = pickLot(t.getAttribute('data-id'), true); closeSheet(); if (ch) { renderTab(ui.tab); toast('Lote elegido: ' + lot().name + '.' + (ui.lockNote || '')); } },
     repScope: function (t) { ui.repAll = t.getAttribute('data-s') !== 'one'; Array.prototype.forEach.call(document.querySelectorAll('#repScope button'), function (b) { b.setAttribute('aria-pressed', String(b === t)); }); },
     lotAdd: function () { lotForm(''); }, lotEdit: function (t) { lotForm(t.getAttribute('data-id')); }, lotSave: lotSave,
+    lotNewMap: function () { closeSheet(); lotForm('', 'map'); },
+    mapUnlock: function () { setLock(lot(), false); },
+    layerToFinca: function (t) { layerToLot(t.getAttribute('data-id'), 'finca'); }, layerToArea: function (t) { layerToLot(t.getAttribute('data-id'), 'area'); },
+    lotKind: function (t) { lotSetKind(t.getAttribute('data-k')); }, lotCat: function (t) { lotSetCat(t.getAttribute('data-c')); },
+    lotLock: function (t) { var id = t.getAttribute('data-id'), l = proj().lots.filter(function (x) { return x.id === id; })[0]; if (l) { closeSheet(); setLock(l, !l.locked); } },
     lotDelete: function (t) { lotDelete(t.getAttribute('data-id')); }, climateToAll: climateToAll,
     authorEdit: function () { openAuthor(false); },
     authorLogo: function () { readAuthorInputs(); $('#logoFile').click(); },
@@ -2524,7 +2672,8 @@
     if (fold && $('#tab-informe').classList.contains('folds')) { toggleFold(fold.getAttribute('data-fold')); return; }
     var t = e.target.closest('[data-act]');
     if (!t) return;
-    var fn = ACTIONS[t.getAttribute('data-act')];
+    var name = t.getAttribute('data-act'), fn = ACTIONS[name];
+    if (fn && LOCKED_ACTS[name] && lockStop()) return;        // el lindero de la finca está bloqueado
     if (fn) fn(t, e);
   });
   document.addEventListener('change', function (e) {

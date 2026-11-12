@@ -30,7 +30,7 @@
     o = o || {};
     var out = [], r = a.result;
     if (a.n >= 2) {
-      out.push({ key: 'croquis', svg: Diagram.polygonSVG(project.points, { width: 560, height: 380, center: a.center, bad: a.selfIntersects, layers: project.layers, color: project.mainColor }) });
+      out.push({ key: 'croquis', svg: Diagram.polygonSVG(project.points, { width: 560, height: 380, center: a.center, bad: a.selfIntersects, dots: !!project.dots, layers: project.layers, color: project.mainColor }) });
       if (o.satellite && o.satellite.svg) out.push({ key: 'satelital', svg: o.satellite.svg, px: PX_MAP });
       if (o.topo && o.topo.svg) out.push({ key: 'topo', svg: o.topo.svg, px: PX_MAP });
       var m = perfilModel(project);
@@ -220,7 +220,8 @@
     var au = Report.authorOf(o), logo = au.logo ? Fotos.fromBase64(au.logo) : null, s = Report.summary(parts);
     var B = [{ t: 'head', title: 'Reporte de zona de vida', lines: Report.headLines({ name: project.name }, o), logo: logo ? { bytes: logo } : null, logoW: 130, logoH: 80 }];
     B.push({ t: 'h2', text: 'Resumen del proyecto' });
-    B.push({ t: 'table', rows: s.rows.map(function (x) { return [x.name, x.area + ' · ' + x.alt + ' · ' + x.zone, x.color]; }).concat([['Total', s.totalText + ' · ' + s.note]]) });
+    B.push({ t: 'table', rows: s.rows.map(function (x) { return [x.name + (x.tipo ? ' · ' + x.tipo : ''), x.area + ' · ' + x.alt + ' · ' + x.zone, x.color]; }).concat([['Total', s.totalText + ' · ' + s.note]]) });
+    s.fincas.forEach(function (f) { B.push({ t: 'p', small: true, text: f + '.' }); });
     if (s.overlap) B.push({ t: 'note', text: 'Atención: ' + s.overlap });
     var ov = Report.overview(parts);
     if (ov) {
@@ -235,7 +236,7 @@
       Object.keys(pt.o || {}).forEach(function (k) { po[k] = pt.o[k]; });
       po.noHead = true;
       B.push({ t: 'pagebreak' });
-      B.push({ t: 'h1', text: 'Lote: ' + (pt.project.lotName || pt.project.name) });
+      B.push({ t: 'h1', text: Report.lotTitle(pt.project) });
       B = B.concat(blocks(pt.project, pt.a, po, own));
     });
     B.push({ t: 'p', small: true, text: Report.DISCLAIMER });
