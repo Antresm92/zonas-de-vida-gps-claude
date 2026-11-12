@@ -320,3 +320,44 @@ test('copia de seguridad: el formato sube a 2; una copia de formato 1 (sin lotes
   const nueva = Backup.validate({ app: Backup.APP, format: 3, state: { projects: [{ id: 'p', name: 'P', lots: [] }] } }, { uid: Store.uid });
   assert.match(nueva.errors[0], /versión más nueva/);
 });
+
+/* ---------- Lotes que se montan uno sobre otro (2.15.1) ---------- */
+// Cuadrado de `lado` metros con la esquina suroeste a (x, y) metros de un origen cerca de Bogotá
+function sq(x, y, lado) {
+  const fr = Geo.localFrame([{ lat: 4.6, lon: -74.08 }]);
+  return [[x, y], [x + lado, y], [x + lado, y + lado], [x, y + lado]].map(([a, b]) => Geo.fromXY(fr, { x: a, y: b }));
+}
+test('montaje: detecta lotes que comparten superficie y no confunde los que solo comparten un lindero', () => {
+  const base = sq(0, 0, 100);
+  const si = [['se cruzan', sq(50, 50, 100)], ['uno dentro de otro', sq(20, 20, 30)], ['iguales', sq(0, 0, 100)], ['el otro lo contiene', sq(-50, -50, 300)],
+    ['montado 2 m', sq(98, 0, 100)], ['en cruz, sin vértices dentro', [[-50, 40], [150, 40], [150, 60], [-50, 60]].map(([a, b]) => Geo.fromXY(Geo.localFrame([{ lat: 4.6, lon: -74.08 }]), { x: a, y: b }))]];
+  for (const [n, o] of si) { assert.equal(Geo.polygonsOverlap(base, o), true, n); assert.equal(Geo.polygonsOverlap(o, base), true, n + ' (al revés)'); }
+  const no = [['lindero compartido', sq(100, 0, 100)], ['solo una esquina', sq(100, 100, 50)], ['separados', sq(300, 0, 100)], ['lindero con 30 cm de error del GPS', sq(99.7, 0, 100)],
+    ['lindero compartido más corto', sq(100, 20, 40)], ['menos de 3 puntos', sq(10, 10, 20).slice(0, 2)], ['nada', null]];
+  for (const [n, o] of no) { assert.equal(Geo.polygonsOverlap(base, o), false, n); assert.equal(Geo.polygonsOverlap(o, base), false, n + ' (al revés)'); }
+  // en sentido contrario de marcado da lo mismo
+  assert.equal(Geo.polygonsOverlap(base.slice().reverse(), sq(50, 50, 100)), true);
+  assert.equal(Geo.polygonsOverlap(base.slice().reverse(), sq(100, 0, 100).reverse()), false);
+});
+
+test('montaje: parejas y aviso; aparece en el resumen del reporte (HTML, texto y PDF) y no aparece si no hay', () => {
+  const lots = [{ name: 'A', points: sq(0, 0, 100) }, { name: 'B <b>', points: sq(50, 50, 100) }, { name: 'C', points: sq(400, 0, 50) }, { name: 'D', points: sq(120, 120, 10) }, { name: 'vacío', points: [] }];
+  assert.deepEqual(Geo.overlaps(lots), [[0, 1], [1, 3]]);
+  assert.equal(Geo.overlapText(lots), 'Hay lotes que se montan uno sobre otro: «A» y «B <b>»; «B <b>» y «D». Revisa los linderos: el total del proyecto cuenta esa parte dos veces.');
+  assert.equal(Geo.overlapText([lots[0], lots[2]]), ''); assert.equal(Geo.overlapText([]), ''); assert.equal(Geo.overlapText(null), '');
+  assert.deepEqual(Geo.overlaps([lots[0], null, undefined, lots[1]]), [[0, 3]]);
+  const cinco = [0, 1, 2, 3, 4].map((i) => ({ name: 'L' + i, points: sq(i * 10, 0, 100) }));
+  assert.match(Geo.overlapText(cinco), /«L0» y «L1»; «L0» y «L2»; «L0» y «L3» y 7 más\./);
+  const pts = (q) => q.map((p, i) => ({ name: 'P' + (i + 1), lat: p.lat, lon: p.lon, alt: 1000 }));
+  const parts = [part('F', 'A', pts(sq(0, 0, 100)), { pManual: 1200 }, '#2F8F4E'), part('F', 'B <b>', pts(sq(50, 50, 100)), { pManual: 1200 }, '#E67E22')];
+  assert.match(Report.summary(parts).overlap, /^Hay lotes que se montan/);
+  const h = Report.htmlAll({ name: 'F' }, parts, {});
+  assert.match(h, /<p class="small"><b>Atención:<\/b> Hay lotes que se montan uno sobre otro: «A» y «B &lt;b&gt;»\./);
+  assert.match(Report.textAll({ name: 'F' }, parts, {}), /\n  Atención: Hay lotes que se montan uno sobre otro: «A» y «B <b>»\./);
+  assert.ok(ReportPdf.blocksAll({ name: 'F' }, parts, {}, {}).some((b) => b.t === 'note' && /^Atención: Hay lotes que se montan/.test(b.text)));
+  const bien = PARTS();
+  assert.equal(Report.summary(bien).overlap, '');
+  assert.doesNotMatch(Report.htmlAll({ name: 'F' }, bien, {}), /Atención/);
+  assert.doesNotMatch(Report.textAll({ name: 'F' }, bien, {}), /Atención/);
+  assert.ok(!ReportPdf.blocksAll({ name: 'F' }, bien, {}, {}).some((b) => b.t === 'note' && /^Atención/.test(b.text)));
+});

@@ -29,7 +29,7 @@ module.exports = async function (c) {
     const cortadas = await page.$$eval('nav.tabs button span', (els) => els.filter((e) => e.scrollWidth > e.parentElement.clientWidth).map((e) => e.textContent));
     assert.deepEqual(cortadas, [], 'etiquetas que no caben: ' + cortadas.join(', '));
     await shot('29-menu-nombres');
-    await page.setViewportSize({ width: 390, height: 780 });
+    await page.setViewportSize({ width: 390, height: 844 });      // vuelve al tamaño con el que arrancan todos los recorridos
   });
 
   await step('Reporte: zona de vida, datos usados, diagrama de Holdridge y zonas por altitud de cada punto', async () => {
@@ -133,7 +133,7 @@ module.exports = async function (c) {
     assert.deepEqual(await projectNames(), ['Mi primer proyecto']);
     await act('projects');
     assert.equal(await page.locator('[data-act="askDeleteProject"]').count(), 0, 'no se puede eliminar el único proyecto');
-    assert.match(await text('#sheet'), /versión 2\.15\.0/);
+    assert.match(await text('#sheet'), /versión 2\.15\.1/);
     await act('closeSheet'); await waitSheetClosed();
     // nombre vacío al crear → nombre por defecto
     await act('projects'); await act('newProject'); await fill('#pName', '   '); await act('saveNewProject'); await waitSheetClosed();

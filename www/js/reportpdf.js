@@ -221,6 +221,7 @@
     var B = [{ t: 'head', title: 'Reporte de zona de vida', lines: Report.headLines({ name: project.name }, o), logo: logo ? { bytes: logo } : null, logoW: 130, logoH: 80 }];
     B.push({ t: 'h2', text: 'Resumen del proyecto' });
     B.push({ t: 'table', rows: s.rows.map(function (x) { return [x.name, x.area + ' · ' + x.alt + ' · ' + x.zone, x.color]; }).concat([['Total', s.totalText + ' · ' + s.note]]) });
+    if (s.overlap) B.push({ t: 'note', text: 'Atención: ' + s.overlap });
     var ov = Report.overview(parts);
     if (ov) {
       B.push({ t: 'h2', text: 'Croquis general' });

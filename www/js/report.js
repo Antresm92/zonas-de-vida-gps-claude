@@ -159,7 +159,8 @@
         zone: r && r.ok ? r.zone.name + ' (' + r.zone.symbol + ')' : 'incompleto' });
     });
     var nz = Object.keys(zones).length;
-    return { rows: rows, total: total, closed: closed, zones: nz,
+    var warn = Geo.overlapText((parts || []).map(function (pt) { return { name: pt.project.lotName || pt.project.name, points: pt.project.points || [] }; }));
+    return { rows: rows, total: total, closed: closed, zones: nz, overlap: warn,
       totalText: (closed ? Fmt.area(Geo.areaUnits(total), 'ha') + ' · ' + Fmt.area(Geo.areaUnits(total), 'fanegadas') : '—'),
       note: rows.length + (rows.length === 1 ? ' lote' : ' lotes') + (closed < rows.length ? ' (' + closed + ' con polígono cerrado)' : '') + ' · ' + nz + (nz === 1 ? ' zona de vida' : ' zonas de vida') };
   }
@@ -187,6 +188,7 @@
     h += '<h2>Resumen del proyecto</h2><table class="sum"><tr><th>Lote</th><th>Área</th><th>Altitud</th><th>Zona de vida</th></tr>';
     s.rows.forEach(function (x) { h += '<tr><td><span class="dot" style="background:' + x.color + '"></span>' + esc(x.name) + '</td><td>' + esc(x.area) + '</td><td>' + esc(x.alt) + '</td><td>' + esc(x.zone) + '</td></tr>'; });
     h += '<tr class="tot"><td>Total</td><td>' + esc(s.totalText) + '</td><td colspan="2">' + esc(s.note) + '</td></tr></table>';
+    if (s.overlap) h += '<p class="small"><b>Atención:</b> ' + esc(s.overlap) + '</p>';
     var ov = overview(parts);
     if (ov) h += '<h2>Croquis general</h2><div style="max-width:560px;margin-top:12px">' + reid(ov.svg, '-G') + '<div class="legend">' + ov.items.map(function (it) { return '<span><span class="dot" style="background:' + it[0] + '"></span>' + esc(it[1]) + '</span>'; }).join(' ') + '</div></div>';
     parts.forEach(function (pt, i) {
@@ -200,6 +202,7 @@
     L.push(''); L.push('RESUMEN DEL PROYECTO');
     s.rows.forEach(function (x) { L.push('  ' + x.name + ': ' + x.area + ' · ' + x.alt + ' · ' + x.zone); });
     L.push('  Total: ' + s.totalText + ' · ' + s.note);
+    if (s.overlap) L.push('  Atención: ' + s.overlap);
     parts.forEach(function (pt) {
       var t = text(pt.project, pt.a, pt.o).split('\n');
       L.push(''); L.push('———  LOTE: ' + (pt.project.lotName || pt.project.name) + '  ———');

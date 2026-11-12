@@ -228,6 +228,29 @@ module.exports = async function (c) {
     await shot('v215-reabierta');
   });
 
+  await step('Lotes que se montan: avisa en la lista de lotes, en Polígono y en el reporte; si solo están al lado, no avisa', async () => {
+    // viene de dos lotes separados (Lote 1 y Cafetal): sin aviso
+    await tab('area'); await page.click('[data-act="polyView"][data-v="croquis"]');
+    assert.equal(await page.locator('#areaOverlap').count(), 0);
+    await tab('puntos');
+    await page.click('section.tab:not([hidden]) .lots .lotchip[aria-pressed="true"]');
+    assert.equal(await page.locator('#lotOverlap').count(), 0);
+    await page.click('#sheet [aria-label="Cerrar"]'); await waitSheetClosed();
+    // un tercer lote metido encima del Lote 1
+    await newLot('Encima');
+    for (const ll of ['4.6010, -74.0780', '4.6010, -74.0720', '4.6080, -74.0750']) await addPointManual(ll, 2600);
+    await page.click('section.tab:not([hidden]) .lots .lotchip[aria-pressed="true"]');
+    assert.equal(await text('#lotOverlap'), 'Hay lotes que se montan uno sobre otro: «Lote 1» y «Encima». Revisa los linderos: el total del proyecto cuenta esa parte dos veces.');
+    await shot('v2151-montados');
+    await page.click('#sheet [aria-label="Cerrar"]'); await waitSheetClosed();
+    await tab('area');
+    assert.match(await text('#areaOverlap'), /«Lote 1» y «Encima»/);
+    await rain(1200);
+    await tab('informe'); await page.click('[data-act="share"]');
+    const f = await download(() => page.click('[data-act="shareReportHtml"]'));
+    assert.match(f.text, /<b>Atención:<\/b> Hay lotes que se montan uno sobre otro: «Lote 1» y «Encima»\./);
+  });
+
   await step('Lotes: sin errores de JavaScript en la consola', async () => {
     assert.deepEqual(errors, []);
   });

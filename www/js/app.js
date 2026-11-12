@@ -5,7 +5,7 @@
   var Geo = window.Geo, H = window.Holdridge, Climate = window.Climate, A = window.Analysis, Fmt = window.Fmt,
       Gps = window.Gps, Store = window.Store, Diagram = window.Diagram, Report = window.Report,
       Gis = window.Gis, Backup = window.Backup, IO = window.IO, WL = window.WalterLieth, Mapa = window.Mapa, MapView = window.MapView, Satelite = window.Satelite, Perfil = window.Perfil, Fotos = window.Fotos, Zip = window.Zip, Units = window.Units;
-  var APP_VERSION = '2.15.0';
+  var APP_VERSION = '2.15.1';
 
   var S = Store.loadState();
   var hadSaved = Store.hasSavedState();      // ¿había datos guardados al abrir? (solo entonces se limpian las fotos sin uso)
@@ -547,6 +547,8 @@
     });
     h += '<p class="small muted" id="lotTotal">' + (closed ? 'Total del proyecto: <b>' + esc(Fmt.area(Geo.areaUnits(total), S.settings.areaUnit)) + '</b> en ' + closed + (closed === 1 ? ' lote cerrado' : ' lotes cerrados') + '.' : 'Todavía no hay ningún lote con polígono cerrado.') +
       ' Cada lote tiene sus propios puntos, su clima y su zona de vida.</p>';
+    var ovl = Geo.overlapText(p.lots);
+    if (ovl) h += '<div class="tip" id="lotOverlap">' + esc(ovl) + '</div>';
     if (p.lots.length < Store.LOT_MAX) h += '<div class="btns"><button class="btn btn-primary" data-act="lotAdd">＋ Agregar lote</button></div>';
     hideSheet();
     openSheet('Lotes de ' + p.name, h);
@@ -1017,7 +1019,8 @@
     var cpl = Fmt.plana(a.center.lat, a.center.lon);
     if (cpl) h += '<div><dt>Centro en planas (Origen Nacional)</dt><dd id="areaPlana">' + esc(cpl) + '</dd></div>';
     if (a.alt.min !== null && a.alt.n > 1) h += '<div><dt>Altitud de los puntos</dt><dd>' + Fmt.num(a.alt.min, 0) + ' a ' + Fmt.num(a.alt.max, 0) + ' m</dd></div>';
-    h += '</dl><p class="small muted">Área calculada sobre el elipsoide WGS84. La precisión depende de la de las coordenadas: con GPS de teléfono (±5 m) una finca pequeña puede variar varios por ciento.</p></div>';
+    var ovl = multi(p) ? Geo.overlapText(p.lots) : '';
+    h += '</dl>' + (ovl ? '<div class="tip" id="areaOverlap">' + esc(ovl) + '</div>' : '') + '<p class="small muted">Área calculada sobre el elipsoide WGS84. La precisión depende de la de las coordenadas: con GPS de teléfono (±5 m) una finca pequeña puede variar varios por ciento.</p></div>';
 
     h += '<div class="block"><h2>Lados</h2><dl class="kv">';
     var pts = p.points, n = pts.length;

@@ -268,6 +268,66 @@
     return ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0));
   }
 
+  /* ---------- ¿Dos polígonos se montan uno sobre otro? (2.15.1) ---------- */
+  // Distancia de un punto a un segmento, en el plano
+  function distSeg(p, a, b) {
+    var dx = b.x - a.x, dy = b.y - a.y, l2 = dx * dx + dy * dy;
+    var t = l2 > 0 ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / l2)) : 0;
+    var ex = p.x - (a.x + t * dx), ey = p.y - (a.y + t * dy);
+    return Math.sqrt(ex * ex + ey * ey);
+  }
+  // true si el punto está dentro del anillo y a más de `tol` metros de su borde (los puntos sobre el lindero no cuentan)
+  function strictlyInside(p, ring, tol) {
+    var inside = false, n = ring.length;
+    for (var i = 0, j = n - 1; i < n; j = i++) {
+      var a = ring[i], b = ring[j];
+      if (distSeg(p, a, b) <= tol) return false;
+      if ((a.y > p.y) !== (b.y > p.y) && p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x) inside = !inside;
+    }
+    return inside;
+  }
+  var OVERLAP_TOL = 0.5;          // metros: dos lotes que solo comparten un lindero (o casi) no se consideran montados
+  // true si los dos polígonos (listas de {lat, lon}, 3 o más puntos cada una) comparten superficie. Compartir un lado o una
+  // esquina no cuenta. Se revisa si algún lado cruza a otro y si algún vértice, la mitad de algún lado o el centro de uno
+  // cae dentro del otro (así se detecta también un lote metido por completo en otro, o dos lotes iguales).
+  function polygonsOverlap(pa, pb) {
+    if (!pa || !pb || pa.length < 3 || pb.length < 3) return false;
+    var fr = localFrame(pa.concat(pb));
+    var A = pa.map(function (p) { return toXY(fr, p); }), B = pb.map(function (p) { return toXY(fr, p); });
+    var i, j;
+    for (i = 0; i < A.length; i++) for (j = 0; j < B.length; j++) {
+      if (segCross(A[i], A[(i + 1) % A.length], B[j], B[(j + 1) % B.length])) {
+        // un cruce a menos de la tolerancia de una esquina es un lindero compartido marcado con error de GPS, no un montaje
+        var ends = [A[i], A[(i + 1) % A.length]], near = ends.some(function (e) { return distSeg(e, B[j], B[(j + 1) % B.length]) <= OVERLAP_TOL; }) ||
+          [B[j], B[(j + 1) % B.length]].some(function (e) { return distSeg(e, A[i], A[(i + 1) % A.length]) <= OVERLAP_TOL; });
+        if (!near) return true;
+      }
+    }
+    function probes(R) {
+      var out = R.slice(), cx = 0, cy = 0;
+      R.forEach(function (p, k) { var q = R[(k + 1) % R.length]; out.push({ x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 }); cx += p.x; cy += p.y; });
+      out.push({ x: cx / R.length, y: cy / R.length });
+      return out;
+    }
+    return probes(A).some(function (p) { return strictlyInside(p, B, OVERLAP_TOL); }) || probes(B).some(function (p) { return strictlyInside(p, A, OVERLAP_TOL); });
+  }
+  // Parejas de lotes que se montan: lots = [{ name, points }]; devuelve [[i, j]…] con i < j
+  function overlaps(lots) {
+    var out = [];
+    (lots || []).forEach(function (a, i) {
+      for (var j = i + 1; j < lots.length; j++) if (polygonsOverlap(a && a.points, lots[j] && lots[j].points)) out.push([i, j]);
+    });
+    return out;
+  }
+  // Aviso para la persona: '' si ningún lote se monta sobre otro
+  function overlapText(lots) {
+    var prs = overlaps(lots);
+    if (!prs.length) return '';
+    var names = prs.slice(0, 3).map(function (p) { return '«' + lots[p[0]].name + '» y «' + lots[p[1]].name + '»'; });
+    return 'Hay lotes que se montan uno sobre otro: ' + names.join('; ') + (prs.length > 3 ? ' y ' + (prs.length - 3) + ' más' : '') +
+      '. Revisa los linderos: el total del proyecto cuenta esa parte dos veces.';
+  }
+
   // true si los lados del polígono se cruzan entre sí (orden de vértices equivocado)
   function selfIntersects(pts) {
     var n = pts.length;
@@ -347,6 +407,7 @@
     distance: distance, haversine: haversine, polygonArea: polygonArea, perimeter: perimeter,
     areaUnits: areaUnits, centroid: centroid, localFrame: localFrame, toXY: toXY, fromXY: fromXY,
     selfIntersects: selfIntersects, angularOrder: angularOrder, bearing: bearing,
+    polygonsOverlap: polygonsOverlap, overlaps: overlaps, overlapText: overlapText,
     origenNacional: origenNacional, inColombia: inColombia,
     FANEGADA_M2: FANEGADA_M2, RQ: RQ
   };
