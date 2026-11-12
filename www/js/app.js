@@ -5,7 +5,7 @@
   var Geo = window.Geo, H = window.Holdridge, Climate = window.Climate, A = window.Analysis, Fmt = window.Fmt,
       Gps = window.Gps, Store = window.Store, Diagram = window.Diagram, Report = window.Report,
       Gis = window.Gis, Backup = window.Backup, IO = window.IO, WL = window.WalterLieth, Mapa = window.Mapa, MapView = window.MapView, Satelite = window.Satelite, Perfil = window.Perfil, Fotos = window.Fotos, Zip = window.Zip, Units = window.Units;
-  var APP_VERSION = '2.14.0';
+  var APP_VERSION = '2.14.1';
 
   var S = Store.loadState();
   var hadSaved = Store.hasSavedState();      // ¿había datos guardados al abrir? (solo entonces se limpian las fotos sin uso)
@@ -1921,8 +1921,8 @@
     h += '<h3 class="sub">Proyectos y copias</h3><div class="menu">' +
       menuRow('projects', 'Proyectos', S.projects.length + (S.projects.length === 1 ? ' proyecto' : ' proyectos') + ' · actual: ' + p.name) +
       menuRow('projects', 'Copia de seguridad y restaurar', '.zip recomendado') + '</div>';
-    var au = Store.loadAuthor(), auSub = [au.name, au.org].filter(Boolean).join(' · ') + (au.logo ? ((au.name || au.org) ? ' · con logo' : 'Con logo') : '');
-    h += '<h3 class="sub">Reporte</h3><div class="menu">' + menuRow('authorEdit', 'Autor y logo del reporte', auSub || 'Sin nombre ni logo') + '</div>';
+    var au = Store.loadAuthor(), auSub = [au.name, au.org, au.logo ? 'con logo' : ''].filter(Boolean).join(' · ');
+    h += '<h3 class="sub">Reporte</h3><div class="menu">' + menuRow('authorEdit', 'Encabezado del reporte', auSub || 'Autor, entidad y logo') + '</div>';
     h += '<h3 class="sub">Preferencias</h3><div class="menu"><label class="menurow"><span><b>Reporte con todas las secciones abiertas</b><small>Si no, cada sección se abre al tocar su título.</small></span>' +
       '<input type="checkbox" data-flag="reportOpen"' + (Store.loadFlag('reportOpen') === true ? ' checked' : '') + '></label></div>';
     h += '<h3 class="sub">Ayuda</h3><div class="menu">' + menuRow('appGuide', 'Cómo usar la app', 'Los tres pasos') + menuRow('mapGuide', 'Cómo usar el mapa', '') +
@@ -1933,7 +1933,7 @@
   /* ---------- Autor y logo del reporte (2.14.0) ---------- */
   function authorBody() {
     var au = ui.authorDraft;
-    return '<p class="lead">Salen en el encabezado del reporte (PDF, HTML y resumen). Se guardan en este teléfono; no van en la copia de seguridad.</p>' +
+    return '<p class="lead">Arriba del reporte (PDF, HTML y resumen) sale: Proyecto, Elaborado por y la fecha; el logo va a la derecha. Se guardan en este teléfono; no van en la copia de seguridad.</p>' +
       '<label class="f"><span>Nombre de quien elabora</span><input type="text" id="auName" maxlength="' + Store.AUTHOR_MAX + '" value="' + esc(au.name) + '" autocomplete="name" placeholder="Ej.: Ana Pérez, ingeniera forestal"></label>' +
       '<label class="f"><span>Entidad o empresa (opcional)</span><input type="text" id="auOrg" maxlength="' + Store.AUTHOR_MAX + '" value="' + esc(au.org) + '" autocomplete="organization" placeholder="Ej.: Finca La Esperanza"></label>' +
       '<div class="f f-logo"><span class="f-label">Logo (opcional)</span><div class="logobox" id="auLogo">' + (au.logo ? '<img src="data:image/jpeg;base64,' + au.logo + '" alt="Logo elegido">' : '<span class="small muted">Sin logo</span>') + '</div>' +
@@ -1943,7 +1943,7 @@
   }
   function openAuthor(keep) {
     if (!keep) ui.authorDraft = Store.loadAuthor();
-    openSheet('Autor y logo del reporte', authorBody());
+    openSheet('Encabezado del reporte', authorBody());
   }
   function readAuthorInputs() {
     var n = $('#auName'), o = $('#auOrg');
@@ -1969,7 +1969,7 @@
     var r = Store.saveAuthor(ui.authorDraft);
     if (!r.ok) { toast(r.error, { err: true }); return; }
     closeSheet();
-    toast('Autor del reporte guardado.');
+    toast('Encabezado del reporte guardado.');
     if (ui.tab === 'herramientas') renderTab('herramientas');
   }
 

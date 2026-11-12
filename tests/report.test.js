@@ -44,7 +44,7 @@ test('text: reporte completo con zona, datos, áreas, alternativas, zonas por pu
     { id: 'l2', name: 'Pozo', kind: 'points', color: '#8E44AD', visible: true, points: [{ lat: 4.6, lon: -74.1 }] }];
   const { project, a } = build({ layers });
   const t = Report.text(project, a, { date: DATE, walter: walter() });
-  assert.match(t, /^REPORTE DE ZONA DE VIDA \(HOLDRIDGE\)\nFinca La Esperanza · 15 de junio de 2026/);
+  assert.match(t, /^REPORTE DE ZONA DE VIDA \(HOLDRIDGE\)\nProyecto: Finca La Esperanza\nFecha: 15 de junio de 2026\n/);
   assert.match(t, /Zona de vida: Bosque húmedo montano bajo \(bh-MB\)/);
   assert.match(t, /Región latitudinal: /); assert.match(t, /Piso altitudinal: /); assert.match(t, /Provincia de humedad: /);
   assert.match(t, /Precipitación anual: 1100 mm/);

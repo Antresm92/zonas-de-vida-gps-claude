@@ -247,30 +247,45 @@ function sample() {
   return { project, a: analyze(project) };
 }
 
-test('autor: sale en el encabezado del reporte HTML, del texto y del PDF', () => {
+test('encabezado: proyecto, elaborado por y fecha; el logo a la derecha (HTML, texto y PDF)', () => {
   const { project, a } = sample();
-  const o = { date: Date.UTC(2026, 10, 11, 15), author: { name: 'Ana <b>Pérez</b>', org: 'Cía & Hnos', logo: LOGO } };
+  project.name = 'FLORECER';
+  const o = { date: Date.UTC(2026, 10, 12, 15), author: { name: 'Ana <b>Pérez</b>', org: 'Cía & Hnos', logo: LOGO } };
+  assert.deepEqual(Report.headLines(project, o), ['Proyecto: FLORECER', 'Elaborado por: Ana <b>Pérez</b> · Cía & Hnos', 'Fecha: 12 de noviembre de 2026']);
   const h = Report.html(project, a, o);
-  assert.match(h, /<img class="logo" src="data:image\/jpeg;base64,\/9j\/4AAQ[^"]*" alt="Logo de Cía &amp; Hnos">/);
-  assert.match(h, /<p class="sub author">Elaborado por: Ana &lt;b&gt;Pérez&lt;\/b&gt; · Cía &amp; Hnos<\/p>/);
-  assert.ok(h.indexOf('class="logo"') < h.indexOf('<h1>'));
-  assert.match(Report.text(project, a, o).split('\n')[2], /^Elaborado por: Ana <b>Pérez<\/b> · Cía & Hnos$/);
+  // el título y las líneas a la izquierda, el logo después (a la derecha, en el mismo encabezado)
+  assert.match(h, /<header class="head"><div><h1>Reporte de zona de vida<\/h1><p class="sub hl">Proyecto: FLORECER<\/p><p class="sub hl">Elaborado por: Ana &lt;b&gt;Pérez&lt;\/b&gt; · Cía &amp; Hnos<\/p><p class="sub hl">Fecha: 12 de noviembre de 2026<\/p><\/div><img class="logo" src="data:image\/jpeg;base64,\/9j\/4AAQ[^"]*" alt="Logo de Cía &amp; Hnos"><\/header>/);
+  assert.match(h, /\.head\{display:flex;justify-content:space-between/);
+  assert.deepEqual(Report.text(project, a, o).split('\n').slice(1, 4), ['Proyecto: FLORECER', 'Elaborado por: Ana <b>Pérez</b> · Cía & Hnos', 'Fecha: 12 de noviembre de 2026']);
   const bl = ReportPdf.blocks(project, a, o, {});
-  assert.equal(bl[0].t, 'image'); assert.equal(bl[0].maxW, 120); assert.equal(bl[0].maxH, 60);
-  assert.equal(bl[0].img.bytes[0], 0xFF);
-  assert.equal(bl[1].t, 'h1');
-  assert.match(bl[2].text, /\nElaborado por: Ana <b>Pérez<\/b> · Cía & Hnos$/);
+  assert.equal(bl[0].t, 'head'); assert.equal(bl[0].title, 'Reporte de zona de vida');
+  assert.deepEqual(bl[0].lines, Report.headLines(project, o));
+  assert.equal(bl[0].logo.bytes[0], 0xFF); assert.equal(bl[0].logoW, 130); assert.equal(bl[0].logoH, 80);
+  assert.equal(bl[1].t, 'zone');
   const pdf = ReportPdf.build(project, a, o, {});
-  assert.equal(new TextDecoder('latin1').decode(pdf.subarray(0, 5)), '%PDF-');
-  assert.match(new TextDecoder('latin1').decode(pdf), /\/Subtype \/Image/);
+  const txt = new TextDecoder('latin1').decode(pdf);
+  assert.equal(txt.slice(0, 5), '%PDF-');
+  assert.match(txt, /\/Subtype \/Image/);
+  // el logo se dibuja pegado al margen derecho (595 − 48 = 547 puntos) y arriba, en la primera hoja
+  const m = /q ([\d.]+) 0 0 ([\d.]+) ([\d.]+) ([\d.]+) cm \/Im1 Do Q/.exec(txt);
+  assert.ok(m, 'dibujo del logo');
+  const w = +m[1], hh = +m[2], x = +m[3], y = +m[4];
+  assert.ok(w <= 130.01 && hh <= 80.01, w + ' × ' + hh);
+  assert.ok(Math.abs(x + w - (595.28 - 48)) < 0.5, 'pegado al margen derecho: ' + (x + w));
+  assert.ok(Math.abs(y + hh - (841.89 - 52)) < 0.5, 'arriba, en el margen superior: ' + (y + hh));
 });
 
-test('autor: sin autor el reporte queda como antes; con solo el logo o solo la entidad también funciona', () => {
+test('encabezado: sin autor quedan proyecto y fecha; sin nombre de proyecto no escribe «null»', () => {
   const { project, a } = sample();
   const h = Report.html(project, a, { date: 0 });
   assert.doesNotMatch(h, /class="logo"|Elaborado por/);
+  assert.deepEqual(Report.headLines(project, { date: Date.UTC(2026, 0, 2, 15) }), ['Proyecto: Finca', 'Fecha: 2 de enero de 2026']);
   assert.doesNotMatch(Report.text(project, a, {}), /Elaborado por/);
-  assert.equal(ReportPdf.blocks(project, a, {}, {})[0].t, 'h1');
+  const b0 = ReportPdf.blocks(project, a, {}, {})[0];
+  assert.equal(b0.t, 'head'); assert.equal(b0.logo, null);
+  assert.equal(Report.headLines({ name: null }, {})[0].slice(0, 6), 'Fecha:');
+  assert.equal(Report.headLines({ name: '  ' }, {}).length, 1);
+  assert.equal(Report.headLines({ name: 7 }, {})[0], 'Proyecto: 7');
   assert.deepEqual(Report.authorOf({ author: { org: 'IGAC' } }), { name: '', org: 'IGAC', logo: '', line: 'Elaborado por: IGAC' });
   const solo = Report.html(project, a, { author: { logo: LOGO } });
   assert.match(solo, /alt="Logo"/); assert.doesNotMatch(solo, /Elaborado por/);
@@ -278,6 +293,8 @@ test('autor: sin autor el reporte queda como antes; con solo el logo o solo la e
   assert.equal(Report.authorOf({ author: { logo: '/9j/" onerror="alert(1)' } }).logo, '');
   assert.equal(Report.authorOf({ author: { logo: 'iVBOR' } }).logo, '');
   assert.equal(Report.authorOf(null).line, '');
+  // un nombre de proyecto con código se escribe como texto
+  assert.match(Report.html({ name: '<img src=x>', points: [], climate: {}, layers: [] }, analyze({ points: [], climate: {} }), {}), /Proyecto: &lt;img src=x&gt;/);
 });
 
 test('reportes: las coordenadas planas solo se explican si alguna aplica', () => {

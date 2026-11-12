@@ -58,9 +58,9 @@ module.exports = async function (c) {
   await step('Autor y logo: se configuran en Herramientas y salen en el reporte', async () => {
     await fresh(); await tres();
     await tab('herramientas');
-    assert.match(await text('[data-act="authorEdit"]'), /Sin nombre ni logo/);
+    assert.match(await text('[data-act="authorEdit"]'), /Autor, entidad y logo/);
     await act('authorEdit');
-    assert.equal(await sheetTitle(), 'Autor y logo del reporte');
+    assert.equal(await sheetTitle(), 'Encabezado del reporte');
     await fill('#auName', 'Ana Pérez');
     await fill('#auOrg', 'Finca <La Esperanza>');
     await page.setInputFiles('#logoFile', { name: 'logo.png', mimeType: 'image/png', buffer: solidPng(30, 120, 60, 255, 900) });
@@ -70,13 +70,13 @@ module.exports = async function (c) {
     assert.equal(w, 400, 'el logo se reduce a 400 px');
     await shot('v214-autor');
     await act('authorSave'); await waitSheetClosed();
-    assert.match(await toastText(), /Autor del reporte guardado/);
+    assert.match(await toastText(), /Encabezado del reporte guardado/);
     assert.match(await text('[data-act="authorEdit"]'), /Ana Pérez · Finca <La Esperanza> · con logo/);
     const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('zvg.v1.author')));
     assert.equal(saved.name, 'Ana Pérez'); assert.match(saved.logo, /^\/9j\//);
     await tab('informe');
     const f = await download(() => c.compartir('Html'));
-    assert.match(f.text, /<img class="logo" src="data:image\/jpeg;base64,\/9j\//);
+    assert.match(f.text, /<p class="sub hl">Proyecto: Mi primer proyecto<\/p><p class="sub hl">Elaborado por: Ana Pérez · Finca &lt;La Esperanza&gt;<\/p><p class="sub hl">Fecha: [^<]+<\/p><\/div><img class="logo" src="data:image\/jpeg;base64,\/9j\//);   // el logo a la derecha del título
     assert.match(f.text, /Elaborado por: Ana Pérez · Finca &lt;La Esperanza&gt;/);
     assert.match(f.text, /Pendiente media del terreno/);
     assert.match(f.text, /EPSG:9377/);
@@ -98,7 +98,7 @@ module.exports = async function (c) {
     await page.click('[data-act="authorLogoDel"]');
     await fill('#auName', ''); await fill('#auOrg', '');
     await act('authorSave'); await waitSheetClosed();
-    assert.match(await text('[data-act="authorEdit"]'), /Sin nombre ni logo/);
+    assert.match(await text('[data-act="authorEdit"]'), /Autor, entidad y logo/);
   });
 
   await step('Sin errores de JavaScript en la consola', async () => {

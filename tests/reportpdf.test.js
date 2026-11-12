@@ -154,11 +154,11 @@ test('blocks: reporte completo, con todas las secciones del HTML y en su orden',
   const bl = ReportPdf.blocks(project, a, o, ALL());
   assert.deepEqual(h2s(bl), ['Datos del clima', 'Clima actual', 'Terreno', 'Puntos', 'Croquis', 'Croquis satelital', 'Croquis topográfico', 'Perfil del relieve',
     'Zonas según la altitud de cada punto', 'Calidad de los datos', 'Diagrama de Walter-Lieth', 'Diagrama de Holdridge']);
-  assert.equal(bl[0].text, 'Reporte de zona de vida');
-  assert.match(bl[1].text, /^Finca La Esperanza · .*2026/);
-  assert.equal(bl[2].t, 'zone');
-  assert.match(bl[2].name, /Bosque/);
-  assert.match(bl[2].detail, /Región latitudinal: .* · Piso altitudinal: .*Provincia de humedad/);
+  assert.equal(bl[0].t, 'head'); assert.equal(bl[0].title, 'Reporte de zona de vida');
+  assert.equal(bl[0].lines[0], 'Proyecto: Finca La Esperanza'); assert.match(bl[0].lines[bl[0].lines.length - 1], /^Fecha: .*2026$/);
+  assert.equal(bl[1].t, 'zone');
+  assert.match(bl[1].name, /Bosque/);
+  assert.match(bl[1].detail, /Región latitudinal: .* · Piso altitudinal: .*Provincia de humedad/);
   // puntos con su color (el propio o el del proyecto) y la altitud
   const puntos = bl[bl.findIndex((b) => b.text === 'Puntos') + 1];
   assert.equal(puntos.t, 'table');

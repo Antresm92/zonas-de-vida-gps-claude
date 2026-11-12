@@ -194,6 +194,18 @@
     this.op('q ' + num(w) + ' 0 0 ' + num(h) + ' ' + num(x) + ' ' + num(PAGE.h - y - h) + ' cm /' + e.name + ' Do Q');
   };
 
+  // Encabezado del reporte: título y líneas a la izquierda; el logo (si hay) arriba a la derecha, sin pasar de logoW × logoH
+  Doc.prototype.head = function (b) {
+    var e = b.logo && this.addImage(b.logo), lw = b.logoW || 130, lh = b.logoH || 80, s = null, x0 = M.l, y0 = this.y;
+    if (e) s = this.fit(e.info, lw, lh);
+    var tw = this.W - (s ? s.w + 14 : 0);
+    this.lines(b.title || '', 22, true, C.text, x0, tw, 27); this.y += 3;
+    var self = this;
+    (b.lines || []).forEach(function (ln) { self.lines(ln, 11.5, false, C.gray, x0, tw, 16); });
+    if (s) { this.draw(e, M.l + this.W - s.w, y0, s.w, s.h); this.y = Math.max(this.y, y0 + s.h); }
+    this.y += 10;
+  };
+
   // Un párrafo suelto: línea a línea, pasando de página cuando hace falta
   Doc.prototype.lines = function (s, size, bold, color, x, width, lh) {
     var self = this;
@@ -208,6 +220,7 @@
     var self = this;
     if (!b || typeof b !== 'object') return;
     switch (b.t) {
+      case 'head': this.head(b); break;
       case 'h1': this.lines(b.text, 22, true, C.text, M.l, this.W, 27); this.y += 1; break;
       case 'sub': this.lines(b.text, 11.5, false, C.gray, M.l, this.W, 16); this.y += 8; break;
       case 'h2':

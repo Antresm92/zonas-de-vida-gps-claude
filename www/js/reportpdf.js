@@ -113,9 +113,7 @@
       else B.push({ t: 'note', text: 'No se pudo dibujar ' + noun + ' en el PDF.' });
     }
     var au = Report.authorOf(o), logo = au.logo ? Fotos.fromBase64(au.logo) : null;
-    if (logo) B.push({ t: 'image', img: { bytes: logo }, maxW: 120, maxH: 60 });
-    B.push({ t: 'h1', text: 'Reporte de zona de vida' });
-    B.push({ t: 'sub', text: project.name + ' · ' + Fmt.date(o.date || Date.now()) + (au.line ? '\n' + au.line : '') });
+    B.push({ t: 'head', title: 'Reporte de zona de vida', lines: Report.headLines(project, o), logo: logo ? { bytes: logo } : null, logoW: 130, logoH: 80 });
     if (r && r.ok) {
       B.push({ t: 'zone', symbol: r.zone.symbol, name: r.zone.name, detail: 'Región latitudinal: ' + r.region + ' · Piso altitudinal: ' + r.belt + (r.humidity ? ' · Provincia de humedad: ' + r.humidity.name : '') });
     } else {

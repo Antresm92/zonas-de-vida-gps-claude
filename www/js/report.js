@@ -52,8 +52,7 @@
     o = o || {};
     var L = [];
     L.push('REPORTE DE ZONA DE VIDA (HOLDRIDGE)');
-    L.push(project.name + ' · ' + Fmt.date(o.date || Date.now()));
-    if (authorOf(o).line) L.push(authorOf(o).line);
+    headLines(project, o).forEach(function (x) { L.push(x); });
     L.push('');
     var r = a.result;
     if (r && r.ok) {
@@ -114,13 +113,13 @@
   }
 
   var CSS = 'body{font:16px/1.5 system-ui,-apple-system,Roboto,Segoe UI,sans-serif;color:#14301F;background:#fff;margin:0;padding:24px;max-width:1180px;margin-inline:auto}' +
-    '.logo{display:block;max-width:160px;max-height:80px;margin:0 0 12px}.sub.author{margin-top:-10px}h1{font-size:26px;margin:0 0 4px}h2{font-size:18px;margin:28px 0 8px;border-bottom:2px solid #2F8F4E;padding-bottom:4px}.sub{color:#5B6F61;margin:0 0 16px}' +
+    '.head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin:0 0 16px}.head h1{margin:0 0 6px}.sub.hl{margin:0}.logo{display:block;flex:none;max-width:180px;max-height:100px}h1{font-size:26px;margin:0 0 4px}h2{font-size:18px;margin:28px 0 8px;border-bottom:2px solid #2F8F4E;padding-bottom:4px}.sub{color:#5B6F61;margin:0 0 16px}' +
     '.zone{display:flex;gap:16px;align-items:center;margin:12px 0}.hex{width:92px;height:104px;flex:none}.zn{font-size:24px;font-weight:700;line-height:1.2}.zs{color:#5B6F61}' +
     'table{border-collapse:collapse;width:100%;max-width:760px}td,th{padding:6px 10px;border-bottom:1px solid #D6DED8;text-align:left;vertical-align:top}th{color:#5B6F61;font-weight:500;width:42%}' +
     '.note{background:#F2F5EF;border-left:4px solid #D8353C;padding:8px 12px;margin:8px 0}.small{color:#5B6F61;font-size:14px}svg{max-width:100%;height:auto}' +
     '.dot{display:inline-block;width:.75em;height:.75em;border-radius:50%;margin-right:.5em;border:1px solid rgba(0,0,0,.35);-webkit-print-color-adjust:exact;print-color-adjust:exact}' +
     '.gal{display:flex;flex-wrap:wrap;gap:10px;margin:6px 0 14px}.gal figure{margin:0;width:260px;max-width:100%;break-inside:avoid}.gal img{display:block;width:100%;height:auto;border-radius:6px;border:1px solid #D6DED8}.gal figcaption{font-size:13px;color:#5B6F61}h3.ptitle{font-size:16px;margin:14px 0 4px}' +
-    '@media print{body{padding:0}h2{break-after:avoid}.diag{break-before:page}}';
+    '@media (max-width:480px){.logo{max-width:96px;max-height:72px}}@media print{body{padding:0}h2{break-after:avoid}.diag{break-before:page}}';
 
   // Punto de color delante del nombre: el color propio del punto (su ficha) o el de los puntos del proyecto
   // Coordenadas planas (Origen Nacional) de un punto, para añadir a su línea; '' fuera de Colombia
@@ -135,6 +134,14 @@
     var logo = typeof a.logo === 'string' && /^\/9j\/[A-Za-z0-9+/]*={0,2}$/.test(a.logo) ? a.logo : '';
     var who = [name, org].filter(Boolean).join(' · ');
     return { name: name, org: org, logo: logo, line: who ? 'Elaborado por: ' + who : '' };
+  }
+  // Las líneas del encabezado, en orden: proyecto, quién lo elabora y fecha (2.14.1)
+  function headLines(project, o) {
+    var name = typeof project.name === 'string' || typeof project.name === 'number' ? String(project.name).trim() : '';
+    var L = name ? ['Proyecto: ' + name] : [], au = authorOf(o);
+    if (au.line) L.push(au.line);
+    L.push('Fecha: ' + Fmt.date(o && o.date || Date.now()));
+    return L;
   }
   function dot(p, project) {
     var c = /^#[0-9a-fA-F]{6}$/.test(p.color || '') ? p.color : /^#[0-9a-fA-F]{6}$/.test(project.mainColor || '') ? project.mainColor : '#2F8F4E';
@@ -190,9 +197,9 @@
     var r = a.result;
     var h = '<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Reporte de zona de vida · ' + esc(project.name) + '</title><style>' + CSS + '</style></head><body>';
     var au = authorOf(o);
+    h += '<header class="head"><div><h1>Reporte de zona de vida</h1>' + headLines(project, o).map(function (x) { return '<p class="sub hl">' + esc(x) + '</p>'; }).join('') + '</div>';
     if (au.logo) h += '<img class="logo" src="data:image/jpeg;base64,' + au.logo + '" alt="Logo' + (au.org ? ' de ' + esc(au.org) : '') + '">';
-    h += '<h1>Reporte de zona de vida</h1><p class="sub">' + esc(project.name) + ' · ' + esc(Fmt.date(o.date || Date.now())) + '</p>';
-    if (au.line) h += '<p class="sub author">' + esc(au.line) + '</p>';
+    h += '</header>';
     if (r && r.ok) {
       h += '<div class="zone">' + hexBadge(r.zone.symbol) + '<div><div class="zn">' + esc(r.zone.name) + '</div><div class="zs">Región latitudinal: ' + esc(r.region) + ' · Piso altitudinal: ' + esc(r.belt) + (r.humidity ? ' · Provincia de humedad: ' + esc(r.humidity.name) : '') + '</div></div></div>';
     } else {
@@ -249,5 +256,5 @@
     return h;
   }
 
-  return { authorOf: authorOf, withPlana: withPlana, anyPlana: anyPlana, text: text, html: html, rows: rows, dot: dot, currentRows: currentRows, currentStamp: currentStamp, CURRENT_NOTE: CURRENT_NOTE, QUALITY: QUALITY, DISCLAIMER: DISCLAIMER, SRC_T: SRC_T, SRC_P: SRC_P };
+  return { headLines: headLines, authorOf: authorOf, withPlana: withPlana, anyPlana: anyPlana, text: text, html: html, rows: rows, dot: dot, currentRows: currentRows, currentStamp: currentStamp, CURRENT_NOTE: CURRENT_NOTE, QUALITY: QUALITY, DISCLAIMER: DISCLAIMER, SRC_T: SRC_T, SRC_P: SRC_P };
 });
