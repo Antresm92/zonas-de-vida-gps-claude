@@ -5,7 +5,7 @@
   var Geo = window.Geo, H = window.Holdridge, Climate = window.Climate, A = window.Analysis, Fmt = window.Fmt,
       Gps = window.Gps, Store = window.Store, Diagram = window.Diagram, Report = window.Report,
       Gis = window.Gis, Backup = window.Backup, IO = window.IO, WL = window.WalterLieth, Mapa = window.Mapa, MapView = window.MapView, Satelite = window.Satelite, Perfil = window.Perfil, Fotos = window.Fotos, Zip = window.Zip, Units = window.Units;
-  var APP_VERSION = '2.22.0';
+  var APP_VERSION = '2.23.0';
 
   var S = Store.loadState();
   // 2.22.0: la primera vez, los lotes de antes que están dentro de un predio pasan a pertenecerle
@@ -511,7 +511,7 @@
   // used (opcional): { '#RRGGBB': 'nombre de quien ya lo usa' } → esos colores llevan una marca y lo dicen al lector de pantalla
   function colorPalette(current, used) {
     used = used || {};
-    return '<div class="palette" role="group" aria-label="Color">' + Gis.COLORS.map(function (c) {
+    return '<div class="palette" role="group" aria-label="Color">' + LOT_COLORS.map(function (c) {
       var who = used[c.toUpperCase()];
       return '<button class="sw' + (who ? ' used' : '') + '" style="background:' + c + '" data-act="pickColor" data-color="' + c + '" aria-pressed="' + (c.toLowerCase() === String(current).toLowerCase()) +
         '" aria-label="Color ' + c + (who ? ' (ya lo usa «' + esc(who) + '»)' : '') + '"></button>';
@@ -529,7 +529,8 @@
     if (!used[Predio.FINCA_COLOR.toUpperCase()]) return Predio.FINCA_COLOR;
     return LOT_COLORS.filter(function (c) { return !used[c.toUpperCase()]; })[0] || Predio.FINCA_COLOR;
   }
-  var LOT_COLORS = Gis.COLORS;      // los mismos colores de la paleta, para que el elegido quede marcado
+  // 25 colores para predios y lotes (2.23.0): los 10 de siempre y 15 más, escogidos para distinguirse entre sí, sobre la imagen satelital y con el relleno de puntos
+  var LOT_COLORS = Gis.COLORS.concat(['#00ACC1', '#5E35B1', '#AD1457', '#F4511E', '#7CB342', '#1565C0', '#FDD835', '#6D4C41', '#FF8A65', '#9E9D24', '#B39DDB', '#78909C', '#004D40', '#FFB300', '#3949AB']);      // los mismos colores de la paleta, para que el elegido quede marcado
   function lotSub(l) {
     var m2 = lotArea(l), n = l.points.length;
     var base = (m2 ? Fmt.area(Geo.areaUnits(m2), S.settings.areaUnit) + ' · ' : '') + n + (n === 1 ? ' punto' : ' puntos') + (!m2 && n ? ' · falta cerrar el polígono' : '');
@@ -557,13 +558,15 @@
     mapCardOrder: 1, mapReorder: 1, mapSumTap: 1, mapCardMove: 1, mapUndo: 1, layerToMain: 1, mapMode: 1, mapAim: 1 };
   function lotsBar() {
     var p = proj(), cur = lot(), h = '<div class="lots" role="group" aria-label="Lotes del proyecto">';
-    p.lots.forEach(function (l) {
+    Predio.ordered(p.lots).forEach(function (l) {      // cada predio seguido de sus lotes
       var m2 = lotArea(l);
-      h += '<button class="lotchip" data-act="lotPick" data-id="' + esc(l.id) + '" aria-pressed="' + (l === cur) + '"><i' + (Predio.isArea(l) ? ' class="dots"' : '') + ' style="background-color:' + esc(l.mainColor) + '"></i>' + esc(l.name) +
+      h += '<button class="lotchip' + (Predio.isArea(l) && Predio.parentOf(l, p.lots) ? ' sub' : '') + '" data-act="lotPick" data-id="' + esc(l.id) + '" aria-pressed="' + (l === cur) + '"><i' + (Predio.isArea(l) ? ' class="dots"' : '') + ' style="background-color:' + esc(l.mainColor) + '"></i>' + esc(l.name) +
         (l.locked ? ' <span class="lk" aria-label="lindero bloqueado">🔒</span>' : '') +
         (m2 ? ' <small>· ' + esc(Fmt.area(Geo.areaUnits(m2), S.settings.areaUnit)) + '</small>' : '') + '</button>';
     });
-    if (p.lots.length < Store.LOT_MAX) h += '<button class="lotchip add" data-act="lotAdd" aria-label="Agregar un lote al proyecto">＋ Lote</button>';
+    // 2.23.0: «＋ Lote» crea (o importa) un lote dentro del predio elegido; «＋ Predio», otro predio. Siempre a la mano, también con el proyecto vacío
+    if (p.lots.length < Store.LOT_MAX) h += '<button class="lotchip add" data-act="lotAdd" aria-label="Agregar un lote al predio elegido">＋ Lote</button>' +
+      '<button class="lotchip add" data-act="predioAdd" aria-label="Agregar un predio al proyecto">＋ Predio</button>';
     return h + '</div>';
   }
   // La fila va en Puntos, Información, Reporte y el croquis; en el mapa solo si hay más de un lote (para dejarle el alto al mapa)
@@ -607,7 +610,7 @@
     h += fincaLines(acc);
     var ovl = Predio.warnings(p.lots);
     if (ovl.length) h += '<div class="tip" id="lotOverlap">' + ovl.map(esc).join('<br>') + '</div>';
-    if (p.lots.length < Store.LOT_MAX) h += '<div class="btns"><button class="btn btn-primary" data-act="lotAdd">＋ Agregar lote</button></div>';
+    if (p.lots.length < Store.LOT_MAX) h += '<div class="btns"><button class="btn btn-primary" data-act="lotAdd">＋ Agregar lote</button><button class="btn" data-act="predioAdd">＋ Agregar predio</button></div>';
     hideSheet();
     openSheet('Lotes de ' + p.name, h);
   }
@@ -618,10 +621,12 @@
     var used = {}, color = l ? l.mainColor : '';
     p.lots.forEach(function (x) { used[x.mainColor.toUpperCase()] = true; });
     if (!l) color = LOT_COLORS.filter(function (c) { return !used[c]; })[0] || LOT_COLORS[p.lots.length % LOT_COLORS.length];   // el primer color que ningún lote usa
-    var k = l ? (l.kind || 'area') : Predio.fincas(p.lots).some(function (f) { return f.points.length; }) ? 'area' : 'finca';      // primero el predio; con el predio ya marcado, lotes      // 2.22.0: solo hay predios y lotes
+    // 2.23.0: «＋ Lote» siempre es un lote y «＋ Predio» siempre un predio; solo «＋ Polígono» (mapa) deja elegir, y propone primero el predio
+    var k = l ? (l.kind || 'area') : from === 'predio' ? 'finca' : from === 'map' ? (Predio.fincas(p.lots).some(function (f) { return f.points.length; }) ? 'area' : 'finca') : 'area';
     var near = ui.map && from === 'map' ? ui.map.center() : null, cur = lot();
     var gp = l ? Predio.parentOf(l, p.lots) : Predio.guessParent(p.lots, near, Predio.isFinca(cur) ? cur.id : cur.parent);
-    ui.edit = { kind: 'lot', id: id || '', color: color, k: k, cat: l && l.cat || '', parent: gp ? gp.id : '', name: l ? l.name : '', auto: !l, title: l ? 'Editar lote' : from === 'map' ? 'Crear polígono' : 'Nuevo lote' };
+    ui.edit = { kind: 'lot', id: id || '', color: color, k: k, cat: l && l.cat || '', parent: gp ? gp.id : '', name: l ? l.name : '', auto: !l,
+      pickKind: !!l || from === 'map', mode: 'draw', imp: null, title: l ? 'Editar lote' : from === 'map' ? 'Crear polígono' : from === 'predio' ? 'Nuevo predio' : 'Nuevo lote' };
     if (!l) { ui.edit.name = lotDefaultName(); if (k === 'area') ui.edit.color = Predio.catColor(ui.edit.cat); if (k === 'finca') ui.edit.color = fincaColor(); }
     hideSheet();
     openSheet(ui.edit.title, lotFormBody());
@@ -636,9 +641,13 @@
   function lotFormBody() {
     var p = proj(), e = ui.edit, l = e.id ? p.lots.filter(function (x) { return x.id === e.id; })[0] : null, fs = Predio.fincas(p.lots).filter(function (f) { return f !== l; });
     var others = {};
-    p.lots.forEach(function (x) { if (x !== l) others[x.mainColor.toUpperCase()] = x.name; });      // colores de los demás lotes
-    var h = '<div class="f"><span class="f-label2">¿Qué vas a delimitar?</span><div class="seg" role="group" aria-label="Tipo de polígono" id="lotKind">' +
-      [['finca', 'Predio'], ['area', 'Lote']].map(function (o) { return '<button data-act="lotKind" data-k="' + o[0] + '" aria-pressed="' + (e.k === o[0]) + '">' + o[1] + '</button>'; }).join('') + '</div>' +
+    p.lots.forEach(function (x) { if (x !== l && !(!e.id && e.k === 'finca' && isPlaceholder(x, p))) others[x.mainColor.toUpperCase()] = x.name; });      // colores de los demás (el predio vacío del comienzo no cuenta: el nuevo lo reemplaza)
+    var file = !e.id && e.mode === 'file';
+    // al crear: dos caminos, dibujarlo o traerlo de un archivo
+    var h = e.id ? '' : '<div class="seg" role="group" aria-label="Cómo crearlo" id="lotMode" style="margin-bottom:14px">' +
+      [['draw', 'Dibujar'], ['file', 'Importar archivo']].map(function (o) { return '<button data-act="lotMode" data-m="' + o[0] + '" aria-pressed="' + (e.mode === o[0]) + '">' + o[1] + '</button>'; }).join('') + '</div>';
+    h += '<div class="f">' + (e.pickKind ? '<span class="f-label2">¿Qué vas a delimitar?</span><div class="seg" role="group" aria-label="Tipo de polígono" id="lotKind">' +
+      [['finca', 'Predio'], ['area', 'Lote']].map(function (o) { return '<button data-act="lotKind" data-k="' + o[0] + '" aria-pressed="' + (e.k === o[0]) + '">' + o[1] + '</button>'; }).join('') + '</div>' : '') +
       '<span class="f-hint" id="lotKindHint">' + (e.k === 'finca' ? 'El predio: el terreno completo. Su lindero se bloquea solo cuando pasas a otro polígono, para que no cambie por descuido.' :
         'Una parte de trabajo dentro del predio: potrero, cafetal, cultivo… Se dibuja con relleno de puntos y no cambia el lindero del predio.') + '</span></div>';
     if (e.k === 'area') {
@@ -649,6 +658,7 @@
         fs.map(function (f) { return '<option value="' + esc(f.id) + '"' + (f.id === e.parent ? ' selected' : '') + '>' + esc(f.name) + '</option>'; }).join('') + '</select></label>' :
         '<p class="small muted" id="lotNoFinca">Todavía no hay un predio en este proyecto: el lote queda suelto. Cuando crees el predio podrás asignárselo aquí.</p>';
     }
+    if (file) return h + lotFileBody();
     h += '<label class="f"><span>Nombre</span><input type="text" id="lotName" value="' + esc(e.name) + '" maxlength="' + Store.LOT_NAME_MAX + '" autocomplete="off"></label>' +
       '<div class="f"><span style="display:block;margin-bottom:6px;font-weight:650">Color</span>' + colorPalette(e.color, others) +
       (Object.keys(others).length ? '<span class="f-hint" id="lotColorHint">Los colores con un punto blanco ya los usa otro lote.</span>' : '') + '</div>' +
@@ -657,9 +667,86 @@
     return h + '<div class="btns"><button class="btn btn-primary" data-act="lotSave">' + (l ? 'Guardar' : e.k === 'finca' ? 'Crear predio' : 'Crear lote') + '</button>' +
       (l && p.lots.length > 1 ? '<button class="btn btn-danger" data-act="lotDelete" data-id="' + esc(l.id) + '">Eliminar lote</button>' : '') + '</div>';
   }
+  /* ---------- Importar polígonos de un archivo directamente como predios o lotes (2.23.0) ---------- */
+  // La parte de la hoja para «Importar archivo»: elegir el archivo y, cuando ya se leyó, marcar cuáles de sus polígonos entran
+  function lotFileBody() {
+    var e = ui.edit, what = e.k === 'finca' ? 'predio' : 'lote';
+    if (!e.imp) {
+      return '<p class="small muted" id="lotFileHint">Archivos KML, KMZ, GeoJSON o GPX. Cada polígono del archivo entra como ' + what + ', con el nombre y los puntos que trae' +
+        (e.k === 'area' ? '; si cae dentro de otro predio, queda en ese' : ', con el lindero bloqueado') + '. Si trae varios, podrás elegir cuáles.</p>' +
+        '<div class="btns"><button class="btn btn-primary" data-act="lotFile">Elegir archivo…</button></div>';
+    }
+    var n = e.imp.polys.filter(function (x) { return x.on; }).length;
+    return '<p class="lead" id="lotFileName" style="margin-bottom:6px"><b>' + esc(e.imp.file) + '</b> · ' + e.imp.polys.length + (e.imp.polys.length === 1 ? ' polígono' : ' polígonos') + '</p>' +
+      (e.imp.polys.length > 1 ? '<p class="small muted" style="margin:0 0 6px">Deja marcados los que quieres traer.</p>' : '') +
+      '<div id="lotPolys">' + e.imp.polys.map(function (x, i) {
+        return '<label class="repfin impoly"><input type="checkbox" data-i="' + i + '"' + (x.on ? ' checked' : '') + '><span>' + esc(x.name) + ' <small class="muted">· ' +
+          esc(Fmt.area(Geo.areaUnits(Geo.polygonArea(x.points)), S.settings.areaUnit)) + ' · ' + x.points.length + ' puntos</small></span></label>';
+      }).join('') + '</div>' +
+      '<div class="btns" style="margin-top:12px"><button class="btn btn-primary" data-act="lotImport" id="lotImportBtn">Importar como ' + (n === 1 ? what : what === 'predio' ? 'predios' : 'lotes') + '</button>' +
+      '<button class="btn" data-act="lotFile">Elegir otro archivo</button></div>';
+  }
+  function lotFileRead(file) {
+    var e = ui.edit;
+    if (!e || e.kind !== 'lot' || e.id) return;
+    IO.readBytes(file).then(function (bytes) {
+      var res = Gis.parseBytes(bytes);
+      var polys = Gis.toLayers(res.features, { file: file.name || 'archivo', uid: Store.uid }).filter(function (l) { return l.kind === 'polygon' && l.points.length >= 3; });
+      if (!polys.length) throw new Error('el archivo no trae polígonos (solo líneas o puntos). Para verlo como capa, impórtalo desde «Puntos».');
+      if (ui.edit !== e) return;
+      lotFormRead();
+      e.imp = { file: file.name || 'archivo', polys: polys.map(function (l) { return { name: l.name, points: l.points, on: true }; }) };
+      lotFormRefresh();
+    }).catch(function (err) { toast('No se pudo importar: ' + (err && err.message || err), { err: true }); });
+  }
+  function lotImport() {
+    var e = ui.edit, p = proj();
+    if (!e || e.kind !== 'lot' || !e.imp) return;
+    lotFormRead();
+    var sel = e.imp.polys.filter(function (x) { return x.on; }), finca = e.k === 'finca';
+    if (!sel.length) { toast('Marca al menos un polígono para importar.', { err: true }); return; }
+    var ph = finca ? p.lots.filter(function (x) { return isPlaceholder(x, p); })[0] : null;
+    var room = Store.LOT_MAX - p.lots.length + (ph ? 1 : 0), left = Math.max(0, sel.length - room);
+    if (room <= 0) { toast('Un proyecto admite hasta ' + Store.LOT_MAX + ' lotes.', { err: true }); return; }
+    sel = sel.slice(0, room);
+    var lotsBefore = p.lots.slice(), prev = p.lotId, wasLocked = lot().locked, used = {}, made = [];
+    p.lots.forEach(function (x) { if (!isPlaceholder(x, p)) used[x.mainColor.toUpperCase()] = true; });
+    function freeColor(first) {
+      var c = first && !used[first.toUpperCase()] ? first : LOT_COLORS.filter(function (x) { return !used[x.toUpperCase()]; })[0] || LOT_COLORS[(p.lots.length + made.length) % LOT_COLORS.length];
+      used[c.toUpperCase()] = true;
+      return c;
+    }
+    var fs = Predio.fincas(p.lots).filter(function (f) { return f.points.length >= 3; });
+    sel.forEach(function (s) {
+      var nl = Store.newLot(Store.lotName(s.name, p.lots.length), finca ? freeColor(Predio.FINCA_COLOR) : e.cat ? Predio.catColor(e.cat) : freeColor());
+      nl.kind = e.k; nl.points = Gis.pointsFromLayer({ points: s.points, ts: Date.now() }, Store.uid); nl.nextPoint = nl.points.length + 1;
+      if (finca) nl.locked = true;                       // viene de un archivo: su lindero queda protegido desde el principio
+      else {
+        if (e.cat) nl.cat = e.cat;
+        var c = Predio.centroid(nl.points), hit = fs.filter(function (f) { return Predio.contains(f, c); })[0], par = hit ? hit.id : e.parent;      // el predio donde cae; si no cae en ninguno, el elegido
+        if (par) nl.parent = par;
+      }
+      if (ph) { p.lots.splice(p.lots.indexOf(ph), 1, nl); ph = null; } else p.lots.push(nl);
+      made.push(nl);
+    });
+    ui.lockNote = '';
+    if (p.lots.some(function (x) { return x.id === p.lotId; })) pickLot(made[0].id, true);
+    else { p.lotId = made[0].id; ui.mapSel = null; ui.navId = null; ui.unfolded = {}; }
+    var note = ui.lockNote || '', prevLot = lotsBefore.filter(function (x) { return x.id === prev; })[0];
+    ui.mapFitKey = null;
+    save(); closeSheet(); renderTab(ui.tab);
+    toast((made.length === 1 ? '«' + made[0].name + '» importado como ' + (finca ? 'predio' : 'lote') : made.length + ' polígonos importados como ' + (finca ? 'predios' : 'lotes')) +
+      (finca ? ', con el lindero bloqueado.' : '.') + (left ? ' No cupieron ' + left + ': un proyecto admite hasta ' + Store.LOT_MAX + '.' : '') + note, { action: 'Deshacer', fn: function () {
+      p.lots = lotsBefore; p.lotId = prev;
+      if (prevLot && note && !wasLocked) delete prevLot.locked;
+      ui.mapFitKey = null; save(); renderTab(ui.tab);
+    } });
+    if (!finca) adjustManyAsk(made);
+  }
   // Lee lo escrito y vuelve a dibujar la hoja (al cambiar el tipo o la categoría), sin perder nada
   function lotFormRead() {
     var e = ui.edit, n = $('#lotName'), c = $('#lotCat'), s = $('#lotParent');
+    if (e.imp) [].forEach.call(document.querySelectorAll('#lotPolys input'), function (i) { var x = e.imp.polys[+i.getAttribute('data-i')]; if (x) x.on = i.checked; });
     if (n) { if (n.value !== e.name) e.auto = false; e.name = n.value; }
     if (c) e.cat = c.value.replace(/\s+/g, ' ').trim().slice(0, Store.CAT_MAX);
     if (s) e.parent = s.value;
@@ -942,9 +1029,13 @@
   function exportBlock() {
     var h = '<div class="block" id="exportBlock"><h2>Exportar</h2><p class="lead">Para abrir tu terreno en Google Earth, QGIS, ArcGIS, Excel o un GPS.</p><div class="expgrid">';
     Object.keys(EXPORTS).forEach(function (k) { h += '<button class="btn" data-act="export" data-fmt="' + k + '">' + EXPORTS[k].label + '<small>' + EXPORTS[k].sub + '</small></button>'; });
-    h += '</div><div class="seg" role="group" aria-label="Formato del CSV" style="margin-top:12px">';
+    h += '</div>';
+    // 2.23.0: con varios polígonos se puede sacar solo el elegido, en un archivo aparte (para llevarlo a otro proyecto o a otra persona)
+    if (multi()) h += '<div class="seg" role="group" aria-label="Qué exportar" id="expScope" style="margin-top:12px">' +
+      [['all', 'Todo el proyecto'], ['one', 'Solo «' + lot().name + '»']].map(function (o) { return '<button data-act="expScope" data-s="' + o[0] + '" aria-pressed="' + ((o[0] === 'one') === !!ui.expOne) + '">' + esc(o[1]) + '</button>'; }).join('') + '</div>';
+    h += '<div class="seg" role="group" aria-label="Formato del CSV" style="margin-top:12px">';
     [['es', 'CSV para Excel en español'], ['std', 'CSV estándar']].forEach(function (o) { h += '<button data-act="csvStyle" data-s="' + o[0] + '" aria-pressed="' + (S.settings.csvStyle === o[0]) + '">' + o[1] + '</button>'; });
-    h += '</div><p class="small muted">KML, GeoJSON y GPX llevan tus puntos y las capas visibles. El CSV trae solo tus puntos: Punto, Latitud, Longitud, Altitud, Rumbo, Distancia al vértice siguiente y las coordenadas planas Este y Norte (Origen Nacional), ' + (S.settings.csvStyle === 'es' ? 'separado por «;» y con coma decimal' : 'separado por «,» y con punto decimal') + '. El Shapefile es un .zip con dos capas, tus puntos y el polígono, en grados WGS84.</p></div>';
+    h += '</div><p class="small muted">' + (multi() ? 'Con «Solo…» sale únicamente el polígono elegido, en un archivo con su nombre (sirve para llevarlo como lote a otro proyecto). ' : '') + 'KML, GeoJSON y GPX llevan tus puntos y las capas visibles. El CSV trae solo tus puntos: Punto, Latitud, Longitud, Altitud, Rumbo, Distancia al vértice siguiente y las coordenadas planas Este y Norte (Origen Nacional), ' + (S.settings.csvStyle === 'es' ? 'separado por «;» y con coma decimal' : 'separado por «,» y con punto decimal') + '. El Shapefile es un .zip con dos capas, tus puntos y el polígono, en grados WGS84.</p></div>';
     return h;
   }
   function exportLots(p) { return p.lots.filter(function (l) { return l.points.length; }).map(function (l) { var par = Predio.parentOf(l, p.lots), o = { name: l.name, points: l.points };
@@ -953,27 +1044,31 @@
   function exportAs(fmt) {
     var p = proj(), spec = EXPORTS[fmt];
     if (!spec) return;
-    if (fmt === 'shp') { exportShp(p, spec); return; }
+    var one = multi(p) && !!ui.expOne, me = lot();
+    if (one && !me.points.length) { toast('«' + me.name + '» todavía no tiene puntos para exportar.', { err: true }); return; }
+    if (fmt === 'shp') { exportShp(p, spec, one ? me : null); return; }
     var any = p.lots.some(function (l) { return l.points.length; });
     if (!any && !(fmt !== 'csv' && p.layers.some(function (l) { return l.visible !== false; }))) { toast('Todavía no hay puntos para exportar.', { err: true }); return; }
     // Con varios lotes van todos: el elegido como polígono principal y los demás como capas con su nombre; en el CSV, con una columna «Lote»
-    var model = { name: p.name, points: p.points, layers: viewLayers(p), mainColor: p.mainColor, date: Date.now() }, text;
+    var title = one ? p.name + ' ' + me.name : p.name;
+    var model = one ? { name: me.name, points: me.points, layers: [], mainColor: me.mainColor, date: Date.now() } : { name: p.name, points: p.points, layers: viewLayers(p), mainColor: p.mainColor, date: Date.now() }, text;
     try {
       text = fmt === 'kml' ? Gis.toKML(model) : fmt === 'geojson' ? Gis.toGeoJSON(model) : fmt === 'gpx' ? Gis.toGPX(model) :
-        Gis.toCSV(p.points, multi(p) ? { style: S.settings.csvStyle, lots: exportLots(p) } : { style: S.settings.csvStyle });
+        Gis.toCSV(p.points, multi(p) && !one ? { style: S.settings.csvStyle, lots: exportLots(p) } : { style: S.settings.csvStyle });
     } catch (e) { toast('No se pudo preparar el archivo: ' + (e && e.message || e), { err: true }); return; }
-    var name = IO.slug(p.name, spec.ext);
-    IO.saveText(name, spec.mime, text, { title: p.name + ' (' + spec.label + ')', dialogTitle: 'Exportar ' + spec.label }).then(function (r) {
+    var name = IO.slug(title, spec.ext);
+    IO.saveText(name, spec.mime, text, { title: title + ' (' + spec.label + ')', dialogTitle: 'Exportar ' + spec.label }).then(function (r) {
       if (r.how === 'download') toast('Archivo descargado: ' + name);
       else if (r.how === 'share') toast('Archivo listo: ' + name);
     }).catch(function (e) { toast('No se pudo guardar el archivo: ' + (e && e.message || e), { err: true }); });
   }
 
   // El Shapefile son varios archivos: se entregan juntos en un .zip (QGIS y ArcGIS lo abren así)
-  function exportShp(p, spec) {
+  function exportShp(p, spec, only) {
     if (!p.lots.some(function (l) { return l.points.length; })) { toast('Todavía no hay puntos para exportar.', { err: true }); return; }
-    var name = IO.slug(p.name) + '-shapefile.zip', bytes, m = { name: p.name, base: IO.slug(p.name).replace(/-/g, '_') };
-    if (multi(p)) m.lots = exportLots(p); else m.points = p.points;
+    var title = only ? p.name + ' ' + only.name : p.name;
+    var name = IO.slug(title) + '-shapefile.zip', bytes, m = { name: only ? only.name : p.name, base: IO.slug(title).replace(/-/g, '_') };
+    if (only) m.points = only.points; else if (multi(p)) m.lots = exportLots(p); else m.points = p.points;
     try { bytes = Shp.zip(m, Date.now()); }
     catch (e) { toast('No se pudo preparar el archivo: ' + (e && e.message || e), { err: true }); return; }
     IO.saveBytes(name, spec.mime, bytes, { title: p.name + ' (' + spec.label + ')', dialogTitle: 'Exportar ' + spec.label }).then(function (r) {
@@ -1450,8 +1545,9 @@
    * Cuando el polígono elegido se sale de su finca o se monta sobre otro, la app pregunta una vez: «Ajustar a los linderos»
    * (lo recorta para que su borde siga el de la finca y el de los vecinos) o «Dejar sobrepuesto» (queda como está, con el aviso).
    * La pregunta sale al crear o mover un punto y solo cuando el choque es nuevo; el botón de «Polígono» la abre cuando se quiera. */
-  function adjustPlan() {
-    var P = proj(), me = lot(), c = Predio.conflicts(P.lots, me.id);
+  function adjustPlan(me) {
+    var P = proj(), c;
+    me = me || lot(); c = Predio.conflicts(P.lots, me.id);
     if (!c) return null;
     return { c: c, r: Recorte.adjust(me.points, c.finca ? c.finca.points : null, c.others.map(function (o) { return { name: o.name, points: o.points }; })) };
   }
@@ -1499,13 +1595,9 @@
     var pl = adjustPlan();
     if (!pl) return;
     if (!pl.r.ok) { toast(pl.r.reason, { err: true }); return; }
-    var me = lot(), r = pl.r, before = { points: me.points, next: me.nextPoint }, rn = Recorte.rename(r.points);
+    var me = lot(), r = pl.r, before = { points: me.points, next: me.nextPoint };
     undoMark('ajustar a los linderos');
-    me.points = rn.points.map(function (q) {
-      if (q.id) return q;
-      return { id: Store.uid(), name: q.name, lat: q.lat, lon: q.lon, alt: isNum(q.alt) ? q.alt : null, altGps: null, altSrc: isNum(q.alt) ? 'manual' : null, acc: null, altAcc: null, src: 'manual', ts: Date.now() };
-    });
-    me.nextPoint = rn.next;
+    adjustApply(me, r);
     if (ui.adjSeen) delete ui.adjSeen[undoKey()];
     ui.mapSel = null; ui.mapFitKey = mapKey();
     save(); renderTab(ui.tab);
@@ -1513,6 +1605,53 @@
       me.points = before.points; me.nextPoint = before.next; ui.mapFitKey = mapKey();
       save(); renderTab(ui.tab);
     } });
+  }
+  // Pone en el polígono el resultado del recorte: los puntos propios que siguen, los nuevos del lindero y la numeración
+  function adjustApply(me, r) {
+    var rn = Recorte.rename(r.points);
+    me.points = rn.points.map(function (q) {
+      if (q.id) return q;
+      return { id: Store.uid(), name: q.name, lat: q.lat, lon: q.lon, alt: isNum(q.alt) ? q.alt : null, altGps: null, altSrc: isNum(q.alt) ? 'manual' : null, acc: null, altAcc: null, src: 'manual', ts: Date.now() };
+    });
+    me.nextPoint = rn.next;
+  }
+  // 2.23.0: después de importar varios lotes, los que se salen de su predio o se montan sobre otro se listan para elegir cuáles ajustar
+  function adjustManyAsk(made) {
+    var P = proj(), list = made.map(function (l) { return { l: l, c: Predio.conflicts(P.lots, l.id) }; }).filter(function (x) { return x.c; });
+    if (!list.length) return;
+    var tries = 0;
+    (function go() {
+      if (ui.sheetOpen && tries++ < 40) { setTimeout(go, 25); return; }
+      if (ui.sheetOpen) return;
+      ui.adjMany = list.map(function (x) { return x.l.id; });
+      openSheet('Linderos', '<p class="lead" id="adjWhat">' + (list.length === 1 ? 'Un lote importado se sale de su predio o se monta sobre otro polígono.' : list.length + ' de los lotes importados se salen de su predio o se montan sobre otro polígono.') + '</p>' +
+        '<p class="small muted" style="margin:0 0 6px">Deja marcados los que quieres ajustar a los linderos (se recortan para seguir el borde del predio y de sus vecinos); los demás quedan sobrepuestos, con el aviso.</p>' +
+        '<div id="adjList">' + list.map(function (x) {
+          return '<label class="repfin adjpick"><input type="checkbox" data-id="' + esc(x.l.id) + '" checked><span>' + esc(x.l.name) + ' <small class="muted">· ' + esc(x.c.text.replace('«' + x.l.name + '» ', '')) + '</small></span></label>';
+        }).join('') + '</div>' +
+        '<div class="btns" style="margin-top:12px"><button class="btn btn-primary" data-act="adjustMany">Ajustar los marcados</button><button class="btn" data-act="adjustKeep">Dejar todos sobrepuestos</button></div>' +
+        '<p class="small muted" style="margin-top:12px">Los que dejes así se pueden ajustar después, uno por uno, desde «Polígono» o «Más opciones» del mapa. El ajuste se puede deshacer.</p>');
+    })();
+  }
+  function adjustMany() {
+    var P = proj(), ids = [].filter.call(document.querySelectorAll('#adjList input'), function (i) { return i.checked; }).map(function (i) { return i.getAttribute('data-id'); });
+    closeSheet();
+    if (!ids.length) { toast('No marcaste ninguno: todos quedan sobrepuestos.'); return; }
+    var before = [], done = 0, fails = [];
+    ids.forEach(function (id) {
+      var me = P.lots.filter(function (x) { return x.id === id; })[0], pl = me && adjustPlan(me);
+      if (!me) return;
+      if (!pl) { done++; return; }                     // ya quedó bien al ajustar a un vecino
+      if (!pl.r.ok) { fails.push(me.name); return; }
+      before.push({ l: me, points: me.points, next: me.nextPoint });
+      adjustApply(me, pl.r); done++;
+    });
+    ui.mapSel = null; ui.mapFitKey = mapKey();
+    save(); renderTab(ui.tab);
+    toast((done === 1 ? '1 lote ajustado' : done + ' lotes ajustados') + ' a los linderos.' + (fails.length ? ' No se pudo con «' + fails.join('», «') + '»: quedan sobrepuestos.' : ''), before.length ? { action: 'Deshacer', fn: function () {
+      before.forEach(function (b) { b.l.points = b.points; b.l.nextPoint = b.next; });
+      ui.mapFitKey = mapKey(); save(); renderTab(ui.tab);
+    } } : {});
   }
   function onUserPan() { if (ui.follow) { ui.follow = false; syncMapChrome(); } }
   function onMapView() { if (ui.mapTool === 'mira') { var el = $('#mapAimLL'); if (el && ui.map) { var c = ui.map.center(); el.textContent = Fmt.latlon(c.lat, c.lon); } } }
@@ -1767,6 +1906,7 @@
       ['Cómo se ven', 'el predio, con relleno liso; los lotes, con relleno de puntos de su color.'],
       ['Candado 🔒', 'al pasar de un predio a otro polígono, su lindero se bloquea solo. Para cambiarlo, toca «Editar» en el aviso del candado.'],
       ['Linderos compartidos', 'si marcas o sueltas un punto muy cerca de la esquina de otro polígono, se pega a ella y los dos comparten el lindero exacto. Se apaga en Herramientas › Preferencias.'],
+      ['＋ Lote y ＋ Predio', 'en la fila de arriba. «＋ Predio» crea otro predio y «＋ Lote», un lote dentro del predio elegido. Los dos dejan dibujarlo o traerlo de un archivo (KML, KMZ, GeoJSON o GPX): si el archivo trae varios polígonos, eliges cuáles entran, y si alguno choca con los linderos, cuáles se ajustan.'],
       ['Ajustar a los linderos', 'si el polígono que marcas se sale de su predio o se monta sobre otro, la app pregunta: «Ajustar a los linderos» lo recorta para que su borde siga el del predio y el de los vecinos (aparecen puntos nuevos en el lindero y se numeran de nuevo; se puede deshacer); «Dejar sobrepuesto» lo deja como está, con el aviso. Más tarde lo encuentras en «Más opciones».']
     ]],
     ['Medir', [
@@ -2895,7 +3035,10 @@
     lotPickClose: function (t) { var ch = pickLot(t.getAttribute('data-id'), true); closeSheet(); if (ch) { renderTab(ui.tab); toast('Lote elegido: ' + lot().name + '.' + (ui.lockNote || '')); } },
     adjustAsk: function () { adjustSheet(); }, adjustDo: function () { adjustDo(); }, adjustKeep: function () { closeSheet(); },
     repScope: function (t) { repRead(); ui.repScope = t.getAttribute('data-s'); var el = $('#repWhat'); if (el) el.innerHTML = repWhatHtml(); },
-    lotAdd: function () { lotForm(''); }, lotEdit: function (t) { lotForm(t.getAttribute('data-id')); }, lotSave: lotSave,
+    lotAdd: function () { lotForm(''); }, predioAdd: function () { lotForm('', 'predio'); },
+    lotMode: function (t) { var e = ui.edit; if (!e || e.kind !== 'lot') return; lotFormRead(); e.mode = t.getAttribute('data-m'); lotFormRefresh(); },
+    lotFile: function () { lotFormRead(); $('#polyFile').click(); }, lotImport: lotImport, adjustMany: adjustMany,
+    expScope: function (t) { ui.expOne = t.getAttribute('data-s') === 'one'; renderTab(ui.tab); }, lotEdit: function (t) { lotForm(t.getAttribute('data-id')); }, lotSave: lotSave,
     lotNewMap: function () { closeSheet(); lotForm('', 'map'); },
     mapUnlock: function () { setLock(lot(), false); },
     layerToFinca: function (t) { layerToLot(t.getAttribute('data-id'), 'finca'); }, layerToArea: function (t) { layerToLot(t.getAttribute('data-id'), 'area'); },
@@ -2952,6 +3095,11 @@
   $('#csvFile').addEventListener('change', function (e) {
     var f = e.target.files && e.target.files[0];
     if (f) importCsv(f);
+    e.target.value = '';
+  });
+  $('#polyFile').addEventListener('change', function (e) {
+    var f = e.target.files && e.target.files[0];
+    if (f) lotFileRead(f);
     e.target.value = '';
   });
   $('#gisFile').addEventListener('change', function (e) {

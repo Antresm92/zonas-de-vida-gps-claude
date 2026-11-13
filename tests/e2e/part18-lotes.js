@@ -29,7 +29,7 @@ module.exports = async function (c) {
 
   await step('Con un solo lote: la fila muestra «Predio» y «＋ Lote» en Puntos, Información y Reporte, y no le quita alto al mapa', async () => {
     await fresh();
-    assert.deepEqual(await chips(), ['Predio *', '＋ Lote']);
+    assert.deepEqual(await chips(), ['Predio *', '＋ Lote', '＋ Predio']);
     for (const [ll, alt] of L1) await addPointManual(ll, alt);
     assert.match((await chips())[0], /^Predio · \d+,\d+ ha \*$/);
     for (const t of ['clima', 'informe']) { await tab(t); assert.equal(await page.locator('#tab-' + t + ' .lots').count(), 1, t); }
@@ -44,10 +44,10 @@ module.exports = async function (c) {
     await tab('puntos');
     await newLot('');
     assert.match(await toastText(), /^«Lote» creado y elegido\. El lindero de «Predio» quedó bloqueado\./);
-    assert.deepEqual((await chips()).map((x) => x.replace(/ · [\d,]+ ha/, '')), ['Predio 🔒', 'Lote *', '＋ Lote']);
+    assert.deepEqual((await chips()).map((x) => x.replace(/ · [\d,]+ ha/, '')), ['Predio 🔒', 'Lote *', '＋ Lote', '＋ Predio']);
     assert.equal(await page.locator('#tab-puntos [data-act="editPoint"]').count(), 0, 'el lote nuevo no tiene puntos');
     await page.click('#toast button');                                    // deshacer
-    assert.deepEqual((await chips()).map((x) => x.replace(/ · [\d,]+ ha/, '')), ['Predio *', '＋ Lote']);
+    assert.deepEqual((await chips()).map((x) => x.replace(/ · [\d,]+ ha/, '')), ['Predio *', '＋ Lote', '＋ Predio']);
     assert.equal((await lots()).length, 1);
     await newLot('Cafetal');
     for (const [ll, alt] of L2) await addPointManual(ll, alt);
@@ -225,7 +225,7 @@ module.exports = async function (c) {
     assert.equal('points' in raw.state.projects[0], false);
     await page.reload(); await page.waitForSelector('#tab-puntos');
     assert.deepEqual(await lots(), antes);
-    assert.deepEqual((await chips()).map((x) => x.replace(/ · [\d,]+ ha/, '')), ['Predio 🔒', 'Cafetal *', '＋ Lote']);
+    assert.deepEqual((await chips()).map((x) => x.replace(/ · [\d,]+ ha/, '')), ['Predio 🔒', 'Cafetal *', '＋ Lote', '＋ Predio']);
     await shot('v215-reabierta');
   });
 

@@ -506,3 +506,7 @@ details.why summary { min-height: 32px; padding: 6px 0; color: var(--blue); font
 .reppick select { width: 100%; min-height: 44px; }
 .repfin { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 4px; }
 .repfin input { width: 22px; height: 22px; flex: none; }
+
+/* 2.23.0: en la fila de arriba, los lotes van después de su predio, un poco más bajos para que se lea la jerarquía */
+.lotchip.sub { font-size: .92em; }
+.impoly span, .adjpick span { min-width: 0; }

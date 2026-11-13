@@ -14,7 +14,7 @@ module.exports = async function (c) {
   const lots = async () => { const s = await state(); return s.projects.find((p) => p.id === s.currentId).lots; };
   const fly = async (lat, lon, z) => { await page.evaluate(([a, b, zz]) => window.__app.ui.map.flyTo(a, b, zz), [lat, lon, z]); await page.waitForFunction((zz) => window.__app.ui.map.info().zoom === zz, z); await page.waitForTimeout(250); };
   // 2.22.0: el vecino es otro predio (dos predios que comparten lindero); un lote iría dentro del predio
-  const newLot = async (name) => { await act('lotAdd'); await page.click('#lotKind button:has-text("Predio")'); await fill('#lotName', name); await act('lotSave'); await waitSheetClosed(); };
+  const newLot = async (name) => { await act('predioAdd'); await fill('#lotName', name); await act('lotSave'); await waitSheetClosed(); };
   // Predio al oeste; el lote «Vecino» se marcará al este, compartiendo el lado P2–P3 del Predio
   const L1 = [['4.6000, -74.0800', 2600], ['4.6000, -74.0700', 2650], ['4.6100, -74.0700', 2700]];
   const base = async () => {
