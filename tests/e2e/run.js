@@ -55,8 +55,17 @@ const arg = (n) => { const a = process.argv.find((x) => x.startsWith('--' + n + 
   const fresh = async () => {
     await page.evaluate(() => { localStorage.clear(); localStorage.setItem('zvg.v1.flags', JSON.stringify({ mapGuide: true, appGuide: true, reportOpen: true })); });   // la ayuda de primera vez del mapa se prueba aparte
     await page.goto(url);
+    // Justo después de un paso sin conexión, Chromium a veces deja sin cargar uno de los archivos de la app (la página queda en blanco
+    // con un error de «no definido»). No es un fallo de la app: se vuelve a cargar una vez y se anota en la consola del recorrido.
+    const up = await page.waitForFunction(() => !!window.__app, null, { timeout: 5000 }).then(() => true, () => false);
+    if (!up) { console.log('      (recarga: la página no terminó de cargar al primer intento)'); await page.goto(url); }
     await page.waitForSelector('#tab-puntos');
     errors.length = 0;
+  };
+  // 2.21.0: cuando un polígono choca con otro o se sale de su finca la app pregunta; los recorridos anteriores lo dejan sobrepuesto
+  const dejarSobrepuesto = async () => {
+    await page.waitForFunction(() => { const h = document.querySelector('#sheet h2'); return h && h.textContent === 'Linderos'; });
+    await act('adjustKeep'); await waitSheetClosed();
   };
   // La app enfoca el primer campo de cada ventana medio segundo después de abrirla; si se escribe antes, el texto cae en ese campo
   const settle = () => page.waitForFunction(() => { const s = document.querySelector('#sheet'); if (s.hidden) return true; const f = s.querySelector('input,textarea'); return !f || s.contains(document.activeElement); }, null, { timeout: 2000 }).catch(() => {});
@@ -80,13 +89,13 @@ const arg = (n) => { const a = process.argv.find((x) => x.startsWith('--' + n + 
   // «Compartir reporte» pregunta el formato: abre la hoja y elige HTML o PDF
   const compartir = async (formato) => { await page.click('[data-act="share"]'); await page.click('[data-act="shareReport' + formato + '"]'); };
 
-  const ctx = { compartir, page, url, state, proj, toastText, act, sheetOpen, sheetTitle, waitSheetClosed, waitToast, tab, text, fresh, fill, gpsPush, shot, addPointManual, download, setFile, step, errors, context, browser, assert, fx, shots, H, tiles };
+  const ctx = { dejarSobrepuesto, compartir, page, url, state, proj, toastText, act, sheetOpen, sheetTitle, waitSheetClosed, waitToast, tab, text, fresh, fill, gpsPush, shot, addPointManual, download, setFile, step, errors, context, browser, assert, fx, shots, H, tiles };
 
   console.log('Recorrido de la app en Chromium (' + url + ')');
   await page.goto(url);
   await page.waitForSelector('#tab-puntos');
   const only = (arg('parts') || '').split(',').filter(Boolean);
-  for (const part of ['part1-puntos', 'part2-area-importar', 'part3-clima', 'part4-informe-proyectos', 'part5-offline', 'part7-mapa', 'part8-perfil-satelital', 'part9-menu-mapa', 'part10-posicion-manual', 'part11-v25', 'part12-fotos', 'part13-pdf', 'part14-herramientas', 'part15-mapa-intuitivo', 'part16-guiada', 'part17-v214', 'part18-lotes', 'part19-v216', 'part20-fincas', 'part21-clasif', 'part22-v220']) {
+  for (const part of ['part1-puntos', 'part2-area-importar', 'part3-clima', 'part4-informe-proyectos', 'part5-offline', 'part7-mapa', 'part8-perfil-satelital', 'part9-menu-mapa', 'part10-posicion-manual', 'part11-v25', 'part12-fotos', 'part13-pdf', 'part14-herramientas', 'part15-mapa-intuitivo', 'part16-guiada', 'part17-v214', 'part18-lotes', 'part19-v216', 'part20-fincas', 'part21-clasif', 'part22-v220', 'part23-linderos']) {
     if (only.length && !only.some((o) => part.startsWith(o))) continue;
     const f = path.join(__dirname, part + '.js');
     if (fs.existsSync(f)) { console.log('\n' + part); await require(f)(ctx); }

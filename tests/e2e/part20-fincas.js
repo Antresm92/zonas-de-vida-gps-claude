@@ -98,7 +98,10 @@ module.exports = async function (c) {
     assert.deepEqual([ls[3].name, ls[3].cat, ls[3].kind], ['Cacaotera', 'Cacaotera', 'area']);
     await page.evaluate(() => window.__app.ui.map.setMode(''));
     await tab('puntos');
-    for (const ll of ['4.607, -74.074', '4.607, -74.068', '4.609, -74.068', '4.609, -74.074']) await addPointManual(ll, 1000);   // se sale ~200 m por el este
+    // se sale ~200 m por el este; 2.21.0: al tercer punto (ya hay polígono y se sale) pregunta, y se deja así; con el cuarto no vuelve a preguntar
+    for (const ll of ['4.607, -74.074', '4.607, -74.068', '4.609, -74.068']) await addPointManual(ll, 1000);
+    await c.dejarSobrepuesto();
+    await addPointManual('4.609, -74.074', 1000);
     await page.click('section.tab:not([hidden]) .lots .lotchip[aria-pressed="true"]');
     assert.equal(await sheetTitle(), 'Lotes de Mi primer proyecto');
     assert.equal(await text('#lotOverlap'), '«Cacaotera» se sale de la finca «La Esperanza». Puedes dejarlo así, pero recuerda que esa parte queda por fuera de los límites del predio.');

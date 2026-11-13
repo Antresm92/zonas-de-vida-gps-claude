@@ -164,7 +164,7 @@ module.exports = async function (c) {
     await act('mapGuide'); await page.waitForSelector('#sheet:not([hidden])');
     assert.deepEqual(await page.$$eval('#sheet .guide-h', (d) => d.map((x) => x.textContent)), ['Lo básico', 'Crear y cambiar puntos', 'Lotes, fincas y áreas', 'Medir']);
     const mapa = await text('#sheet');
-    for (const w of ['＋ Polígono', 'relleno de puntos', 'Candado', 'se pega a ella', 'casilla «Orden»', 'suben un número', 'Caminar el lindero', 'Agregar con mira', 'deshacer', 'da también el área']) assert.ok(mapa.includes(w), 'la ayuda del mapa no menciona: ' + w);
+    for (const w of ['＋ Polígono', 'relleno de puntos', 'Candado', 'se pega a ella', 'Dejar sobrepuesto', 'casilla «Orden»', 'suben un número', 'Caminar el lindero', 'Agregar con mira', 'deshacer', 'da también el área']) assert.ok(mapa.includes(w), 'la ayuda del mapa no menciona: ' + w);
     await page.click('#sheet .btn-primary'); await waitSheetClosed();
     // mini tutorial de usos
     await act('usesGuide'); await page.waitForSelector('#sheet:not([hidden])');

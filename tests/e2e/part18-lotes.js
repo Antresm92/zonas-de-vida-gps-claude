@@ -239,6 +239,7 @@ module.exports = async function (c) {
     // un tercer lote metido encima del Lote 1
     await newLot('Encima');
     for (const ll of ['4.6010, -74.0780', '4.6010, -74.0720', '4.6080, -74.0750']) await addPointManual(ll, 2600);
+    await c.dejarSobrepuesto();                                         // 2.21.0: al tercer punto pregunta; se deja como está
     await page.click('section.tab:not([hidden]) .lots .lotchip[aria-pressed="true"]');
     assert.equal(await text('#lotOverlap'), 'Hay lotes que se montan uno sobre otro: «Lote 1» y «Encima». Revisa los linderos: el total del proyecto cuenta esa parte dos veces.');
     await shot('v2151-montados');

@@ -681,7 +681,7 @@ module.exports = async function (c) {
     await openMap();
     await page.waitForSelector('#sheet:not([hidden])');
     assert.equal(await sheetTitle(), 'Cómo usar el mapa');
-    assert.deepEqual(await page.$$eval('.guide dt', (d) => d.map((x) => x.textContent)), ['Toca un punto', 'Arriba', 'Botones de la izquierda', 'Mi posición', 'Marcar punto', 'Menú ⋮', 'Insertar entre dos', 'Cambiar el orden', 'Más opciones', '＋ Polígono', 'Elegir otro', 'Cómo se ven', 'Candado 🔒', 'Linderos compartidos', 'Medir distancia']);
+    assert.deepEqual(await page.$$eval('.guide dt', (d) => d.map((x) => x.textContent)), ['Toca un punto', 'Arriba', 'Botones de la izquierda', 'Mi posición', 'Marcar punto', 'Menú ⋮', 'Insertar entre dos', 'Cambiar el orden', 'Más opciones', '＋ Polígono', 'Elegir otro', 'Cómo se ven', 'Candado 🔒', 'Linderos compartidos', 'Ajustar a los linderos', 'Medir distancia']);
     await shot('158-ayuda-del-mapa');
     await page.click('#sheet .btn-primary'); await waitSheetClosed();
     assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('zvg.v1.flags')).mapGuide), true);

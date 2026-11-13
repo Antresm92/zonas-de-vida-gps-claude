@@ -118,6 +118,25 @@
     return out;
   }
 
-  return { CATS: CATS, FINCA_COLOR: FINCA_COLOR, isFinca: isFinca, isArea: isArea, kindLabel: kindLabel, catColor: catColor, fincas: fincas, parentOf: parentOf,
+  /* ---------- Con qué choca un polígono (2.21.0) ---------- */
+  // { finca (la suya, si se sale de ella; si no, null), others: [polígonos sobre los que se monta], text } o null si no choca con nada.
+  // Como en los avisos, una finca y un área no chocan entre sí.
+  function conflicts(lots, id) {
+    lots = (lots || []).filter(Boolean);
+    var me = lots.filter(function (l) { return l.id === id; })[0];
+    if (!me || !closed(me)) return null;
+    var par = parentOf(me, lots), finca = par && closed(par) && Geo.sticksOut(me.points, par.points) ? par : null;
+    var others = lots.filter(function (o) {
+      return o !== me && closed(o) && !((isFinca(me) && isArea(o)) || (isFinca(o) && isArea(me))) && Geo.polygonsOverlap(me.points, o.points);
+    });
+    if (!finca && !others.length) return null;
+    var names = others.slice(0, 3).map(function (o) { return '«' + o.name + '»'; }).join(', ') + (others.length > 3 ? ' y ' + (others.length - 3) + ' más' : '');
+    return { finca: finca, others: others,
+      text: '«' + me.name + '»' + (finca ? ' se sale de la finca «' + finca.name + '»' : '') + (finca && others.length ? ' y' : '') + (others.length ? ' se monta sobre ' + names : '') + '.' };
+  }
+  // Para saber si el choque es el mismo de antes (y no volver a preguntar por él)
+  function conflictKey(c) { return c ? (c.finca ? 'F:' + c.finca.id : '') + '|' + c.others.map(function (o) { return o.id; }).sort().join(',') : ''; }
+
+  return { conflicts: conflicts, conflictKey: conflictKey, CATS: CATS, FINCA_COLOR: FINCA_COLOR, isFinca: isFinca, isArea: isArea, kindLabel: kindLabel, catColor: catColor, fincas: fincas, parentOf: parentOf,
     children: children, centroid: centroid, contains: contains, guessParent: guessParent, account: account, warnings: warnings, m2: m2, ordered: ordered };
 });

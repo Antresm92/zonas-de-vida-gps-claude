@@ -92,6 +92,7 @@ module.exports = async function (c) {
     await waitToast(/creado \(sin altitud\)\./);
     const v = (await lots())[1].points, last = v[v.length - 1];
     assert.notEqual(last.lon, -74.08); assert.equal(last.alt, null);
+    await c.dejarSobrepuesto();                                         // 2.21.0: sin pegarse, el punto deja al Vecino montado sobre el Lote 1; pregunta y se deja así
     await page.click('#toast button');
     await tab('herramientas'); await page.click(sel);
     assert.equal(await page.isChecked(sel), true);

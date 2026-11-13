@@ -5,7 +5,7 @@
   var Geo = window.Geo, H = window.Holdridge, Climate = window.Climate, A = window.Analysis, Fmt = window.Fmt,
       Gps = window.Gps, Store = window.Store, Diagram = window.Diagram, Report = window.Report,
       Gis = window.Gis, Backup = window.Backup, IO = window.IO, WL = window.WalterLieth, Mapa = window.Mapa, MapView = window.MapView, Satelite = window.Satelite, Perfil = window.Perfil, Fotos = window.Fotos, Zip = window.Zip, Units = window.Units;
-  var APP_VERSION = '2.20.0';
+  var APP_VERSION = '2.21.0';
 
   var S = Store.loadState();
   var hadSaved = Store.hasSavedState();      // ¿había datos guardados al abrir? (solo entonces se limpian las fotos sin uso)
@@ -354,6 +354,7 @@
         if (st.cancelled) return;
         undoMark('marcar un punto con el GPS');
         var pt = addPoint({ lat: r.lat, lon: r.lon, alt: r.alt, altGps: r.alt, altSrc: isNum(r.alt) ? 'gps' : null, acc: r.acc, altAcc: r.altAcc, src: 'gps' });
+        adjustCheck();
         var base = pt.name + ' guardado' + (isNum(r.acc) ? ' (±' + Math.round(r.acc) + ' m, ' + r.n + ' lecturas)' : '');
         if (Gps.precisionState(r.acc, min).worse) {
           toast(base + '. Aviso: la precisión quedó peor que tu mínimo (±' + min + ' m); este punto no es el más preciso.', { action: 'Quitarlo', fn: function () { removePoint(pt.id); } });
@@ -1034,6 +1035,7 @@
     toast(pt.name + ' guardado.');
     if (more) { hideSheet(); ui.sheetOpen = false; openAdd(); } else closeSheet();
     renderTab(ui.tab);
+    if (!more) adjustCheck();
   }
   function openEdit(id) {
     var pt = pointById(id); if (!pt) return;
@@ -1163,7 +1165,8 @@
     if (cpl) h += '<div><dt>Centro en planas (Origen Nacional)</dt><dd id="areaPlana">' + esc(cpl) + '</dd></div>';
     if (a.alt.min !== null && a.alt.n > 1) h += '<div><dt>Altitud de los puntos</dt><dd>' + Fmt.num(a.alt.min, 0) + ' a ' + Fmt.num(a.alt.max, 0) + ' m</dd></div>';
     var ovl = multi(p) ? Predio.warnings(p.lots) : [];
-    h += '</dl>' + (multi(p) ? fincaLines(Predio.account(p.lots)) : '') + (ovl.length ? '<div class="tip" id="areaOverlap">' + ovl.map(esc).join('<br>') + '</div>' : '') + '<p class="small muted">Área calculada sobre el elipsoide WGS84. La precisión depende de la de las coordenadas: con GPS de teléfono (±5 m) una finca pequeña puede variar varios por ciento.</p></div>';
+    h += '</dl>' + (multi(p) ? fincaLines(Predio.account(p.lots)) : '') + (ovl.length ? '<div class="tip" id="areaOverlap">' + ovl.map(esc).join('<br>') + '</div>' : '') +
+      (multi(p) && !lot().locked && Predio.conflicts(p.lots, p.lotId) ? '<div class="btns" style="margin:8px 0"><button class="btn" data-act="adjustAsk" id="adjBtn">Ajustar «' + esc(lot().name) + '» a los linderos</button></div>' : '') + '<p class="small muted">Área calculada sobre el elipsoide WGS84. La precisión depende de la de las coordenadas: con GPS de teléfono (±5 m) una finca pequeña puede variar varios por ciento.</p></div>';
 
     h += '<div class="block"><h2>Lados</h2><dl class="kv">';
     var pts = p.points, n = pts.length;
@@ -1315,6 +1318,7 @@
       else if (p.nextPoint === prevNext + 1) p.nextPoint = prevNext;   // el siguiente punto vuelve a llamarse como habría sido
       save(); renderTab(ui.tab);
     } });
+    adjustCheck();
   }
   // Al soltar un punto arrastrado con «Posición manual»: queda donde se soltó y «Deshacer» lo devuelve (con su origen y su precisión de GPS de antes).
   function onPointDrop(id, ll) {
@@ -1332,6 +1336,7 @@
       q.lat = before.lat; q.lon = before.lon; q.src = before.src; q.acc = before.acc;
       save(); renderTab(ui.tab);
     } });
+    adjustCheck();
   }
   // Mientras se arrastra un punto: área, perímetro y aviso de lados cruzados al instante. Devuelve si el polígono quedaría mal.
   function onPointDrag(id, ll, pos) {
@@ -1424,6 +1429,74 @@
     ui.mapFitKey = mapKey();
     save(); renderTab(ui.tab);
     toast('Se deshizo: ' + last.label + '.');
+  }
+  /* ---------- Ajustar a los linderos (2.21.0) ----------
+   * Cuando el polígono elegido se sale de su finca o se monta sobre otro, la app pregunta una vez: «Ajustar a los linderos»
+   * (lo recorta para que su borde siga el de la finca y el de los vecinos) o «Dejar sobrepuesto» (queda como está, con el aviso).
+   * La pregunta sale al crear o mover un punto y solo cuando el choque es nuevo; el botón de «Polígono» la abre cuando se quiera. */
+  function adjustPlan() {
+    var P = proj(), me = lot(), c = Predio.conflicts(P.lots, me.id);
+    if (!c) return null;
+    return { c: c, r: Recorte.adjust(me.points, c.finca ? c.finca.points : null, c.others.map(function (o) { return { name: o.name, points: o.points }; })) };
+  }
+  function adjustNotes(r) {
+    return (r.dropped ? ' Al recortarlo queda partido: se conserva el pedazo más grande y ' + (r.dropped === 1 ? 'el otro se descarta' : 'los otros ' + r.dropped + ' se descartan') + '.' : '') +
+      (r.skipped.length ? ' «' + r.skipped.join('», «') + '» está por completo dentro de este polígono y no se descuenta (quedaría un hueco).' : '');
+  }
+  function adjustSheet() {
+    var pl = adjustPlan();
+    if (!pl) { toast('Este polígono ya respeta los linderos: no hay nada que ajustar.'); return; }
+    var r = pl.r, ha = function (m2) { return Fmt.area(Geo.areaUnits(m2), 'ha'); };
+    var h = '<p class="lead" id="adjWhat">' + esc(pl.c.text) + '</p>';
+    if (r.ok) {
+      h += '<p id="adjPlan">Si lo ajustas, su borde sigue el de ' + (pl.c.finca ? 'la finca' : '') + (pl.c.finca && pl.c.others.length ? ' y el de ' : '') + (pl.c.others.length ? (pl.c.others.length === 1 ? 'su vecino' : 'sus vecinos') : '') +
+        ': queda de <b>' + esc(ha(r.m2After)) + '</b> (hoy ' + esc(ha(r.m2Before)) + '). ' +
+        (r.added ? 'Se ' + (r.added === 1 ? 'agrega 1 punto' : 'agregan ' + r.added + ' puntos') + ' en el lindero' : 'No se agregan puntos') +
+        (r.removed ? ' y se ' + (r.removed === 1 ? 'quita 1 que quedaba' : 'quitan ' + r.removed + ' que quedaban') + ' por fuera o encima' : '') + '; los puntos se numeran de nuevo.' + esc(adjustNotes(r)) + '</p>' +
+        '<div class="btns"><button class="btn btn-primary" data-act="adjustDo">Ajustar a los linderos</button><button class="btn" data-act="adjustKeep">Dejar sobrepuesto</button></div>' +
+        '<p class="small muted" style="margin-top:12px">Si lo dejas sobrepuesto, la app lo sigue avisando en «Polígono» y en el reporte, y puedes ajustarlo después desde «Polígono». El ajuste se puede deshacer.</p>';
+    } else {
+      h += '<div class="note" id="adjNo">' + esc(r.reason) + '</div><div class="btns" style="margin-top:12px"><button class="btn" data-act="adjustKeep">Dejar como está</button></div>';
+    }
+    openSheet('Linderos', h);
+  }
+  // Después de crear o mover un punto: pregunta si el choque es nuevo (no insiste con el mismo)
+  function adjustCheck() {
+    var P = proj(), me = lot();
+    if (ui.track || ui.sharing || !multi(P) || me.locked) return;
+    var c = Predio.conflicts(P.lots, me.id), k = undoKey();
+    ui.adjSeen = ui.adjSeen || {};
+    if (!c) { delete ui.adjSeen[k]; return; }
+    var key = Predio.conflictKey(c);
+    if (ui.adjSeen[k] === key) return;
+    ui.adjSeen[k] = key;
+    // si se está cerrando otra hoja (la de escribir coordenadas), se espera a que termine para que no se lleve esta por delante
+    var tries = 0;
+    (function go() {
+      if (ui.sheetOpen && tries++ < 40) { setTimeout(go, 25); return; }
+      if (!ui.sheetOpen && undoKey() === k && Predio.conflicts(proj().lots, lot().id)) adjustSheet();
+    })();
+  }
+  function adjustDo() {
+    closeSheet();
+    if (lockStop()) return;
+    var pl = adjustPlan();
+    if (!pl) return;
+    if (!pl.r.ok) { toast(pl.r.reason, { err: true }); return; }
+    var me = lot(), r = pl.r, before = { points: me.points, next: me.nextPoint }, rn = Recorte.rename(r.points);
+    undoMark('ajustar a los linderos');
+    me.points = rn.points.map(function (q) {
+      if (q.id) return q;
+      return { id: Store.uid(), name: q.name, lat: q.lat, lon: q.lon, alt: isNum(q.alt) ? q.alt : null, altGps: null, altSrc: isNum(q.alt) ? 'manual' : null, acc: null, altAcc: null, src: 'manual', ts: Date.now() };
+    });
+    me.nextPoint = rn.next;
+    if (ui.adjSeen) delete ui.adjSeen[undoKey()];
+    ui.mapSel = null; ui.mapFitKey = mapKey();
+    save(); renderTab(ui.tab);
+    toast('«' + me.name + '» ajustado a los linderos: ' + Fmt.area(Geo.areaUnits(r.m2After), 'ha') + '.' + adjustNotes(r), { action: 'Deshacer', fn: function () {
+      me.points = before.points; me.nextPoint = before.next; ui.mapFitKey = mapKey();
+      save(); renderTab(ui.tab);
+    } });
   }
   function onUserPan() { if (ui.follow) { ui.follow = false; syncMapChrome(); } }
   function onMapView() { if (ui.mapTool === 'mira') { var el = $('#mapAimLL'); if (el && ui.map) { var c = ui.map.center(); el.textContent = Fmt.latlon(c.lat, c.lon); } } }
@@ -1638,7 +1711,10 @@
   }
   function openMapMore() {
     var opts = Mapa.TRACK_STEPS.map(function (m) { return '<option value="' + m + '"' + (m === Mapa.TRACK_STEP_DEFAULT ? ' selected' : '') + '>Un punto cada ' + m + ' m</option>'; }).join('');
+    var cf = multi() && !lot().locked ? Predio.conflicts(proj().lots, lot().id) : null;
     openSheet('Más opciones del mapa',
+      (cf ? '<h3 class="sub">Ajustar a los linderos</h3><p class="small muted" id="moreAdj">' + esc(cf.text) + ' Puedes recortarlo para que su borde siga el de la finca y el de sus vecinos, o dejarlo así.</p>' +
+        '<div class="btns" style="margin-bottom:18px"><button class="btn btn-primary" data-act="adjustAsk">Ajustar a los linderos</button></div>' : '') +
       '<h3 class="sub">Crear polígono</h3><p class="small muted">Una finca (el terreno completo) o un área dentro de ella: potrero, cafetal, cultivo… Queda elegido y listo para marcar sus puntos tocando el mapa.</p>' +
       '<div class="btns"><button class="btn btn-primary" data-act="lotNewMap">Crear polígono</button></div>' +
       '<h3 class="sub" style="margin-top:18px">Agregar con mira</h3><p class="small muted">Una cruz queda fija en el centro: mueves el mapa hasta el lugar exacto y pulsas «Agregar aquí». Es más preciso que tocar con el dedo.</p>' +
@@ -1674,7 +1750,8 @@
       ['Elegir otro', 'toca dentro de otro polígono o su nombre en la fila de arriba. Los cambios se hacen solo en el polígono elegido; los demás se ven más tenues.'],
       ['Cómo se ven', 'la finca y los lotes, con relleno liso; las áreas, con relleno de puntos de su color.'],
       ['Candado 🔒', 'al pasar de una finca a otro polígono, su lindero se bloquea solo. Para cambiarlo, toca «Editar» en el aviso del candado.'],
-      ['Linderos compartidos', 'si marcas o sueltas un punto muy cerca de la esquina de otro polígono, se pega a ella y los dos comparten el lindero exacto. Se apaga en Herramientas › Preferencias.']
+      ['Linderos compartidos', 'si marcas o sueltas un punto muy cerca de la esquina de otro polígono, se pega a ella y los dos comparten el lindero exacto. Se apaga en Herramientas › Preferencias.'],
+      ['Ajustar a los linderos', 'si el polígono que marcas se sale de su finca o se monta sobre otro, la app pregunta: «Ajustar a los linderos» lo recorta para que su borde siga el de la finca y el de los vecinos (aparecen puntos nuevos en el lindero y se numeran de nuevo; se puede deshacer); «Dejar sobrepuesto» lo deja como está, con el aviso. Más tarde lo encuentras en «Más opciones».']
     ]],
     ['Medir', [
       ['Medir distancia', 'toca el mapa para ir sumando tramos; al cerrar la figura da también el área. No cambia tus puntos.']
@@ -2799,6 +2876,7 @@
     export: function (t) { exportAs(t.getAttribute('data-fmt')); },
     lotPick: function (t) { var id = t.getAttribute('data-id'); if (id === proj().lotId) openLots(); else pickLot(id); },
     lotPickClose: function (t) { var ch = pickLot(t.getAttribute('data-id'), true); closeSheet(); if (ch) { renderTab(ui.tab); toast('Lote elegido: ' + lot().name + '.' + (ui.lockNote || '')); } },
+    adjustAsk: function () { adjustSheet(); }, adjustDo: function () { adjustDo(); }, adjustKeep: function () { closeSheet(); },
     repScope: function (t) { repRead(); ui.repScope = t.getAttribute('data-s'); var el = $('#repWhat'); if (el) el.innerHTML = repWhatHtml(); },
     lotAdd: function () { lotForm(''); }, lotEdit: function (t) { lotForm(t.getAttribute('data-id')); }, lotSave: lotSave,
     lotNewMap: function () { closeSheet(); lotForm('', 'map'); },
