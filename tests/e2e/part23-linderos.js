@@ -33,44 +33,44 @@ module.exports = async function (c) {
 
   await step('Se arma una finca con un cafetal dentro: mientras nada choca no se pregunta nada', async () => {
     await fresh();
-    await nuevo('Finca', 'La Esperanza');
+    await nuevo('Predio', 'La Esperanza');
     for (const [la, lo] of sq(4.6, -74.08, D, D)) await addPointManual(la + ', ' + lo, 1000);
-    finca = (await lots())[1].id;
-    await nuevo('Área', 'Cafetal', finca);
+    finca = (await lots())[0].id;
+    await nuevo('Lote', 'Cafetal', finca);
     for (const [la, lo] of sq(4.6002, -74.0798, D / 2, D / 2)) await addPointManual(la + ', ' + lo, 1000);
-    cafetal = (await lots())[2].id;
+    cafetal = (await lots())[1].id;
     await croquis();
     assert.equal(await page.locator('#areaOverlap').count(), 0);
     assert.equal(await page.locator('#adjBtn').count(), 0, 'sin choque no hay botón de ajustar');
   });
 
-  await step('El bosque se monta sobre el cafetal y se sale de la finca: al tercer punto la app pregunta y muestra cómo quedaría', async () => {
-    await nuevo('Área', 'Bosque', finca);
-    // un rectángulo que empieza dentro del cafetal y se sale de la finca por el oriente
+  await step('El bosque se monta sobre el cafetal y se sale del predio: al tercer punto la app pregunta y muestra cómo quedaría', async () => {
+    await nuevo('Lote', 'Bosque', finca);
+    // un rectángulo que empieza dentro del cafetal y se sale del predio por el oriente
     const pts = [[4.6006, -74.0794], [4.6006, -74.0775], [4.6014, -74.0775], [4.6014, -74.0794]];
     await addPointManual(pts[0].join(', '), 1000); await addPointManual(pts[1].join(', '), 1000);
     await addChoca(pts[2].join(', '));
     assert.equal(await sheetTitle(), 'Linderos');
-    assert.equal(await text('#adjWhat'), '«Bosque» se sale de la finca «La Esperanza» y se monta sobre «Cafetal».');
-    assert.match(await text('#adjPlan'), /su borde sigue el de la finca y el de su vecino: queda de [\d,]+ ha \(hoy [\d,]+ ha\)\. Se agregan \d+ puntos en el lindero y se quita\w* \d+ que quedaba\w* por fuera o encima; los puntos se numeran de nuevo\./);
+    assert.equal(await text('#adjWhat'), '«Bosque» se sale del predio «La Esperanza» y se monta sobre «Cafetal».');
+    assert.match(await text('#adjPlan'), /su borde sigue el del predio y el de su vecino: queda de [\d,]+ ha \(hoy [\d,]+ ha\)\. Se agregan \d+ puntos en el lindero y se quita\w* \d+ que quedaba\w* por fuera o encima; los puntos se numeran de nuevo\./);
     assert.deepEqual(await page.$$eval('#sheet .btns button', (b) => b.map((x) => x.textContent)), ['Ajustar a los linderos', 'Dejar sobrepuesto']);
     await shot('v221-pregunta');
     await act('adjustKeep'); await waitSheetClosed();
-    bosque = (await lots())[3].id;
-    assert.equal((await lots())[3].points.length, 3, '«Dejar sobrepuesto» no cambia nada');
+    bosque = (await lots())[2].id;
+    assert.equal((await lots())[2].points.length, 3, '«Dejar sobrepuesto» no cambia nada');
   });
 
   await step('«Dejar sobrepuesto»: no vuelve a preguntar por el mismo choque, pero el aviso y el botón quedan en «Polígono»', async () => {
     await addPointManual('4.6014, -74.0794', 1000);                    // el cuarto punto: mismo choque, no pregunta (la hoja se cierra)
-    assert.equal((await lots())[3].points.length, 4);
+    assert.equal((await lots())[2].points.length, 4);
     await croquis();
-    assert.match(await text('#areaOverlap'), /«Bosque» se sale de la finca «La Esperanza»/);
+    assert.match(await text('#areaOverlap'), /«Bosque» se sale del predio «La Esperanza»/);
     assert.match(await text('#areaOverlap'), /«Cafetal» y «Bosque»/);
     assert.equal(await text('#adjBtn'), 'Ajustar «Bosque» a los linderos');
     const b = await page.locator('#adjBtn').boundingBox(); assert.ok(b.height >= 44, 'botón cómodo de tocar');
     // en el mapa está en «Más opciones», y solo mientras hay choque
     await openMap(); await act('mapMore'); await page.waitForSelector('#sheet:not([hidden])');
-    assert.match(await text('#moreAdj'), /^«Bosque» se sale de la finca «La Esperanza» y se monta sobre «Cafetal»\. Puedes recortarlo/);
+    assert.match(await text('#moreAdj'), /^«Bosque» se sale del predio «La Esperanza» y se monta sobre «Cafetal»\. Puedes recortarlo/);
     await page.click('#sheet [data-act="adjustAsk"]');
     assert.equal(await sheetTitle(), 'Linderos');
     await act('adjustKeep'); await waitSheetClosed();
@@ -78,12 +78,12 @@ module.exports = async function (c) {
   });
 
   await step('«Ajustar a los linderos»: el bosque queda dentro de la finca y pegado al cafetal, sin avisos; los puntos se numeran de nuevo', async () => {
-    const antes = (await lots())[3].points;
+    const antes = (await lots())[2].points;
     await act('adjustAsk');
     assert.equal(await sheetTitle(), 'Linderos');
     await act('adjustDo'); await waitSheetClosed();
     assert.match(await toastText(), /^«Bosque» ajustado a los linderos: [\d,]+ ha\./);
-    const ls = await lots(), pts = ls[3].points;
+    const ls = await lots(), pts = ls[2].points;
     assert.equal(pts.length, 6, 'una L: 6 esquinas');
     assert.deepEqual(pts.map((p) => p.name), ['P1', 'P2', 'P3', 'P4', 'P5', 'P6']);
     assert.equal(new Set(pts.map((p) => p.id)).size, 6, 'cada punto con su identificador');
@@ -92,7 +92,7 @@ module.exports = async function (c) {
     assert.equal(pts.filter((p) => Math.abs(p.lon - este) < 1e-7).length, 2, 'dos puntos nuevos sobre el lindero de la finca');
     assert.ok(pts.every((p) => typeof p.lat === 'number' && p.alt === 1000), 'los nuevos traen altitud (interpolada entre vecinos)');
     assert.ok(antes.filter((a) => pts.some((p) => p.id === a.id)).length >= 1, 'los puntos propios que seguían dentro se conservan');
-    assert.equal(ls[1].points.length, 4); assert.equal(ls[2].points.length, 4, 'la finca y el cafetal no cambian');
+    assert.equal(ls[0].points.length, 4); assert.equal(ls[1].points.length, 4, 'la finca y el cafetal no cambian');
     assert.equal(await page.locator('#areaOverlap').count(), 0, 'ya no hay avisos');
     assert.equal(await page.locator('#adjBtn').count(), 0);
     await openMap(); await act('mapMore'); await page.waitForSelector('#sheet:not([hidden])');
@@ -106,33 +106,33 @@ module.exports = async function (c) {
     await openMap();
     await page.click('#mapUndoBtn');
     assert.match(await toastText(), /Se deshizo: ajustar a los linderos/);
-    let pts = (await lots())[3].points;
+    let pts = (await lots())[2].points;
     assert.equal(pts.length, 4);
     assert.deepEqual(pts.map((p) => p.name), ['P1', 'P2', 'P3', 'P4']);
     await croquis();
     assert.equal(await page.locator('#adjBtn').count(), 1);
     await act('adjustAsk'); await act('adjustDo'); await waitSheetClosed();
-    assert.equal((await lots())[3].points.length, 6);
+    assert.equal((await lots())[2].points.length, 6);
     await page.click('#toast button');
-    pts = (await lots())[3].points;
+    pts = (await lots())[2].points;
     assert.equal(pts.length, 4);
     assert.deepEqual(pts.map((p) => p.name), ['P1', 'P2', 'P3', 'P4']);
     await act('adjustAsk'); await act('adjustDo'); await waitSheetClosed();
-    assert.equal((await lots())[3].points.length, 6);
+    assert.equal((await lots())[2].points.length, 6);
   });
 
   await step('Tocando el mapa pasa lo mismo: al marcar un punto fuera de la finca pregunta, y al ajustar el área queda dentro', async () => {
     await openMap(); await act('lotNewMap');
-    await page.click('#lotKind button:has-text("Área")'); await page.selectOption('#lotParent', finca); await fill('#lotName', 'Potrero');
+    await page.click('#lotKind button:has-text("Lote")'); await page.selectOption('#lotParent', finca); await fill('#lotName', 'Potrero');
     await act('lotSave'); await waitSheetClosed();
     for (const [la, lo] of [[4.6001, -74.0788], [4.6001, -74.0784]]) { await tapMap(la, lo); await c.waitToast(/creado/); await page.waitForTimeout(350); }
     assert.equal(await c.sheetOpen(), false, 'dos puntos dentro de la finca: no pregunta');
     await tapMap(4.6004, -74.0779);                                      // unos 30 m al oriente del lindero de la finca
     await page.waitForFunction(() => { const h = document.querySelector('#sheet h2'); return h && h.textContent === 'Linderos'; });
-    assert.equal(await text('#adjWhat'), '«Potrero» se sale de la finca «La Esperanza».');
-    assert.match(await text('#adjPlan'), /su borde sigue el de la finca: queda de/);
+    assert.equal(await text('#adjWhat'), '«Potrero» se sale del predio «La Esperanza».');
+    assert.match(await text('#adjPlan'), /su borde sigue el del predio: queda de/);
     await act('adjustDo'); await waitSheetClosed();
-    const pts = (await lots())[4].points, este = -74.08 + D;
+    const pts = (await lots())[3].points, este = -74.08 + D;
     assert.equal(pts.length, 4, 'el triángulo recortado por el lindero queda de 4 esquinas');
     assert.ok(pts.every((p) => p.lon <= este + 1e-7));
     await page.evaluate(() => window.__app.ui.map.setMode(''));
@@ -141,7 +141,7 @@ module.exports = async function (c) {
   });
 
   await step('Cuando no se puede ajustar lo explica: un vecino metido por completo dejaría un hueco', async () => {
-    await nuevo('Área', 'Casa', finca);
+    await nuevo('Lote', 'Casa', finca);
     // tres puntos dentro del cafetal: la casa queda por completo dentro de él
     await addPointManual('4.6004, -74.0796', 1000); await addPointManual('4.6004, -74.0795', 1000);
     await addChoca('4.6005, -74.0795');
@@ -155,7 +155,7 @@ module.exports = async function (c) {
     await act('adjustAsk');
     assert.match(await text('#adjNo'), /«Casa» está por completo dentro de este polígono/);
     await act('adjustKeep'); await waitSheetClosed();
-    assert.equal((await lots())[2].points.length, 4);
+    assert.equal((await lots())[1].points.length, 4);
   });
 
   await step('Un proyecto de un solo lote nunca pregunta; sin errores de JavaScript', async () => {

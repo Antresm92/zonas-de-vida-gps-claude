@@ -95,7 +95,7 @@ module.exports = async function (c) {
     assert.deepEqual(errors, []);
   });
 
-  await step('Área: 2,5 ha → 25.000 m², 3,90625 fanegadas, 6,177635 acres; el punto o la coma sirven como decimal', async () => {
+  await step('Lote: 2,5 ha → 25.000 m², 3,90625 fanegadas, 6,177635 acres; el punto o la coma sirven como decimal', async () => {
     await abrir('area');
     await shot('142-conversor-area');
     await fill('#cvVal', '2,5');

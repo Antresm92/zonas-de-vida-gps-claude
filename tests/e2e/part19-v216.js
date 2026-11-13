@@ -13,8 +13,9 @@ module.exports = async function (c) {
   const pick = async (mode) => { if (!(await visible('#mapMenuPanel'))) await page.click('.mapkebab'); await page.waitForSelector('#mapMenuPanel', { state: 'visible' }); await page.click('#mapMenuPanel input[data-mode="' + mode + '"]'); if (await visible('#mapMenuPanel')) await page.click('.mapkebab'); await page.waitForTimeout(350); };   // se cierra la lista: con ella abierta el primer toque en el mapa solo la cierra
   const lots = async () => { const s = await state(); return s.projects.find((p) => p.id === s.currentId).lots; };
   const fly = async (lat, lon, z) => { await page.evaluate(([a, b, zz]) => window.__app.ui.map.flyTo(a, b, zz), [lat, lon, z]); await page.waitForFunction((zz) => window.__app.ui.map.info().zoom === zz, z); await page.waitForTimeout(250); };
-  const newLot = async (name) => { await act('lotAdd'); await fill('#lotName', name); await act('lotSave'); await waitSheetClosed(); };
-  // Lote 1 al oeste; el lote «Vecino» se marcará al este, compartiendo el lado P2–P3 del Lote 1
+  // 2.22.0: el vecino es otro predio (dos predios que comparten lindero); un lote iría dentro del predio
+  const newLot = async (name) => { await act('lotAdd'); await page.click('#lotKind button:has-text("Predio")'); await fill('#lotName', name); await act('lotSave'); await waitSheetClosed(); };
+  // Predio al oeste; el lote «Vecino» se marcará al este, compartiendo el lado P2–P3 del Predio
   const L1 = [['4.6000, -74.0800', 2600], ['4.6000, -74.0700', 2650], ['4.6100, -74.0700', 2700]];
   const base = async () => {
     await fresh();
@@ -28,8 +29,8 @@ module.exports = async function (c) {
     await fly(4.6, -74.07, 19);
     await pick('add');
     const near = await xyOf(4.6, -74.07);
-    await page.mouse.click(near.x + 9, near.y - 6);                       // a unos 11 píxeles de la esquina P2 del Lote 1
-    await waitToast(/^P1 creado\. Quedó pegado a P2 de «Lote 1»\./);
+    await page.mouse.click(near.x + 9, near.y - 6);                       // a unos 11 píxeles de la esquina P2 del Predio
+    await waitToast(/^P1 creado\. Quedó pegado a P2 de «Predio»\./);
     let v = (await lots())[1].points;
     assert.equal(v.length, 1);
     assert.deepEqual([v[0].lat, v[0].lon, v[0].alt, v[0].altSrc, v[0].src], [4.6, -74.07, 2650, 'manual', 'manual']);
@@ -55,24 +56,24 @@ module.exports = async function (c) {
     const id = (await lots())[1].points[1].id;
     const from = await box('.mk-hit[data-id="' + id + '"]');
     const corner = await xyOf(4.6, -74.07);
-    // se suelta a unos 8 px de la esquina… que ya tiene encima el P1 del Vecino; da igual: se pega a la esquina del Lote 1
+    // se suelta a unos 8 px de la esquina… que ya tiene encima el P1 del Vecino; da igual: se pega a la esquina del Predio
     await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2); await page.mouse.down();
     await page.waitForSelector('.mk-lifted', { state: 'attached' });      // hay que mantenerlo pulsado un segundo para levantarlo
     await page.mouse.move(corner.x + 30, corner.y + 30, { steps: 5 });
     await page.mouse.move(corner.x + 6, corner.y + 5, { steps: 5 }); await page.mouse.up();
-    await waitToast(/^P2 movido\. Quedó pegado a P2 de «Lote 1»\./);
+    await waitToast(/^P2 movido\. Quedó pegado a P2 de «Predio»\./);
     let v = (await lots())[1].points;
     assert.deepEqual([v[1].lat, v[1].lon], [4.6, -74.07]);
     await page.click('#toast button');                                    // deshacer: vuelve a donde estaba
     v = (await lots())[1].points;
     assert.ok(Math.abs(v[1].lat - 4.60008) < 0.00003, String(v[1].lat));
-    // se arma el lote vecino con el lindero compartido completo (P2 y P3 del Lote 1) más una esquina propia
+    // se arma el lote vecino con el lindero compartido completo (P2 y P3 del Predio) más una esquina propia
     await pick('move');                                                   // apaga «Posición manual»
     await fly(4.61, -74.07, 19);
     await pick('add');
     const c3 = await xyOf(4.61, -74.07);
     await page.mouse.click(c3.x - 7, c3.y + 7);
-    await waitToast(/Quedó pegado a P3 de «Lote 1»\./);
+    await waitToast(/Quedó pegado a P3 de «Predio»\./);
     v = (await lots())[1].points;
     assert.deepEqual([v[v.length - 1].lat, v[v.length - 1].lon, v[v.length - 1].alt], [4.61, -74.07, 2700]);
   });
@@ -92,7 +93,7 @@ module.exports = async function (c) {
     await waitToast(/creado \(sin altitud\)\./);
     const v = (await lots())[1].points, last = v[v.length - 1];
     assert.notEqual(last.lon, -74.08); assert.equal(last.alt, null);
-    await c.dejarSobrepuesto();                                         // 2.21.0: sin pegarse, el punto deja al Vecino montado sobre el Lote 1; pregunta y se deja así
+    await c.dejarSobrepuesto();                                         // 2.21.0: sin pegarse, el punto deja al Vecino montado sobre el Predio; pregunta y se deja así
     await page.click('#toast button');
     await tab('herramientas'); await page.click(sel);
     assert.equal(await page.isChecked(sel), true);
@@ -115,7 +116,7 @@ module.exports = async function (c) {
     await page.click('#sheet .lotrow.on .lotmore');
     const used = await page.$$eval('#sheet .palette .sw.used', (b) => b.map((x) => [x.getAttribute('data-color'), x.getAttribute('aria-label')]));
     const l = await lots();
-    assert.deepEqual(used, [[l[0].mainColor, 'Color ' + l[0].mainColor + ' (ya lo usa «Lote 1»)']]);
+    assert.deepEqual(used, [[l[0].mainColor, 'Color ' + l[0].mainColor + ' (ya lo usa «Predio»)']]);
     assert.equal(await page.$eval('#sheet .palette .sw[aria-pressed="true"]', (b) => b.classList.contains('used')), false, 'el propio color no va marcado');
     assert.equal(await text('#lotColorHint'), 'Los colores con un punto blanco ya los usa otro lote.');
     const dot = await page.$eval('#sheet .palette .sw.used', (b) => { const s = getComputedStyle(b, '::after'); return [s.width, s.backgroundColor]; });

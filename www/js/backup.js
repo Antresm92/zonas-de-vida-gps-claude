@@ -166,7 +166,10 @@
         var f = remap[w[1]], ok = f && f !== w[0].id && lots.some(function (x) { return x.id === f && x.kind === 'finca'; });
         if (ok) w[0].parent = f;
       });
-      if (!lots.length) lots.push(Object.assign({ id: self.uid(), name: 'Lote 1' }, self.lot({})));
+      if (!lots.length) lots.push(Object.assign({ id: self.uid(), name: 'Predio' }, self.lot({})));
+      // 2.22.0, igual que al cargar lo guardado: solo hay predios y lotes. Un lote de los de antes pasa a predio si es el único; si no, a lote.
+      if (lots.length === 1 && !lots[0].kind) { lots[0].kind = 'finca'; if (lots[0].name === 'Lote 1') lots[0].name = 'Predio'; }
+      lots.forEach(function (x) { if (!x.kind) x.kind = 'area'; });
       out.layers = layers; out.lots = lots; out.lotId = pick || lots[0].id;
       return out;
     }

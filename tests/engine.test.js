@@ -72,7 +72,7 @@ function rectAreaNumeric(lat1, lat2, dlonDeg) {
   for (let i = 1; i < n; i++) s += f(lat1 * Math.PI / 180 + i * h) * (i % 2 ? 4 : 2);
   return s * h / 3 * dlonDeg * Math.PI / 180;
 }
-test('Área: rectángulos lat/lon frente a integración numérica', () => {
+test('Lote: rectángulos lat/lon frente a integración numérica', () => {
   [[0, 1, 1], [4.5, 4.6, 0.1], [4.6, 4.601, 0.001], [-33, -32, 2], [60, 61, 1]].forEach(([la1, la2, dl]) => {
     const poly = [{ lat: la1, lon: 10 }, { lat: la1, lon: 10 + dl }, { lat: la2, lon: 10 + dl }, { lat: la2, lon: 10 }];
     const got = Geo.polygonArea(poly);
@@ -80,14 +80,14 @@ test('Área: rectángulos lat/lon frente a integración numérica', () => {
     near(got / ref, 1, 1e-9, `rect ${la1},${la2},${dl}`);
   });
 });
-test('Área: cuadrado de 100 m x 100 m ≈ 1 ha', () => {
+test('Lote: cuadrado de 100 m x 100 m ≈ 1 ha', () => {
   const fr = Geo.localFrame([{ lat: 4.6, lon: -74 }]);
   const c = [[0, 0], [100, 0], [100, 100], [0, 100]].map(([x, y]) => Geo.fromXY(fr, { x, y }));
   near(Geo.polygonArea(c), 10000, 5);                        // 0,05 %
   near(Geo.perimeter(c), 400, 0.5);
   near(Geo.areaUnits(10000).fanegadas, 1.5625, 1e-9);
 });
-test('Área: independiente del sentido y del vértice inicial', () => {
+test('Lote: independiente del sentido y del vértice inicial', () => {
   const p = [{ lat: 4.60, lon: -74.10 }, { lat: 4.60, lon: -74.08 }, { lat: 4.62, lon: -74.07 }, { lat: 4.63, lon: -74.09 }];
   const a = Geo.polygonArea(p);
   near(Geo.polygonArea(p.slice().reverse()) / a, 1, 1e-12);

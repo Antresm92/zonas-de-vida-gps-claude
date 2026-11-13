@@ -1,6 +1,6 @@
 'use strict';
 /* 2.20.0 — croquis enfocado en el polígono del que habla cada reporte (los demás, tenues), croquis general sin puntos
- * resaltados y orden de jerarquía (cada finca seguida de sus áreas). */
+ * resaltados y orden de jerarquía (cada predio seguido de sus lotes). */
 const test = require('node:test');
 const assert = require('node:assert');
 const Predio = require('../www/js/predio.js');
@@ -20,7 +20,7 @@ function mainWidth(svg) {
   return Math.max(...xs) - Math.min(...xs);
 }
 
-test('Predio.ordered: cada finca seguida de sus áreas; al final lo que no tiene finca, en su orden', () => {
+test('Predio.ordered: cada predio seguido de sus lotes; al final lo que no tiene finca, en su orden', () => {
   const lots = [
     { id: 'a1', name: 'Cafetal', kind: 'area', parent: 'f2' }, { id: 'l1', name: 'Lote viejo' }, { id: 'f1', name: 'La Uno', kind: 'finca' },
     { id: 'a2', name: 'Potrero', kind: 'area', parent: 'f1' }, { id: 'f2', name: 'La Dos', kind: 'finca' }, { id: 'a3', name: 'Suelta', kind: 'area' },

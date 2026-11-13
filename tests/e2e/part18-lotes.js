@@ -12,10 +12,11 @@ module.exports = async function (c) {
   const rain = async (mm) => { await tab('clima'); await fill('[data-field="pManual"]', String(mm)); await page.press('[data-field="pManual"]', 'Enter'); };
   const newLot = async (name) => {
     await act('lotAdd'); assert.equal(await sheetTitle(), 'Nuevo lote');
+    await page.selectOption('#lotParent', '');                          // 2.22.0: un lote suelto (sin predio), para que sea independiente como en estas pruebas
     if (name) await fill('#lotName', name);
     await act('lotSave'); await waitSheetClosed();
   };
-  // Lote 1: un triángulo al oeste. Cafetal: otro al este, sin tocarse.
+  // Predio: un triángulo al oeste. Cafetal: otro al este, sin tocarse.
   const L1 = [['4.6000, -74.0800', 2600], ['4.6000, -74.0700', 2650], ['4.6100, -74.0750', 2700]];
   const L2 = [['4.6000, -74.0600', 1800], ['4.6000, -74.0500', 1820], ['4.6100, -74.0550', 1850]];
   const dosLotes = async () => {
@@ -26,11 +27,11 @@ module.exports = async function (c) {
     for (const [ll, alt] of L2) await addPointManual(ll, alt);
   };
 
-  await step('Con un solo lote: la fila muestra «Lote 1» y «＋ Lote» en Puntos, Información y Reporte, y no le quita alto al mapa', async () => {
+  await step('Con un solo lote: la fila muestra «Predio» y «＋ Lote» en Puntos, Información y Reporte, y no le quita alto al mapa', async () => {
     await fresh();
-    assert.deepEqual(await chips(), ['Lote 1 *', '＋ Lote']);
+    assert.deepEqual(await chips(), ['Predio *', '＋ Lote']);
     for (const [ll, alt] of L1) await addPointManual(ll, alt);
-    assert.match((await chips())[0], /^Lote 1 · \d+,\d+ ha \*$/);
+    assert.match((await chips())[0], /^Predio · \d+,\d+ ha \*$/);
     for (const t of ['clima', 'informe']) { await tab(t); assert.equal(await page.locator('#tab-' + t + ' .lots').count(), 1, t); }
     await tab('area');
     assert.equal(await page.locator('#tab-area .lots').count(), 1, 'en el croquis sí va');
@@ -42,16 +43,16 @@ module.exports = async function (c) {
   await step('Crear un lote: empieza vacío, queda elegido y los puntos nuevos se guardan en él; «Deshacer» lo quita si sigue vacío', async () => {
     await tab('puntos');
     await newLot('');
-    assert.match(await toastText(), /^«Lote 2» creado y elegido\./);
-    assert.deepEqual((await chips()).map((x) => x.replace(/ · [\d,]+ ha/, '')), ['Lote 1', 'Lote 2 *', '＋ Lote']);
+    assert.match(await toastText(), /^«Lote» creado y elegido\. El lindero de «Predio» quedó bloqueado\./);
+    assert.deepEqual((await chips()).map((x) => x.replace(/ · [\d,]+ ha/, '')), ['Predio 🔒', 'Lote *', '＋ Lote']);
     assert.equal(await page.locator('#tab-puntos [data-act="editPoint"]').count(), 0, 'el lote nuevo no tiene puntos');
     await page.click('#toast button');                                    // deshacer
-    assert.deepEqual((await chips()).map((x) => x.replace(/ · [\d,]+ ha/, '')), ['Lote 1 *', '＋ Lote']);
+    assert.deepEqual((await chips()).map((x) => x.replace(/ · [\d,]+ ha/, '')), ['Predio *', '＋ Lote']);
     assert.equal((await lots()).length, 1);
     await newLot('Cafetal');
     for (const [ll, alt] of L2) await addPointManual(ll, alt);
     const ls = await lots();
-    assert.deepEqual(ls.map((l) => [l.name, l.points.length]), [['Lote 1', 3], ['Cafetal', 3]]);
+    assert.deepEqual(ls.map((l) => [l.name, l.points.length]), [['Predio', 3], ['Cafetal', 3]]);
     assert.deepEqual(ls[1].points.map((p) => p.name), ['P1', 'P2', 'P3'], 'cada lote numera sus puntos desde P1');
     assert.notEqual(ls[0].mainColor, ls[1].mainColor, 'el lote nuevo recibe un color distinto');
     await shot('v215-puntos-dos-lotes');
@@ -59,13 +60,13 @@ module.exports = async function (c) {
 
   await step('Elegir otro lote cambia los puntos, el área y el clima que se ven; el guardado no repite los datos', async () => {
     await page.click('section.tab:not([hidden]) .lots .lotchip:not([aria-pressed="true"]):not(.add)');
-    assert.match(await toastText(), /^Lote elegido: Lote 1\.$/);
+    assert.match(await toastText(), /^Lote elegido: Predio\.$/);
     assert.match((await chips())[0], /\*$/);
     await tab('clima');
-    assert.equal(await page.inputValue('[data-field="pManual"]'), '', 'el Lote 1 todavía no tiene lluvia');
+    assert.equal(await page.inputValue('[data-field="pManual"]'), '', 'el Predio todavía no tiene lluvia');
     await fill('[data-field="pManual"]', '1200'); await page.press('[data-field="pManual"]', 'Enter');
     await page.click('section.tab:not([hidden]) .lots .lotchip:not([aria-pressed="true"]):not(.add)');
-    assert.equal(await page.inputValue('[data-field="pManual"]'), '', 'la lluvia del Lote 1 no pasó al Cafetal');
+    assert.equal(await page.inputValue('[data-field="pManual"]'), '', 'la lluvia del Predio no pasó al Cafetal');
     const raw = await page.evaluate(() => JSON.parse(localStorage.getItem('zvg.v1.state')).projects[0]);
     assert.deepEqual(Object.keys(raw).sort(), ['created', 'id', 'layers', 'lotId', 'lots', 'name']);
     assert.equal(raw.lots[0].climate.pManual, 1200); assert.equal(raw.lots[1].climate.pManual, undefined);
@@ -73,7 +74,7 @@ module.exports = async function (c) {
   });
 
   await step('«Usar este clima en todos los lotes» copia la lluvia y se puede deshacer; cada lote conserva su altitud', async () => {
-    await page.click('section.tab:not([hidden]) .lots .lotchip:not([aria-pressed="true"]):not(.add)');       // Lote 1 (el que tiene la lluvia)
+    await page.click('section.tab:not([hidden]) .lots .lotchip:not([aria-pressed="true"]):not(.add)');       // Predio (el que tiene la lluvia)
     await tab('clima');
     await act('climateToAll');
     assert.match(await toastText(), /^Clima copiado a 1 lote\./);
@@ -95,9 +96,9 @@ module.exports = async function (c) {
     assert.equal(await sheetTitle(), 'Lotes de Mi primer proyecto');
     const rows = await page.$$eval('#sheet .lotrow', (r) => r.map((x) => x.querySelector('.lotpick').textContent.replace(/\s+/g, ' ').trim() + (x.classList.contains('on') ? ' *' : '')));
     assert.equal(rows.length, 2);
-    assert.match(rows[0], /^Lote 1\d+,\d+ ha · 3 puntos( \*)?$/); assert.match(rows[1], /^Cafetal\d+,\d+ ha · 3 puntos( \*)?$/);
+    assert.match(rows[0], /^PredioPredio · lindero bloqueado · \d+,\d+ ha · 3 puntos( \*)?$/); assert.match(rows[1], /^CafetalLote · \d+,\d+ ha · 3 puntos( \*)?$/);
     assert.equal(rows.filter((r) => / \*$/.test(r)).length, 1, 'uno solo marcado como elegido');
-    assert.match(await text('#lotTotal'), /^Total del proyecto: \d+,\d+ ha en 2 lotes cerrados\./);
+    assert.match(await text('#lotTotal'), /^Total del proyecto: \d+,\d+ ha\. Los lotes que están dentro de un predio no se suman otra vez\./);
     const bb = await page.$eval('#sheet .lotmore', (e) => { const c = getComputedStyle(e); return { width: parseFloat(c.width), height: parseFloat(c.height) }; });   // tamaño real, sin la animación de la hoja
     assert.ok(bb.width >= 44 && bb.height >= 44, 'el botón ⋮ se puede tocar con el dedo: ' + JSON.stringify(bb));
     await shot('v215-lista-lotes');
@@ -110,7 +111,7 @@ module.exports = async function (c) {
     const ls = await lots();
     assert.equal(ls[0].name, 'Potrero <b>norte</b>'); assert.equal(ls[0].mainColor, '#2980B9');
     assert.equal(await page.locator('section.tab:not([hidden]) .lots b').count(), 0, 'el nombre se muestra como texto');
-    assert.match((await chips())[0], /^Potrero <b>norte<\/b> · /);
+    assert.match((await chips())[0], /^Potrero <b>norte<\/b> (🔒 )?· /);
     // elegir desde la lista
     await page.click('section.tab:not([hidden]) .lots .lotchip[aria-pressed="true"]');
     await page.click('#sheet .lotrow:nth-child(1) .lotpick'); await waitSheetClosed();
@@ -148,13 +149,13 @@ module.exports = async function (c) {
   await step('Reporte de todo el proyecto: resumen primero y luego cada lote; «Solo este lote» da el reporte del lote elegido', async () => {
     await tab('informe');
     await page.click('[data-act="share"]');
-    assert.deepEqual(await page.$$eval('#repScope button', (b) => b.map((x) => x.textContent + ':' + x.getAttribute('aria-pressed'))), ['Completo:true', 'Específico:false']);
+    assert.deepEqual(await page.$$eval('#repScope button', (b) => b.map((x) => x.textContent + ':' + x.getAttribute('aria-pressed'))), ['Completo:true', 'Global:false', 'Específico:false']);
     const f = await download(() => page.click('[data-act="shareReportHtml"]'));
     assert.equal(f.name, 'reporte-zona-de-vida-mi-primer-proyecto.html');
     const h = f.text;
     assert.ok(h.indexOf('<h2>Resumen del proyecto</h2>') > 0 && h.indexOf('<h2>Resumen del proyecto</h2>') < h.indexOf('<h1 class="lt">'), 'el resumen va antes de los lotes');
-    assert.deepEqual(h.match(/<h1 class="lt">[^<]*(?:&lt;[^<]*)*<\/h1>/g), ['<h1 class="lt">Lote: Potrero &lt;b&gt;norte&lt;/b&gt;</h1>', '<h1 class="lt">Lote: Cafetal</h1>']);
-    assert.match(h, /<tr class="tot"><td>Total<\/td><td>\d+,\d+ ha · [\d,]+ fanegadas<\/td><td colspan="2">2 lotes · \d zonas? de vida<\/td>/);
+    assert.deepEqual(h.match(/<h1 class="lt">[^<]*(?:&lt;[^<]*)*<\/h1>/g), ['<h1 class="lt">Predio: Potrero &lt;b&gt;norte&lt;/b&gt;</h1>', '<h1 class="lt">Lote: Cafetal</h1>']);
+    assert.match(h, /<tr class="tot"><td>Total<\/td><td>\d+,\d+ ha · [\d,]+ fanegadas<\/td><td colspan="\d">2 polígonos · \d zonas? de vida[^<]*<\/td>/);
     assert.equal(h.split('<h2>Datos del clima</h2>').length - 1, 2, 'el reporte completo de cada lote');
     assert.ok(h.indexOf('<h2>Croquis general</h2>') > 0 && h.indexOf('<h2>Croquis general</h2>') < h.indexOf('<h1 class="lt">'), 'croquis general con todos los lotes, en el resumen');
     assert.equal(h.split('Proyecto: Mi primer proyecto').length - 1, 1, 'un solo encabezado');
@@ -181,7 +182,7 @@ module.exports = async function (c) {
     await tab('area');
     const csv = await download(() => page.click('[data-act="export"][data-fmt="csv"]'));
     const lines = csv.text.replace(/^﻿/, '').trim().split('\r\n');
-    assert.match(lines[0], /^Lote;Punto;Latitud;/);
+    assert.match(lines[0], /^Lote;Tipo;Punto;Latitud;/);      // 2.22.0: siempre hay predio y lotes, así que la columna «Tipo» va siempre
     assert.equal(lines.length, 7);
     assert.deepEqual(lines.slice(1).map((l) => l.split(';')[0]), ['Potrero <b>norte</b>', 'Potrero <b>norte</b>', 'Potrero <b>norte</b>', 'Cafetal', 'Cafetal', 'Cafetal']);
     const shp = await download(() => page.click('[data-act="export"][data-fmt="shp"]'));
@@ -220,36 +221,36 @@ module.exports = async function (c) {
     const copia = await download(() => page.click('[data-act="backupJson"]'));
     await page.click('#sheet [aria-label="Cerrar"]'); await waitSheetClosed();
     const raw = JSON.parse(copia.text);
-    assert.deepEqual(raw.state.projects[0].lots.map((l) => [l.name, l.points.length]), [['Lote 1', 3], ['Cafetal', 3]]);
+    assert.deepEqual(raw.state.projects[0].lots.map((l) => [l.name, l.points.length]), [['Predio', 3], ['Cafetal', 3]]);
     assert.equal('points' in raw.state.projects[0], false);
     await page.reload(); await page.waitForSelector('#tab-puntos');
     assert.deepEqual(await lots(), antes);
-    assert.deepEqual((await chips()).map((x) => x.replace(/ · [\d,]+ ha/, '')), ['Lote 1', 'Cafetal *', '＋ Lote']);
+    assert.deepEqual((await chips()).map((x) => x.replace(/ · [\d,]+ ha/, '')), ['Predio 🔒', 'Cafetal *', '＋ Lote']);
     await shot('v215-reabierta');
   });
 
   await step('Lotes que se montan: avisa en la lista de lotes, en Polígono y en el reporte; si solo están al lado, no avisa', async () => {
-    // viene de dos lotes separados (Lote 1 y Cafetal): sin aviso
+    // viene de dos lotes separados (Predio y Cafetal): sin aviso
     await tab('area'); await page.click('[data-act="polyView"][data-v="croquis"]');
     assert.equal(await page.locator('#areaOverlap').count(), 0);
     await tab('puntos');
     await page.click('section.tab:not([hidden]) .lots .lotchip[aria-pressed="true"]');
     assert.equal(await page.locator('#lotOverlap').count(), 0);
     await page.click('#sheet [aria-label="Cerrar"]'); await waitSheetClosed();
-    // un tercer lote metido encima del Lote 1
+    // un tercer lote metido encima del Cafetal (2.22.0: un lote sobre el predio no es montarse; sobre otro lote sí)
     await newLot('Encima');
-    for (const ll of ['4.6010, -74.0780', '4.6010, -74.0720', '4.6080, -74.0750']) await addPointManual(ll, 2600);
+    for (const ll of ['4.6010, -74.0580', '4.6010, -74.0520', '4.6080, -74.0550']) await addPointManual(ll, 2600);
     await c.dejarSobrepuesto();                                         // 2.21.0: al tercer punto pregunta; se deja como está
     await page.click('section.tab:not([hidden]) .lots .lotchip[aria-pressed="true"]');
-    assert.equal(await text('#lotOverlap'), 'Hay lotes que se montan uno sobre otro: «Lote 1» y «Encima». Revisa los linderos: el total del proyecto cuenta esa parte dos veces.');
+    assert.equal(await text('#lotOverlap'), 'Hay polígonos que se montan uno sobre otro: «Cafetal» y «Encima». Revisa los linderos: el total del proyecto cuenta esa parte dos veces.');
     await shot('v2151-montados');
     await page.click('#sheet [aria-label="Cerrar"]'); await waitSheetClosed();
     await tab('area');
-    assert.match(await text('#areaOverlap'), /«Lote 1» y «Encima»/);
+    assert.match(await text('#areaOverlap'), /«Cafetal» y «Encima»/);
     await rain(1200);
     await tab('informe'); await page.click('[data-act="share"]');
     const f = await download(() => page.click('[data-act="shareReportHtml"]'));
-    assert.match(f.text, /<b>Atención:<\/b> Hay lotes que se montan uno sobre otro: «Lote 1» y «Encima»\./);
+    assert.match(f.text, /<b>Atención:<\/b> Hay polígonos que se montan uno sobre otro: «Cafetal» y «Encima»\./);
   });
 
   await step('Lotes: sin errores de JavaScript en la consola', async () => {

@@ -155,12 +155,12 @@
   function kindText(project) {
     var m = project && project.lotMeta;
     if (!m || !m.kind) return '';
-    return m.kind === 'finca' ? 'Finca' : (m.cat || 'Área') + (m.parentName ? ' · en «' + m.parentName + '»' : '');
+    return m.kind === 'finca' ? 'Predio' : (m.cat || 'Lote') + (m.parentName ? ' · en «' + m.parentName + '»' : '');
   }
   // Título de un polígono en el reporte: «Lote: X», «Finca: X» o «Potrero: X (en «Finca»)»
   function lotTitle(project) {
     var m = project.lotMeta || {}, name = project.lotName || project.name;
-    return (m.kind === 'finca' ? 'Finca' : m.kind === 'area' ? (m.cat || 'Área') : 'Lote') + ': ' + name + (m.kind === 'area' && m.parentName ? ' (en «' + m.parentName + '»)' : '');
+    return (m.kind === 'finca' ? 'Predio' : (m.cat || 'Lote')) + ': ' + name + (m.kind === 'area' && m.parentName ? ' (en «' + m.parentName + '»)' : '');
   }
   function summary(parts) {
     parts = parts || [];
@@ -176,18 +176,18 @@
       if (r && r.ok) zones[r.zone.symbol] = r.zone.name;
       rows.push({ name: pt.project.lotName || pt.project.name, color: HEX.test(pt.project.mainColor || '') ? pt.project.mainColor : '#2F8F4E', n: a.n || 0,
         tipo: kindText(pt.project), dots: !!pt.project.dots,
-        area: m2 > 0 ? Fmt.area(a.area, 'ha') + (row && row.pct !== null ? ' (' + Fmt.num(row.pct, 1) + ' % de la finca)' : '') : '—', alt: a.alt && isNum(a.alt.value) ? Fmt.num(a.alt.value, 0) + ' m' : '—',
+        area: m2 > 0 ? Fmt.area(a.area, 'ha') + (row && row.pct !== null ? ' (' + Fmt.num(row.pct, 1) + ' % del predio)' : '') : '—', alt: a.alt && isNum(a.alt.value) ? Fmt.num(a.alt.value, 0) + ' m' : '—',
         zone: r && r.ok ? r.zone.name + ' (' + r.zone.symbol + ')' : 'incompleto' });
     });
     var nz = Object.keys(zones).length, total = acc.total, closed = acc.closed, nClosed = lots.filter(function (l) { return l.points.length >= 3; }).length;
     var word = kinds ? ['polígono', 'polígonos'] : ['lote', 'lotes'];
     var fincas = acc.fincas.filter(function (f) { return f.m2 > 0; }).map(function (f) {
-      return f.lot.name + ': ' + (f.n ? f.n + (f.n === 1 ? ' área' : ' áreas') + ', ' + Fmt.area(Geo.areaUnits(f.used), 'ha') + ' (' + Fmt.num(f.used / f.m2 * 100, 1) + ' %) · sin asignar ' + Fmt.area(Geo.areaUnits(f.free), 'ha') : 'sin áreas');
+      return f.lot.name + ': ' + (f.n ? f.n + (f.n === 1 ? ' lote' : ' lotes') + ', ' + Fmt.area(Geo.areaUnits(f.used), 'ha') + ' (' + Fmt.num(f.used / f.m2 * 100, 1) + ' %) · sin asignar ' + Fmt.area(Geo.areaUnits(f.free), 'ha') : 'sin lotes');
     });
     return { rows: rows, total: total, closed: closed, zones: nz, overlap: Predio.warnings(lots).join(' '), kinds: kinds, fincas: fincas,
       totalText: (closed ? Fmt.area(Geo.areaUnits(total), 'ha') + ' · ' + Fmt.area(Geo.areaUnits(total), 'fanegadas') : '—'),
       note: rows.length + ' ' + word[rows.length === 1 ? 0 : 1] + (nClosed < rows.length ? ' (' + nClosed + ' con polígono cerrado)' : '') + ' · ' + nz + (nz === 1 ? ' zona de vida' : ' zonas de vida') +
-        (kinds && closed < nClosed ? ' · las áreas que están dentro de una finca no se suman otra vez' : '') };
+        (kinds && closed < nClosed ? ' · los lotes que están dentro de un predio no se suman otra vez' : '') };
   }
   // Croquis general: todos los lotes en un solo dibujo, cada uno con su color. Devuelve { svg, items: [[color, nombre]…] } o null
   // si ningún lote tiene al menos 2 puntos. El primero con puntos va como figura principal y los demás como capas.

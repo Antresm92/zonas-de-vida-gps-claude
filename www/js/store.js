@@ -76,6 +76,10 @@
     var seen = {};
     p.lots.forEach(function (l) { if (seen[l.id]) l.id = uid(); seen[l.id] = true; });
     if (!p.lots.some(function (l) { return l.id === p.lotId; })) p.lotId = p.lots[0].id;
+    // 2.22.0: solo hay predios (kind 'finca', el terreno completo) y lotes (kind 'area', lo que va dentro). Un lote «de los de antes»
+    // (sin kind) pasa a ser el predio si es el único polígono del proyecto; si no, un lote más (queda suelto hasta que se le asigne predio).
+    if (p.lots.length === 1 && !p.lots[0].kind) { p.lots[0].kind = 'finca'; if (p.lots[0].name === 'Lote 1') p.lots[0].name = 'Predio'; }
+    p.lots.forEach(function (l) { if (!l.kind) l.kind = 'area'; });
     var fincas = {};
     p.lots.forEach(function (l) { if (l.kind === 'finca') fincas[l.id] = true; });
     p.lots.forEach(function (l) { if (l.parent !== undefined && !fincas[l.parent]) delete l.parent; });      // un área solo cuelga de una finca que exista
@@ -106,7 +110,7 @@
   }
 
   function newProject(name) {
-    return lotify({ id: uid(), name: name || 'Proyecto sin nombre', created: Date.now(), layers: [], lots: [newLot('Lote 1')] });
+    return lotify({ id: uid(), name: name || 'Proyecto sin nombre', created: Date.now(), layers: [], lots: [Object.assign(newLot('Predio'), { kind: 'finca' })] });
   }
 
   function defaultState() {

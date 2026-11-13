@@ -22,7 +22,7 @@
   function closed(l) { return !!l && Array.isArray(l.points) && l.points.length >= 3; }
   function m2(l) { return closed(l) ? Geo.polygonArea(l.points) : 0; }
   // «Finca», el tipo del área («Potrero», «Cacaotera»…; «Área» si no tiene) o «Lote»
-  function kindLabel(l) { return isFinca(l) ? 'Finca' : isArea(l) ? (l.cat || 'Área') : 'Lote'; }
+  function kindLabel(l) { return isFinca(l) ? 'Predio' : (l && l.cat) || 'Lote'; }      // 2.22.0: el global es el «Predio»; lo de adentro, el «Lote» (o su tipo)
   function catColor(cat) {
     var c = String(cat || '').trim().toLowerCase();
     for (var i = 0; i < CATS.length; i++) if (CATS[i][0].toLowerCase() === c) return CATS[i][1];
@@ -102,7 +102,7 @@
     var out = [], sale = [];
     lots.forEach(function (l) {
       var par = parentOf(l, lots);
-      if (par && closed(l) && closed(par) && Geo.sticksOut(l.points, par.points)) sale.push('«' + l.name + '» se sale de la finca «' + par.name + '»');
+      if (par && closed(l) && closed(par) && Geo.sticksOut(l.points, par.points)) sale.push('«' + l.name + '» se sale del predio «' + par.name + '»');
     });
     if (sale.length) out.push((sale.length > 3 ? sale.slice(0, 3).join('; ') + ' y ' + (sale.length - 3) + ' más' : sale.join('; ')) +
       '. Puedes dejarlo así, pero recuerda que esa parte queda por fuera de los límites del predio.');
@@ -116,6 +116,17 @@
     if (prs.length) out.push('Hay ' + (lots.some(function (l) { return l && l.kind; }) ? 'polígonos' : 'lotes') + ' que se montan uno sobre otro: ' + prs.slice(0, 3).join('; ') +
       (prs.length > 3 ? ' y ' + (prs.length - 3) + ' más' : '') + '. Revisa los linderos: el total del proyecto cuenta esa parte dos veces.');
     return out;
+  }
+
+  // 2.22.0: un lote sin predio cuyo centro cae dentro de un predio pasa a pertenecerle (así no se cuenta dos veces). Devuelve cuántos cambió.
+  function adopt(lots) {
+    var n = 0, fs = fincas(lots).filter(closed);
+    (lots || []).forEach(function (l) {
+      if (!isArea(l) || parentOf(l, lots) || !l.points || !l.points.length) return;
+      var c = centroid(l.points), hit = fs.filter(function (f) { return contains(f, c); })[0];
+      if (hit) { l.parent = hit.id; n++; }
+    });
+    return n;
   }
 
   /* ---------- Con qué choca un polígono (2.21.0) ---------- */
@@ -132,11 +143,11 @@
     if (!finca && !others.length) return null;
     var names = others.slice(0, 3).map(function (o) { return '«' + o.name + '»'; }).join(', ') + (others.length > 3 ? ' y ' + (others.length - 3) + ' más' : '');
     return { finca: finca, others: others,
-      text: '«' + me.name + '»' + (finca ? ' se sale de la finca «' + finca.name + '»' : '') + (finca && others.length ? ' y' : '') + (others.length ? ' se monta sobre ' + names : '') + '.' };
+      text: '«' + me.name + '»' + (finca ? ' se sale del predio «' + finca.name + '»' : '') + (finca && others.length ? ' y' : '') + (others.length ? ' se monta sobre ' + names : '') + '.' };
   }
   // Para saber si el choque es el mismo de antes (y no volver a preguntar por él)
   function conflictKey(c) { return c ? (c.finca ? 'F:' + c.finca.id : '') + '|' + c.others.map(function (o) { return o.id; }).sort().join(',') : ''; }
 
-  return { conflicts: conflicts, conflictKey: conflictKey, CATS: CATS, FINCA_COLOR: FINCA_COLOR, isFinca: isFinca, isArea: isArea, kindLabel: kindLabel, catColor: catColor, fincas: fincas, parentOf: parentOf,
+  return { adopt: adopt, conflicts: conflicts, conflictKey: conflictKey, CATS: CATS, FINCA_COLOR: FINCA_COLOR, isFinca: isFinca, isArea: isArea, kindLabel: kindLabel, catColor: catColor, fincas: fincas, parentOf: parentOf,
     children: children, centroid: centroid, contains: contains, guessParent: guessParent, account: account, warnings: warnings, m2: m2, ordered: ordered };
 });

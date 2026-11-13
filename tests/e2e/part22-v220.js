@@ -23,13 +23,13 @@ module.exports = async function (c) {
 
   await step('Se arman dos fincas y un área (creada al final, dentro de la primera)', async () => {
     await fresh();
-    await nuevo('Finca', 'La Esperanza', sq(4.600, -74.080, 0.010));
-    await nuevo('Finca', 'El Retiro', sq(4.630, -74.040, 0.004));
-    const esperanza = (await lots())[1].id;
-    await nuevo('Área', 'Cafetal', sq(4.602, -74.078, 0.002), esperanza);
+    await nuevo('Predio', 'La Esperanza', sq(4.600, -74.080, 0.010));
+    await nuevo('Predio', 'El Retiro', sq(4.630, -74.040, 0.004));
+    const esperanza = (await lots())[0].id;
+    await nuevo('Lote', 'Cafetal', sq(4.602, -74.078, 0.002), esperanza);
     const ls = await lots();
-    assert.deepEqual(ls.map((l) => (l.kind || 'lote') + ':' + l.points.length), ['lote:0', 'finca:4', 'finca:4', 'area:4']);
-    assert.equal(ls[3].parent, esperanza);
+    assert.deepEqual(ls.map((l) => (l.kind || 'lote') + ':' + l.points.length), ['finca:4', 'finca:4', 'area:4']);
+    assert.equal(ls[2].parent, esperanza);
     await rain();                                                       // con lluvia el reporte del área queda completo y aparece «Compartir reporte»
   });
 
@@ -37,12 +37,12 @@ module.exports = async function (c) {
     await tab('informe');
     await page.click('[data-act="share"]');
     assert.deepEqual(await scope(), ['Completo:true', 'Global:false', 'Específico:false']);
-    assert.match(await text('#repWhat'), /cada finca seguida de sus áreas/);
+    assert.match(await text('#repWhat'), /cada predio seguido de sus lotes/);
     await shot('v220-completo');
     const f = await download(() => page.click('[data-act="shareReportHtml"]'));
     assert.equal(f.name, 'reporte-zona-de-vida-mi-primer-proyecto.html');
     const h = f.text;
-    assert.deepEqual(titles(h), ['Finca: La Esperanza', 'Área: Cafetal (en «La Esperanza»)', 'Finca: El Retiro']);
+    assert.deepEqual(titles(h), ['Predio: La Esperanza', 'Lote: Cafetal (en «La Esperanza»)', 'Predio: El Retiro']);
     const gen = h.slice(h.indexOf('<h2>Croquis general</h2>'), h.indexOf('<section class="lote">'));
     assert.equal(ctx(gen), 0, 'en el croquis general nadie va tenue');
     assert.doesNotMatch(gen, />P1</, 'ni lleva puntos resaltados');
@@ -69,7 +69,7 @@ module.exports = async function (c) {
     await shot('v220-global');
     const f = await download(() => page.click('[data-act="shareReportHtml"]'));
     assert.equal(f.name, 'reporte-zona-de-vida-mi-primer-proyecto-fincas.html');
-    assert.deepEqual(titles(f.text), ['Finca: La Esperanza', 'Finca: El Retiro']);
+    assert.deepEqual(titles(f.text), ['Predio: La Esperanza', 'Predio: El Retiro']);
     assert.match(f.text, /<td colspan="2">2 polígonos · /);
     assert.doesNotMatch(f.text.slice(0, f.text.indexOf('<section class="lote">')), /Cafetal/, 'el resumen no nombra las áreas');
     // se recuerda la elección; se desmarca una
@@ -85,7 +85,7 @@ module.exports = async function (c) {
     assert.deepEqual(await page.$$eval('#repFincas input', (i) => i.map((x) => x.checked)), [true, false], 'lo desmarcado se recuerda');
     await page.click('#repFincas .repfin:nth-child(1) input');
     await page.click('[data-act="shareReportHtml"]');
-    assert.match(await toastText(), /Marca al menos una finca/);
+    assert.match(await toastText(), /Marca al menos un predio/);
     assert.equal(await page.locator('#repScope').count(), 1, 'la hoja sigue abierta');
     await page.click('#repFincas .repfin:nth-child(1) input'); await page.click('#repFincas .repfin:nth-child(2) input');
     const pdf = await download(() => page.click('[data-act="shareReportPdf"]'));
@@ -98,9 +98,9 @@ module.exports = async function (c) {
     await page.click('[data-act="share"]');
     await page.click('#repScope [data-s="one"]');
     const opts = await page.$$eval('#repOne option', (o) => o.map((x) => x.textContent.trim() + (x.selected ? ' *' : '')));
-    assert.deepEqual(opts.slice(0, 3), ['Finca: La Esperanza', '· Área: Cafetal *', 'Finca: El Retiro']);
-    assert.match(opts[3], /^Lote: .* \(sin puntos\)$/);
-    await page.selectOption('#repOne', (await lots())[2].id);
+    assert.deepEqual(opts.slice(0, 3), ['Predio: La Esperanza', '· Lote: Cafetal *', 'Predio: El Retiro']);
+    assert.equal(opts.length, 3);
+    await page.selectOption('#repOne', (await lots())[1].id);
     await shot('v220-especifico');
     const f = await download(() => page.click('[data-act="shareReportHtml"]'));
     assert.equal(f.name, 'reporte-zona-de-vida-mi-primer-proyecto-el-retiro.html');
@@ -109,9 +109,9 @@ module.exports = async function (c) {
     assert.equal((await state()).projects[0].lotId, before, 'sigue elegido el mismo polígono');
     // la elección se recuerda al volver a abrir y al cambiar de pestaña de la hoja
     await page.click('[data-act="share"]');
-    assert.equal(await page.inputValue('#repOne'), (await lots())[2].id);
+    assert.equal(await page.inputValue('#repOne'), (await lots())[1].id);
     await page.click('#repScope [data-s="all"]'); await page.click('#repScope [data-s="one"]');
-    assert.equal(await page.inputValue('#repOne'), (await lots())[2].id);
+    assert.equal(await page.inputValue('#repOne'), (await lots())[1].id);
     await page.click('#sheet [aria-label="Cerrar"]'); await waitSheetClosed();
   });
 

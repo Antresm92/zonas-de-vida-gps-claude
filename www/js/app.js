@@ -5,9 +5,11 @@
   var Geo = window.Geo, H = window.Holdridge, Climate = window.Climate, A = window.Analysis, Fmt = window.Fmt,
       Gps = window.Gps, Store = window.Store, Diagram = window.Diagram, Report = window.Report,
       Gis = window.Gis, Backup = window.Backup, IO = window.IO, WL = window.WalterLieth, Mapa = window.Mapa, MapView = window.MapView, Satelite = window.Satelite, Perfil = window.Perfil, Fotos = window.Fotos, Zip = window.Zip, Units = window.Units;
-  var APP_VERSION = '2.21.0';
+  var APP_VERSION = '2.22.0';
 
   var S = Store.loadState();
+  // 2.22.0: la primera vez, los lotes de antes que están dentro de un predio pasan a pertenecerle
+  if (!Store.loadFlag('adopt222')) { if (S.projects.reduce(function (n, P) { return n + Predio.adopt(P.lots); }, 0)) Store.saveState(S); Store.saveFlag('adopt222', true); }
   var hadSaved = Store.hasSavedState();      // ¿había datos guardados al abrir? (solo entonces se limpian las fotos sin uso)
   var MEM = new Climate.Memory();
   MEM.add(Store.loadMemory());
@@ -516,6 +518,17 @@
     }).join('') + '</div>';
   }
   /* ---------- Lotes (2.15.0): la fila de lotes, la lista y sus acciones ---------- */
+  // Color que se propone para un predio nuevo: el verde de siempre o, si ya lo usa otro polígono (un segundo predio), el primero libre
+  // El «Predio» vacío con que arranca un proyecto: un lugar reservado que el primer predio de verdad reemplaza (2.22.0)
+  function isPlaceholder(x, p) {
+    return Predio.isFinca(x) && x.name === 'Predio' && !x.points.length && !Object.keys(x.climate || {}).length && !Predio.children(x, p.lots).length;
+  }
+  function fincaColor() {
+    var used = {}, p = proj();
+    p.lots.forEach(function (x) { if (!isPlaceholder(x, p)) used[x.mainColor.toUpperCase()] = true; });
+    if (!used[Predio.FINCA_COLOR.toUpperCase()]) return Predio.FINCA_COLOR;
+    return LOT_COLORS.filter(function (c) { return !used[c.toUpperCase()]; })[0] || Predio.FINCA_COLOR;
+  }
   var LOT_COLORS = Gis.COLORS;      // los mismos colores de la paleta, para que el elegido quede marcado
   function lotSub(l) {
     var m2 = lotArea(l), n = l.points.length;
@@ -530,7 +543,7 @@
   function lockStop() {
     var l = lot();
     if (!l.locked) return false;
-    toast('El lindero de la finca «' + l.name + '» está bloqueado para que no cambie por descuido.', { action: 'Desbloquear', fn: function () { setLock(l, false); } });
+    toast('El lindero del predio «' + l.name + '» está bloqueado para que no cambie por descuido.', { action: 'Desbloquear', fn: function () { setLock(l, false); } });
     return true;
   }
   function setLock(l, on) {
@@ -575,8 +588,8 @@
     var u = S.settings.areaUnit, h = '';
     acc.fincas.forEach(function (f) {
       if (!f.m2) return;
-      h += '<p class="small fincaline"><b>' + esc(f.lot.name) + '</b>: ' + (f.n ? f.n + (f.n === 1 ? ' área' : ' áreas') + ', ' + esc(Fmt.area(Geo.areaUnits(f.used), u)) + ' (' + Fmt.num(f.used / f.m2 * 100, 1) + ' %) · sin asignar ' +
-        esc(Fmt.area(Geo.areaUnits(f.free), u)) : 'todavía sin áreas') + (f.over ? ' · las áreas suman más que la finca' : '') + '.</p>';
+      h += '<p class="small fincaline"><b>' + esc(f.lot.name) + '</b>: ' + (f.n ? f.n + (f.n === 1 ? ' lote' : ' lotes') + ', ' + esc(Fmt.area(Geo.areaUnits(f.used), u)) + ' (' + Fmt.num(f.used / f.m2 * 100, 1) + ' %) · sin asignar ' +
+        esc(Fmt.area(Geo.areaUnits(f.free), u)) : 'todavía sin lotes') + (f.over ? ' · los lotes suman más que el predio' : '') + '.</p>';
     });
     return h;
   }
@@ -589,7 +602,7 @@
     });
     var kinds = p.lots.some(function (l) { return !!l.kind; });
     h += '<p class="small muted" id="lotTotal">' + (closed ? 'Total del proyecto: <b>' + esc(Fmt.area(Geo.areaUnits(total), S.settings.areaUnit)) + '</b>' +
-      (kinds ? '. Las áreas que están dentro de una finca no se suman otra vez.' : ' en ' + closed + (closed === 1 ? ' lote cerrado' : ' lotes cerrados') + '.') : 'Todavía no hay ningún lote con polígono cerrado.') +
+      (kinds ? '. Los lotes que están dentro de un predio no se suman otra vez.' : ' en ' + closed + (closed === 1 ? ' lote cerrado' : ' lotes cerrados') + '.') : 'Todavía no hay ningún lote con polígono cerrado.') +
       ' Cada ' + (kinds ? 'polígono' : 'lote') + ' tiene sus propios puntos, su clima y su zona de vida.</p>';
     h += fincaLines(acc);
     var ovl = Predio.warnings(p.lots);
@@ -605,44 +618,43 @@
     var used = {}, color = l ? l.mainColor : '';
     p.lots.forEach(function (x) { used[x.mainColor.toUpperCase()] = true; });
     if (!l) color = LOT_COLORS.filter(function (c) { return !used[c]; })[0] || LOT_COLORS[p.lots.length % LOT_COLORS.length];   // el primer color que ningún lote usa
-    var k = l ? (l.kind || '') : from === 'map' ? (Predio.fincas(p.lots).length ? 'area' : 'finca') : '';
+    var k = l ? (l.kind || 'area') : Predio.fincas(p.lots).some(function (f) { return f.points.length; }) ? 'area' : 'finca';      // primero el predio; con el predio ya marcado, lotes      // 2.22.0: solo hay predios y lotes
     var near = ui.map && from === 'map' ? ui.map.center() : null, cur = lot();
     var gp = l ? Predio.parentOf(l, p.lots) : Predio.guessParent(p.lots, near, Predio.isFinca(cur) ? cur.id : cur.parent);
     ui.edit = { kind: 'lot', id: id || '', color: color, k: k, cat: l && l.cat || '', parent: gp ? gp.id : '', name: l ? l.name : '', auto: !l, title: l ? 'Editar lote' : from === 'map' ? 'Crear polígono' : 'Nuevo lote' };
-    if (!l) { ui.edit.name = lotDefaultName(); if (k === 'area') ui.edit.color = Predio.catColor(ui.edit.cat); if (k === 'finca') ui.edit.color = Predio.FINCA_COLOR; }
+    if (!l) { ui.edit.name = lotDefaultName(); if (k === 'area') ui.edit.color = Predio.catColor(ui.edit.cat); if (k === 'finca') ui.edit.color = fincaColor(); }
     hideSheet();
     openSheet(ui.edit.title, lotFormBody());
   }
   // Nombre que se propone mientras la persona no escriba el suyo: «Lote 3», «Finca», «Potrero 2»…
   function lotDefaultName() {
-    var p = proj(), e = ui.edit, base = e.k === 'finca' ? 'Finca' : e.k === 'area' ? (e.cat || 'Área') : 'Lote';
+    var p = proj(), e = ui.edit, base = e.k === 'finca' ? 'Predio' : (e.cat || 'Lote');
     if (!e.k) return 'Lote ' + (p.lots.length + 1);
-    var n = p.lots.filter(function (x) { return x.kind === e.k && (e.k === 'finca' || (x.cat || 'Área') === base); }).length;
+    var n = p.lots.filter(function (x) { return x.kind === e.k && !isPlaceholder(x, p) && (e.k === 'finca' || (x.cat || 'Lote') === base); }).length;
     return n ? base + ' ' + (n + 1) : base;
   }
   function lotFormBody() {
     var p = proj(), e = ui.edit, l = e.id ? p.lots.filter(function (x) { return x.id === e.id; })[0] : null, fs = Predio.fincas(p.lots).filter(function (f) { return f !== l; });
     var others = {};
     p.lots.forEach(function (x) { if (x !== l) others[x.mainColor.toUpperCase()] = x.name; });      // colores de los demás lotes
-    var h = '<div class="f"><span class="f-label2">¿Qué vas a delimitar?</span><div class="seg seg3" role="group" aria-label="Tipo de polígono" id="lotKind">' +
-      [['', 'Lote'], ['finca', 'Finca'], ['area', 'Área']].map(function (o) { return '<button data-act="lotKind" data-k="' + o[0] + '" aria-pressed="' + (e.k === o[0]) + '">' + o[1] + '</button>'; }).join('') + '</div>' +
-      '<span class="f-hint" id="lotKindHint">' + (e.k === 'finca' ? 'La finca o el terreno completo. Su lindero se bloquea solo cuando pasas a otro polígono, para que no cambie por descuido.' :
-        e.k === 'area' ? 'Una parte de trabajo dentro de la finca: potrero, cafetal, cultivo… Se dibuja con relleno de puntos y no cambia el lindero de la finca.' :
-        'Un polígono suelto, como hasta ahora: ni finca ni área.') + '</span></div>';
+    var h = '<div class="f"><span class="f-label2">¿Qué vas a delimitar?</span><div class="seg" role="group" aria-label="Tipo de polígono" id="lotKind">' +
+      [['finca', 'Predio'], ['area', 'Lote']].map(function (o) { return '<button data-act="lotKind" data-k="' + o[0] + '" aria-pressed="' + (e.k === o[0]) + '">' + o[1] + '</button>'; }).join('') + '</div>' +
+      '<span class="f-hint" id="lotKindHint">' + (e.k === 'finca' ? 'El predio: el terreno completo. Su lindero se bloquea solo cuando pasas a otro polígono, para que no cambie por descuido.' :
+        'Una parte de trabajo dentro del predio: potrero, cafetal, cultivo… Se dibuja con relleno de puntos y no cambia el lindero del predio.') + '</span></div>';
     if (e.k === 'area') {
-      h += '<div class="f"><span class="f-label2">Tipo de área</span><div class="cats" role="group" aria-label="Tipo de área">' +
+      h += '<div class="f"><span class="f-label2">Tipo de lote</span><div class="cats" role="group" aria-label="Tipo de lote">' +
         Predio.CATS.map(function (c) { return '<button class="cat" data-act="lotCat" data-c="' + esc(c[0]) + '" aria-pressed="' + (e.cat.toLowerCase() === c[0].toLowerCase()) + '">' + esc(c[0]) + '</button>'; }).join('') + '</div>' +
-        '<input type="text" id="lotCat" value="' + esc(e.cat) + '" maxlength="' + Store.CAT_MAX + '" autocomplete="off" placeholder="O escribe el tuyo: Cacaotera, Casa…" aria-label="Tipo de área, con tus palabras"></div>';
-      h += fs.length ? '<label class="f"><span>Pertenece a la finca</span><select id="lotParent"><option value="">Ninguna (área suelta)</option>' +
+        '<input type="text" id="lotCat" value="' + esc(e.cat) + '" maxlength="' + Store.CAT_MAX + '" autocomplete="off" placeholder="O escribe el tuyo: Cacaotera, Casa…" aria-label="Tipo de lote, con tus palabras"></div>';
+      h += fs.length ? '<label class="f"><span>Pertenece al predio</span><select id="lotParent"><option value="">Ninguno (lote suelto)</option>' +
         fs.map(function (f) { return '<option value="' + esc(f.id) + '"' + (f.id === e.parent ? ' selected' : '') + '>' + esc(f.name) + '</option>'; }).join('') + '</select></label>' :
-        '<p class="small muted" id="lotNoFinca">Todavía no hay una finca en este proyecto: el área queda suelta. Cuando crees la finca podrás asignársela aquí.</p>';
+        '<p class="small muted" id="lotNoFinca">Todavía no hay un predio en este proyecto: el lote queda suelto. Cuando crees el predio podrás asignárselo aquí.</p>';
     }
     h += '<label class="f"><span>Nombre</span><input type="text" id="lotName" value="' + esc(e.name) + '" maxlength="' + Store.LOT_NAME_MAX + '" autocomplete="off"></label>' +
       '<div class="f"><span style="display:block;margin-bottom:6px;font-weight:650">Color</span>' + colorPalette(e.color, others) +
       (Object.keys(others).length ? '<span class="f-hint" id="lotColorHint">Los colores con un punto blanco ya los usa otro lote.</span>' : '') + '</div>' +
-      (l ? '<p class="small muted">' + esc(lotSub(l)) + '</p>' : '<p class="small muted">' + (e.k ? 'Empieza vacío y queda elegido' : 'El lote nuevo empieza vacío y queda elegido') + ': los puntos que marques después se guardan en él.</p>');
+      (l ? '<p class="small muted">' + esc(lotSub(l)) + '</p>' : '<p class="small muted">' + 'Empieza vacío y queda elegido' + ': los puntos que marques después se guardan en él.</p>');
     if (l && l.kind === 'finca' && e.k === 'finca') h += '<div class="btns"><button class="btn" data-act="lotLock" data-id="' + esc(l.id) + '">' + (l.locked ? '🔓 Desbloquear el lindero para editarlo' : '🔒 Bloquear el lindero') + '</button></div>';
-    return h + '<div class="btns"><button class="btn btn-primary" data-act="lotSave">' + (l ? 'Guardar' : e.k === 'finca' ? 'Crear finca' : e.k === 'area' ? 'Crear área' : 'Crear lote') + '</button>' +
+    return h + '<div class="btns"><button class="btn btn-primary" data-act="lotSave">' + (l ? 'Guardar' : e.k === 'finca' ? 'Crear predio' : 'Crear lote') + '</button>' +
       (l && p.lots.length > 1 ? '<button class="btn btn-danger" data-act="lotDelete" data-id="' + esc(l.id) + '">Eliminar lote</button>' : '') + '</div>';
   }
   // Lee lo escrito y vuelve a dibujar la hoja (al cambiar el tipo o la categoría), sin perder nada
@@ -663,7 +675,7 @@
     if (!e || e.kind !== 'lot') return;
     lotFormRead();
     e.k = k;
-    if (!e.id) e.color = k === 'finca' ? Predio.FINCA_COLOR : k === 'area' ? Predio.catColor(e.cat) : e.color;
+    if (!e.id) e.color = k === 'finca' ? fincaColor() : Predio.catColor(e.cat);
     lotFormRefresh();
   }
   function lotSetCat(c) {
@@ -694,16 +706,18 @@
       return;
     }
     if (p.lots.length >= Store.LOT_MAX) { toast('Un proyecto admite hasta ' + Store.LOT_MAX + ' lotes.', { err: true }); return; }
-    var nl = Store.newLot(name, e.color), prev = p.lotId, wasLocked = lot().locked;
+    var nl = Store.newLot(name, e.color), prev = p.lotId, wasLocked = lot().locked, lotsBefore = p.lots.slice();
     lotApplyMeta(nl, e);
-    p.lots.push(nl);
-    pickLot(nl.id, true);
+    // 2.22.0: el «Predio» vacío con que arranca el proyecto es solo un lugar reservado: al crear el predio de verdad lo reemplaza
+    var ph = Predio.isFinca(nl) ? p.lots.filter(function (x) { return isPlaceholder(x, p); })[0] : null;
+    if (ph) { p.lots.splice(p.lots.indexOf(ph), 1, nl); p.lotId = nl.id; ui.lockNote = ''; ui.mapSel = null; ui.navId = null; ui.unfolded = {}; }
+    else { p.lots.push(nl); pickLot(nl.id, true); }
     var note = ui.lockNote || '', prevLot = p.lots.filter(function (x) { return x.id === prev; })[0];
     save(); closeSheet(); renderTab(ui.tab);
     if (e.title === 'Crear polígono' && ui.tab === 'area' && ui.polyView === 'mapa' && !ui.mapMode) setMapMode('add');      // desde el mapa: queda listo para marcar tocando
     toast('«' + nl.name + '» creado y elegido.' + note + (e.title === 'Crear polígono' ? ' Toca el mapa para marcar sus puntos.' : ''), { action: 'Deshacer', fn: function () {
       if (nl.points.length) { toast('El lote ya tiene puntos: elimínalo desde la lista de lotes.', { err: true }); return; }
-      p.lots = p.lots.filter(function (x) { return x !== nl; }); p.lotId = prev;
+      p.lots = lotsBefore; p.lotId = prev;
       if (prevLot && note && !wasLocked) delete prevLot.locked;
       if (ui.mapMode === 'add') setMapMode('');
       save(); renderTab(ui.tab);
@@ -754,7 +768,7 @@
       '<p class="small muted">' + esc(layerSub(l)) + (l.file ? ' · archivo ' + esc(l.file) : '') + '</p>' +
       '<div class="btns"><button class="btn btn-primary" data-act="saveEdit2">Guardar</button>' +
       (l.kind !== 'points' || l.points.length ? '<button class="btn" data-act="layerToMain" data-id="' + esc(id) + '">Usar como polígono del proyecto</button>' : '') +
-      (l.kind === 'polygon' ? '<button class="btn" data-act="layerToFinca" data-id="' + esc(id) + '">Crear una finca con esta capa</button><button class="btn" data-act="layerToArea" data-id="' + esc(id) + '">Crear un área con esta capa</button>' : '') +
+      (l.kind === 'polygon' ? '<button class="btn" data-act="layerToFinca" data-id="' + esc(id) + '">Crear un predio con esta capa</button><button class="btn" data-act="layerToArea" data-id="' + esc(id) + '">Crear un lote con esta capa</button>' : '') +
       '<button class="btn btn-danger" data-act="deleteLayer" data-id="' + esc(id) + '">Eliminar capa</button></div>');
   }
   function pickColor(t) {
@@ -805,14 +819,16 @@
     var nl = Store.newLot(Store.lotName(l.name, p.lots.length), kind === 'finca' ? Predio.FINCA_COLOR : (/^#[0-9a-fA-F]{6}$/.test(l.color || '') ? l.color : Predio.catColor('')));
     nl.kind = kind; nl.points = pts; nl.nextPoint = pts.length + 1;
     if (kind === 'area') { var f = Predio.guessParent(p.lots, Predio.centroid(pts), Predio.isFinca(lot()) ? lot().id : lot().parent); if (f) nl.parent = f.id; }
-    p.lots.push(nl); l.visible = false;
-    pickLot(nl.id, true);
+    var lotsBefore = p.lots.slice(), ph = kind === 'finca' ? p.lots.filter(function (x) { return isPlaceholder(x, p); })[0] : null;
+    l.visible = false;
+    if (ph) { p.lots.splice(p.lots.indexOf(ph), 1, nl); p.lotId = nl.id; ui.lockNote = ''; ui.mapSel = null; ui.navId = null; ui.unfolded = {}; }      // reemplaza al «Predio» vacío del comienzo
+    else { p.lots.push(nl); pickLot(nl.id, true); }
     var note = ui.lockNote || '', prevLot = p.lots.filter(function (x) { return x.id === prev; })[0], wasLocked = prevLot && prevLot.locked && !note;
     if (kind === 'finca') nl.locked = true;                // viene de un archivo: su lindero queda protegido desde el principio
     ui.mapFitKey = null;
     save(); closeSheet(); renderTab(ui.tab);
-    toast('«' + nl.name + '» creada como ' + (kind === 'finca' ? 'finca, con el lindero bloqueado' : 'área' + (nl.parent ? ' de «' + Predio.parentOf(nl, p.lots).name + '»' : '')) + '. La capa quedó oculta.' + note, { action: 'Deshacer', fn: function () {
-      p.lots = p.lots.filter(function (x) { return x !== nl; }); p.lotId = prev; l.visible = wasVisible;
+    toast('«' + nl.name + '» creado como ' + (kind === 'finca' ? 'predio, con el lindero bloqueado' : 'lote' + (nl.parent ? ' de «' + Predio.parentOf(nl, p.lots).name + '»' : '')) + '. La capa quedó oculta.' + note, { action: 'Deshacer', fn: function () {
+      p.lots = lotsBefore; p.lotId = prev; l.visible = wasVisible;
       if (prevLot && note && !wasLocked) delete prevLot.locked;
       save(); renderTab(ui.tab);
     } });
@@ -1207,7 +1223,7 @@
     h += '<div id="mapBox" class="mapbox' + (ui.mapFull ? ' full' : '') + (multi() ? ' haslots' : '') + '"><div id="mapHost" class="maphost"></div>';
     h += mapMenuHtml();
     var lk = lot();
-    h += '<button id="mapNewPoly" class="mapnew" data-act="lotNewMap" aria-label="Crear polígono: una finca o un área">＋ Polígono</button>';
+    h += '<button id="mapNewPoly" class="mapnew" data-act="lotNewMap" aria-label="Crear polígono: un predio o un lote">＋ Polígono</button>';
     h += '<div class="maptop"><button id="mapSum" class="mapsum" data-act="mapSumTap" hidden></button>' +
       (lk.locked ? '<button id="mapLock" class="maplock" data-act="mapUnlock">🔒 Lindero de «' + esc(lk.name) + '» bloqueado · <u>Editar</u></button>' : '') + '<div id="mapNotice" class="mapnotice" role="status" hidden></div>' +
       '<div id="mapMode" class="mapmode" hidden><span id="mapModeTxt" role="status"></span><button data-act="mapMode" data-mode="">Salir</button></div></div>' +
@@ -1449,7 +1465,7 @@
     var r = pl.r, ha = function (m2) { return Fmt.area(Geo.areaUnits(m2), 'ha'); };
     var h = '<p class="lead" id="adjWhat">' + esc(pl.c.text) + '</p>';
     if (r.ok) {
-      h += '<p id="adjPlan">Si lo ajustas, su borde sigue el de ' + (pl.c.finca ? 'la finca' : '') + (pl.c.finca && pl.c.others.length ? ' y el de ' : '') + (pl.c.others.length ? (pl.c.others.length === 1 ? 'su vecino' : 'sus vecinos') : '') +
+      h += '<p id="adjPlan">Si lo ajustas, su borde sigue ' + (pl.c.finca ? 'el del predio' : '') + (pl.c.finca && pl.c.others.length ? ' y ' : '') + (pl.c.others.length ? (pl.c.others.length === 1 ? 'el de su vecino' : 'el de sus vecinos') : '') +
         ': queda de <b>' + esc(ha(r.m2After)) + '</b> (hoy ' + esc(ha(r.m2Before)) + '). ' +
         (r.added ? 'Se ' + (r.added === 1 ? 'agrega 1 punto' : 'agregan ' + r.added + ' puntos') + ' en el lindero' : 'No se agregan puntos') +
         (r.removed ? ' y se ' + (r.removed === 1 ? 'quita 1 que quedaba' : 'quitan ' + r.removed + ' que quedaban') + ' por fuera o encima' : '') + '; los puntos se numeran de nuevo.' + esc(adjustNotes(r)) + '</p>' +
@@ -1713,9 +1729,9 @@
     var opts = Mapa.TRACK_STEPS.map(function (m) { return '<option value="' + m + '"' + (m === Mapa.TRACK_STEP_DEFAULT ? ' selected' : '') + '>Un punto cada ' + m + ' m</option>'; }).join('');
     var cf = multi() && !lot().locked ? Predio.conflicts(proj().lots, lot().id) : null;
     openSheet('Más opciones del mapa',
-      (cf ? '<h3 class="sub">Ajustar a los linderos</h3><p class="small muted" id="moreAdj">' + esc(cf.text) + ' Puedes recortarlo para que su borde siga el de la finca y el de sus vecinos, o dejarlo así.</p>' +
+      (cf ? '<h3 class="sub">Ajustar a los linderos</h3><p class="small muted" id="moreAdj">' + esc(cf.text) + ' Puedes recortarlo para que su borde siga el del predio y el de sus vecinos, o dejarlo así.</p>' +
         '<div class="btns" style="margin-bottom:18px"><button class="btn btn-primary" data-act="adjustAsk">Ajustar a los linderos</button></div>' : '') +
-      '<h3 class="sub">Crear polígono</h3><p class="small muted">Una finca (el terreno completo) o un área dentro de ella: potrero, cafetal, cultivo… Queda elegido y listo para marcar sus puntos tocando el mapa.</p>' +
+      '<h3 class="sub">Crear polígono</h3><p class="small muted">Un predio (el terreno completo) o un lote dentro de él: potrero, cafetal, cultivo… Queda elegido y listo para marcar sus puntos tocando el mapa.</p>' +
       '<div class="btns"><button class="btn btn-primary" data-act="lotNewMap">Crear polígono</button></div>' +
       '<h3 class="sub" style="margin-top:18px">Agregar con mira</h3><p class="small muted">Una cruz queda fija en el centro: mueves el mapa hasta el lugar exacto y pulsas «Agregar aquí». Es más preciso que tocar con el dedo.</p>' +
       '<div class="btns"><button class="btn btn-primary" data-act="mapAim">Agregar con mira</button></div>' +
@@ -1745,13 +1761,13 @@
       ['Cambiar el orden', 'en la tarjeta del punto, marca la casilla «Orden» y usa las flechas ◀ ▶. La casilla viene desmarcada para que el orden no cambie por descuido.'],
       ['Más opciones', '«Agregar con mira» (una cruz fija en el centro, más precisa que el dedo), «Caminar el lindero» (el GPS deja los puntos mientras recorres el borde) y «Ordenar los puntos».']
     ]],
-    ['Lotes, fincas y áreas', [
-      ['＋ Polígono', 'crea una finca (el terreno completo) o un área dentro de ella: potrero, cafetal, cultivo… o el nombre que escribas. Queda elegido y listo para marcar.'],
+    ['Predios y lotes', [
+      ['＋ Polígono', 'crea un predio (el terreno completo) o un lote dentro de él: potrero, cafetal, cultivo… o el nombre que escribas. Queda elegido y listo para marcar.'],
       ['Elegir otro', 'toca dentro de otro polígono o su nombre en la fila de arriba. Los cambios se hacen solo en el polígono elegido; los demás se ven más tenues.'],
-      ['Cómo se ven', 'la finca y los lotes, con relleno liso; las áreas, con relleno de puntos de su color.'],
-      ['Candado 🔒', 'al pasar de una finca a otro polígono, su lindero se bloquea solo. Para cambiarlo, toca «Editar» en el aviso del candado.'],
+      ['Cómo se ven', 'el predio, con relleno liso; los lotes, con relleno de puntos de su color.'],
+      ['Candado 🔒', 'al pasar de un predio a otro polígono, su lindero se bloquea solo. Para cambiarlo, toca «Editar» en el aviso del candado.'],
       ['Linderos compartidos', 'si marcas o sueltas un punto muy cerca de la esquina de otro polígono, se pega a ella y los dos comparten el lindero exacto. Se apaga en Herramientas › Preferencias.'],
-      ['Ajustar a los linderos', 'si el polígono que marcas se sale de su finca o se monta sobre otro, la app pregunta: «Ajustar a los linderos» lo recorta para que su borde siga el de la finca y el de los vecinos (aparecen puntos nuevos en el lindero y se numeran de nuevo; se puede deshacer); «Dejar sobrepuesto» lo deja como está, con el aviso. Más tarde lo encuentras en «Más opciones».']
+      ['Ajustar a los linderos', 'si el polígono que marcas se sale de su predio o se monta sobre otro, la app pregunta: «Ajustar a los linderos» lo recorta para que su borde siga el del predio y el de los vecinos (aparecen puntos nuevos en el lindero y se numeran de nuevo; se puede deshacer); «Dejar sobrepuesto» lo deja como está, con el aviso. Más tarde lo encuentras en «Más opciones».']
     ]],
     ['Medir', [
       ['Medir distancia', 'toca el mapa para ir sumando tramos; al cerrar la figura da también el área. No cambia tus puntos.']
@@ -2194,13 +2210,13 @@
     if (s === 'fincas') {
       h += '<div class="reppick" id="repFincas">' + fs.map(function (f) {
         return '<label class="repfin"><input type="checkbox" data-finca="' + esc(f.id) + '"' + (off[f.id] ? '' : ' checked') + '><span class="dot" style="background:' + esc(f.mainColor || Predio.FINCA_COLOR) + '"></span>' + esc(f.name) + '</label>';
-      }).join('') + '</div><p class="small muted" style="margin-bottom:14px">«Global» trae solo ' + (fs.length > 1 ? 'las fincas marcadas: el resumen de todas y luego el reporte de cada una' : 'la finca') + ', sin el detalle de sus áreas.</p>';
+      }).join('') + '</div><p class="small muted" style="margin-bottom:14px">«Global» trae solo ' + (fs.length > 1 ? 'los predios marcados: el resumen de todos y luego el reporte de cada uno' : 'el predio') + ', sin el detalle de sus lotes.</p>';
     } else if (s === 'one') {
       h += '<div class="reppick"><label class="small" for="repOne">Polígono</label><select id="repOne">' + Predio.ordered(P.lots).map(function (l) {
         return '<option value="' + esc(l.id) + '"' + (l.id === one ? ' selected' : '') + '>' + (Predio.parentOf(l, P.lots) ? '   · ' : '') + esc(Predio.kindLabel(l) + ': ' + l.name) + (l.points.length ? '' : ' (sin puntos)') + '</option>';
       }).join('') + '</select></div><p class="small muted" style="margin-bottom:14px">«Específico» trae el reporte completo de ese polígono, con su croquis enfocado y sus puntos.</p>';
     } else {
-      h += '<p class="small muted" style="margin-bottom:14px">«Completo» trae primero el resumen del proyecto (área, altitud y zona de vida de cada polígono, y el total) y después el reporte de cada uno que tenga puntos, en orden: cada finca seguida de sus áreas.</p>';
+      h += '<p class="small muted" style="margin-bottom:14px">«Completo» trae primero el resumen del proyecto (área, altitud y zona de vida de cada polígono, y el total) y después el reporte de cada uno que tenga puntos, en orden: cada predio seguido de sus lotes.</p>';
     }
     return h;
   }
@@ -2215,7 +2231,7 @@
   function repReady() {
     repRead();
     if (repIds().length) return true;
-    toast('Marca al menos una finca para el reporte.', { err: true });
+    toast('Marca al menos un predio para el reporte.', { err: true });
     return false;
   }
   // «Compartir reporte» pregunta el formato: HTML (se abre en cualquier navegador) o PDF (hoja A4 lista para imprimir)
@@ -2419,6 +2435,7 @@
     v.data.projects.forEach(Store.toLots);                 // una copia anterior a la 2.15.0 trae cada proyecto sin lotes: pasa a tener un «Lote 1»
     var r = Backup.apply({ state: JSON.parse(JSON.stringify(S)), memory: MEM.all() }, v.data, mode, { uid: Store.uid });
     S.projects = r.state.projects.map(Store.lotify); S.currentId = r.state.currentId; S.settings = Object.assign({}, S.settings, mode === 'merge' ? {} : r.state.settings);
+    S.projects.forEach(function (P) { Predio.adopt(P.lots); });      // una copia de antes de la 2.22.0: sus lotes sueltos entran a su predio
     MEM.clear(); MEM.add(r.memory);
     ui.restore = null;
     save(); saveMemory(); closeSheet(); renderAll();
@@ -2460,7 +2477,7 @@
       '<input type="checkbox" data-flag="reportOpen"' + (Store.loadFlag('reportOpen') === true ? ' checked' : '') + '></label>' +
       '<label class="menurow"><span><b>Pegar puntos a las esquinas de otros lotes</b><small>Al marcar o mover un punto en el mapa muy cerca de la esquina de otro lote, queda exactamente sobre ella.</small></span>' +
       '<input type="checkbox" data-flag="lotSnap"' + (Store.loadFlag('lotSnap') === false ? '' : ' checked') + '></label></div>';
-    h += '<h3 class="sub">Ayuda</h3><div class="menu">' + menuRow('appGuide', 'Cómo usar la app', 'Los tres pasos y todo lo demás') + menuRow('usesGuide', 'Para qué sirve la app', 'Usos por área y hasta dónde llega') + menuRow('mapGuide', 'Cómo usar el mapa', 'Puntos, polígonos, fincas y áreas') +
+    h += '<h3 class="sub">Ayuda</h3><div class="menu">' + menuRow('appGuide', 'Cómo usar la app', 'Los tres pasos y todo lo demás') + menuRow('usesGuide', 'Para qué sirve la app', 'Usos por área y hasta dónde llega') + menuRow('mapGuide', 'Cómo usar el mapa', 'Puntos, polígonos, predios y lotes') +
       menuRow('licenses', 'Fuentes y licencias', 'Mapas y datos de clima') + '</div>';
     h += '<p class="small muted" style="margin-top:14px">Zonas de Vida · versión ' + APP_VERSION + '. Funciona sin internet, salvo los mapas y los datos de clima.</p>';
     return h;
@@ -2541,8 +2558,8 @@
     ]],
     ['Lo demás', [
       ['Polígono', 'El croquis con las medidas y para exportar (KML, GeoJSON, GPX, CSV y Shapefile). En «Mapa», el terreno sobre calles, satélite o topográfico: ahí se crean, mueven y ordenan los puntos, y se mide.'],
-      ['Lotes, fincas y áreas', 'Un proyecto puede tener varios polígonos: lotes sueltos, fincas y, dentro de ellas, áreas (potrero, cafetal, cultivo…). Cada uno con sus puntos, su clima y su zona de vida. Se eligen en la fila bajo el nombre del proyecto; «＋ Lote» o «＋ Polígono» crean otro.'],
-      ['Qué va en el reporte', 'En «Reporte», la casilla a la izquierda de cada sección decide si esa parte sale en el reporte que compartes. Con varios polígonos, al compartir eliges: «Completo» (el resumen y cada polígono, cada finca seguida de sus áreas), «Global» (solo las fincas que marques) o «Específico» (un solo polígono). El croquis de cada polígono se enfoca en él y resalta solo sus puntos; los demás se ven tenues de fondo.'],
+      ['Predios y lotes', 'Todo proyecto empieza con su predio (el terreno completo) y dentro de él se marcan los lotes (potrero, cafetal, cultivo…); puede haber varios predios. Cada uno con sus puntos, su clima y su zona de vida. Se eligen en la fila bajo el nombre del proyecto; «＋ Lote» o «＋ Polígono» crean otro.'],
+      ['Qué va en el reporte', 'En «Reporte», la casilla a la izquierda de cada sección decide si esa parte sale en el reporte que compartes. Con varios polígonos, al compartir eliges: «Completo» (el resumen y cada polígono, cada predio seguido de sus lotes), «Global» (solo los predios que marques) o «Específico» (un solo polígono). El croquis de cada polígono se enfoca en él y resalta solo sus puntos; los demás se ven tenues de fondo.'],
       ['Herramientas', 'Conversor de unidades, clima y GPS en vivo, proyectos y copia de seguridad, el encabezado del reporte (tu nombre y tu logo), preferencias y estas ayudas.'],
       ['Arriba', 'La franja de tres pasos dice qué está listo y qué falta. Tócala para ir a ese paso.'],
       ['Sin internet', 'La app abre y guarda puntos sin conexión. Los mapas, «Completar con internet» y el clima actual sí la necesitan.']
@@ -2567,7 +2584,7 @@
       ['Caldas-Lang (IDEAM)', 'El piso térmico y la humedad en el lenguaje que usa la asistencia técnica en Colombia: «templado húmedo», «frío semihúmedo».']
     ]],
     ['Usos por área', [
-      ['Agrícola y pecuaria', 'Medir lotes y potreros, llevar las áreas de cultivo, de rotación o de riego dentro de la finca, y saber el piso térmico y los meses secos antes de escoger qué sembrar.'],
+      ['Agrícola y pecuaria', 'Medir lotes y potreros, llevar las áreas de cultivo, de rotación o de riego dentro del predio, y saber el piso térmico y los meses secos antes de escoger qué sembrar.'],
       ['Forestal', 'Delimitar rodales y áreas de reforestación o conservación, con su zona de vida, su pendiente y un croquis para el plan de manejo.'],
       ['Ambiental', 'Caracterizar un predio para un estudio o una visita técnica: ubicación, área, zona de vida, clima y relieve en un solo documento con fuentes citadas.'],
       ['Estudio y docencia', 'Prácticas de campo: tomar puntos, ubicar el sitio en el diagrama de Holdridge y comparar varias clasificaciones del clima con los mismos datos.'],

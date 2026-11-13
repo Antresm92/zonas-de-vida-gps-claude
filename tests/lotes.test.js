@@ -26,7 +26,7 @@ const B = [{ id: 'b1', name: 'P1', lat: 4.62, lon: -74.08, alt: 1800 }, { id: 'b
 test('lotes: un proyecto nuevo trae un «Lote 1» y sus atajos leen y escriben en el lote elegido', () => {
   backend();
   const p = Store.newProject('Finca');
-  assert.equal(p.lots.length, 1); assert.equal(p.lots[0].name, 'Lote 1'); assert.equal(p.lotId, p.lots[0].id);
+  assert.equal(p.lots.length, 1); assert.equal(p.lots[0].name, 'Predio'); assert.equal(p.lots[0].kind, 'finca'); assert.equal(p.lotId, p.lots[0].id);
   assert.deepEqual(p.points, []); assert.equal(p.nextPoint, 1); assert.equal(p.mainColor, Store.MAIN_COLOR); assert.deepEqual(p.climate, {});
   p.points = A.slice(); p.nextPoint = 4; p.climate.pManual = 1200; p.mainColor = '#8E44AD'; p.weatherNow = { T: 20 };
   assert.equal(p.lots[0].points.length, 3); assert.equal(p.lots[0].nextPoint, 4); assert.equal(p.lots[0].climate.pManual, 1200);
@@ -69,7 +69,7 @@ test('lotes: un proyecto de una versión anterior pasa a tener un «Lote 1» con
   const s = Store.loadState();
   assert.equal(s.projects.length, 2);
   const p = s.projects[0];
-  assert.equal(p.lots.length, 1); assert.equal(p.lots[0].id, 'p1-l1'); assert.equal(p.lots[0].name, 'Lote 1');
+  assert.equal(p.lots.length, 1); assert.equal(p.lots[0].id, 'p1-l1'); assert.equal(p.lots[0].name, 'Predio'); assert.equal(p.lots[0].kind, 'finca');      // 2.22.0: el único polígono pasa a ser el predio
   assert.equal(p.points.length, 3); assert.equal(p.climate.tManual, 18); assert.equal(p.nextPoint, 9); assert.equal(p.mainColor, '#C0392B'); assert.deepEqual(p.weatherNow, { T: 21 });
   assert.equal(p.layers.length, 1); assert.equal(p.name, 'Viejo');
   const q = s.projects[1];

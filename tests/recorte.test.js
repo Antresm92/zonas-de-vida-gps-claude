@@ -62,7 +62,7 @@ test('clip: vecino metido por completo deja un hueco; vecino que parte en dos de
 
 test('adjust: recorta a la finca y al vecino, conserva el sentido del recorrido y empieza en el punto propio más antiguo', () => {
   const F = rect(0, 0, 200, 200), caf = rect(20, 20, 100, 100);
-  // el bosque (en sentido de las agujas del reloj) se monta sobre el cafetal y se sale de la finca por la derecha
+  // el bosque (en sentido de las agujas del reloj) se monta sobre el cafetal y se sale del predio por la derecha
   const bos = [P(60, 60), P(60, 160), P(260, 160), P(260, 60)].map((p, i) => Object.assign(p, { id: 'b' + i, name: 'P' + (i + 1) }));
   const r = Recorte.adjust(bos, F, [{ name: 'Cafetal', points: caf }]);
   assert.equal(r.ok, true);
@@ -83,7 +83,7 @@ test('adjust: explica cuando no hay nada que ajustar o no se puede', () => {
   const F = rect(0, 0, 200, 200), A = rect(20, 20, 80, 80);
   assert.match(Recorte.adjust(A, F, []).reason, /ya respeta los linderos/);
   assert.match(Recorte.adjust(A, null, [{ name: 'X', points: rect(80, 20, 120, 80) }]).reason, /ya respeta/);
-  assert.match(Recorte.adjust(rect(300, 300, 350, 350), F, []).reason, /por fuera de la finca/);
+  assert.match(Recorte.adjust(rect(300, 300, 350, 350), F, []).reason, /por fuera del predio/);
   assert.match(Recorte.adjust(A, F, [{ name: 'Grande', points: rect(10, 10, 90, 90) }]).reason, /por completo dentro de otro/);
   const dentro = Recorte.adjust(A, F, [{ name: 'Casa', points: rect(40, 40, 50, 50) }]);
   assert.equal(dentro.ok, false); assert.match(dentro.reason, /«Casa» está por completo dentro/); assert.deepEqual(dentro.skipped, ['Casa']);
@@ -119,7 +119,7 @@ test('conflicts: con qué choca un polígono (se sale de su finca, se monta sobr
   ];
   const c = Predio.conflicts(lots, 'b');
   assert.equal(c.finca.id, 'f'); assert.deepEqual(c.others.map((o) => o.id), ['c']);
-  assert.match(c.text, /^«Bosque» se sale de la finca «Finca» y se monta sobre «Cafetal»\.$/);
+  assert.match(c.text, /^«Bosque» se sale del predio «Finca» y se monta sobre «Cafetal»\.$/);
   const k = Predio.conflicts(lots, 'c');
   assert.equal(k.finca, null); assert.deepEqual(k.others.map((o) => o.id), ['b']);
   assert.equal(k.text, '«Cafetal» se monta sobre «Bosque».');

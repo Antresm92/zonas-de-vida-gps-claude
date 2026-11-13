@@ -51,7 +51,7 @@ module.exports = async function (c) {
   const closeLayers = async () => { if (await layersOpen()) await act('mapLayers'); };
   const pickBase = async (b) => { await openLayers(); await page.click('[data-act="mapBase"][data-b="' + b + '"]'); await closeLayers(); };
   const toggleRef = async () => { await openLayers(); await page.click('[data-act="mapRef"]'); await closeLayers(); };
-  const flags = () => page.evaluate(() => { const f = JSON.parse(localStorage.getItem('zvg.v1.flags') || '{}'); delete f.mapGuide; delete f.appGuide; delete f.reportOpen; return f; });   // las ayudas de primera vez y el reporte desplegado se prueban aparte
+  const flags = () => page.evaluate(() => { const f = JSON.parse(localStorage.getItem('zvg.v1.flags') || '{}'); delete f.mapGuide; delete f.appGuide; delete f.reportOpen; delete f.adopt222; return f; });   // las ayudas de primera vez y el reporte desplegado se prueban aparte
   // Los mosaicos que fallan a propósito dejan avisos «Failed to load resource» en la consola del navegador: esos no son errores de la app
   const forgetTileNoise = () => { const keep = errors.filter((e) => !/Failed to load resource/.test(e)); errors.length = 0; keep.forEach((e) => errors.push(e)); };
 

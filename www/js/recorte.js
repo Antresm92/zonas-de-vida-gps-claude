@@ -177,7 +177,7 @@
       cur.forEach(function (c) { var r = clipXY(c, F, 'and'); if (r.bad) { failed = true; return; } if (r.changed) changed = true; next = next.concat(r.pieces); });
       if (failed) return { ok: false, reason: FAIL };
       cur = next;
-      if (!cur.length) return { ok: false, reason: 'El polígono queda por fuera de la finca: no hay nada que conservar dentro de sus límites.' };
+      if (!cur.length) return { ok: false, reason: 'El polígono queda por fuera del predio: no hay nada que conservar dentro de sus límites.' };
     }
     (others || []).forEach(function (o) {
       var O = ringXY(fr, o.points || [], false), next = [], skip = false;

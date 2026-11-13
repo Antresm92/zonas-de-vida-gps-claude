@@ -154,15 +154,15 @@ module.exports = async function (c) {
     await page.click('#sheet .btn-primary'); await waitSheetClosed();
     await act('appGuide'); await page.waitForSelector('#sheet:not([hidden])');
     assert.equal(await sheetTitle(), 'Cómo usar la app');
-    assert.deepEqual(await page.$$eval('#sheet .guide dt', (d) => d.map((x) => x.textContent)), ['1 · Puntos', '2 · Información', '3 · Reporte', 'Polígono', 'Lotes, fincas y áreas', 'Qué va en el reporte', 'Herramientas', 'Arriba', 'Sin internet']);
+    assert.deepEqual(await page.$$eval('#sheet .guide dt', (d) => d.map((x) => x.textContent)), ['1 · Puntos', '2 · Información', '3 · Reporte', 'Polígono', 'Predios y lotes', 'Qué va en el reporte', 'Herramientas', 'Arriba', 'Sin internet']);
     assert.deepEqual(await page.$$eval('#sheet .guide-h', (d) => d.map((x) => x.textContent)), ['Los tres pasos', 'Lo demás']);
     // la ayuda nombra lo que la app hace hoy (2.19.0)
     const ayuda = await text('#sheet');
-    for (const w of ['Origen Nacional', 'fotos', 'Caldas-Lang del IDEAM', 'Köppen', 'pendiente', 'Shapefile', 'fincas', 'potrero', 'casilla a la izquierda', '«Completo»', '«Global»', '«Específico»', 'tu logo', 'copia de seguridad']) assert.ok(ayuda.includes(w), 'la ayuda no menciona: ' + w);
+    for (const w of ['Origen Nacional', 'fotos', 'Caldas-Lang del IDEAM', 'Köppen', 'pendiente', 'Shapefile', 'predio', 'potrero', 'casilla a la izquierda', '«Completo»', '«Global»', '«Específico»', 'tu logo', 'copia de seguridad']) assert.ok(ayuda.includes(w), 'la ayuda no menciona: ' + w);
     await page.click('#sheet .btn-primary'); await waitSheetClosed();
     // la ayuda del mapa, por grupos, con lo nuevo
     await act('mapGuide'); await page.waitForSelector('#sheet:not([hidden])');
-    assert.deepEqual(await page.$$eval('#sheet .guide-h', (d) => d.map((x) => x.textContent)), ['Lo básico', 'Crear y cambiar puntos', 'Lotes, fincas y áreas', 'Medir']);
+    assert.deepEqual(await page.$$eval('#sheet .guide-h', (d) => d.map((x) => x.textContent)), ['Lo básico', 'Crear y cambiar puntos', 'Predios y lotes', 'Medir']);
     const mapa = await text('#sheet');
     for (const w of ['＋ Polígono', 'relleno de puntos', 'Candado', 'se pega a ella', 'Dejar sobrepuesto', 'casilla «Orden»', 'suben un número', 'Caminar el lindero', 'Agregar con mira', 'deshacer', 'da también el área']) assert.ok(mapa.includes(w), 'la ayuda del mapa no menciona: ' + w);
     await page.click('#sheet .btn-primary'); await waitSheetClosed();
