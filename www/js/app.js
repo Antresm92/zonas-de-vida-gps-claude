@@ -5,7 +5,7 @@
   var Geo = window.Geo, H = window.Holdridge, Climate = window.Climate, A = window.Analysis, Fmt = window.Fmt,
       Gps = window.Gps, Store = window.Store, Diagram = window.Diagram, Report = window.Report,
       Gis = window.Gis, Backup = window.Backup, IO = window.IO, WL = window.WalterLieth, Mapa = window.Mapa, MapView = window.MapView, Satelite = window.Satelite, Perfil = window.Perfil, Fotos = window.Fotos, Zip = window.Zip, Units = window.Units;
-  var APP_VERSION = '2.23.0';
+  var APP_VERSION = '2.23.1';
 
   var S = Store.loadState();
   // 2.22.0: la primera vez, los lotes de antes que están dentro de un predio pasan a pertenecerle
@@ -2620,7 +2620,23 @@
     h += '<h3 class="sub">Ayuda</h3><div class="menu">' + menuRow('appGuide', 'Cómo usar la app', 'Los tres pasos y todo lo demás') + menuRow('usesGuide', 'Para qué sirve la app', 'Usos por área y hasta dónde llega') + menuRow('mapGuide', 'Cómo usar el mapa', 'Puntos, polígonos, predios y lotes') +
       menuRow('licenses', 'Fuentes y licencias', 'Mapas y datos de clima') + '</div>';
     h += '<p class="small muted" style="margin-top:14px">Zonas de Vida · versión ' + APP_VERSION + '. Funciona sin internet, salvo los mapas y los datos de clima.</p>';
-    return h;
+    return h + creditHtml();
+  }
+  /* ---------- Crédito y redes de Campesino Urbano (2.23.1) ----------
+   * Los iconos son dibujos sencillos propios (cámara, personas, globo de chat, nota musical), no los logotipos de las marcas;
+   * el nombre de cada red va escrito debajo. Los enlaces abren la red en su app o en el navegador del teléfono, no dentro de la app. */
+  var SOCIAL = [
+    ['Instagram', 'https://www.instagram.com/campesinourbano', '<rect x="3" y="6" width="18" height="14" rx="3"/><circle cx="12" cy="13" r="4"/><path d="M8 6l1.5-2.5h5L16 6"/>'],
+    ['Facebook', 'https://www.facebook.com/share/1EyHNmXiXm/', '<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.6 2.7-6 6-6s6 2.4 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M15.5 14.2c3 .2 5.5 2.4 5.5 5.8"/>'],
+    ['WhatsApp', 'https://wa.me/message/L5XIHRLB5CYNI1', '<path d="M4 18.5l1.2-3.6A8 8 0 1 1 8.6 18z"/><path d="M9 10.5h6M9 13.5h4"/>'],
+    ['TikTok', 'https://www.tiktok.com/@campesinourbano', '<path d="M10 17.5V5l9-2v12"/><circle cx="7.5" cy="17.5" r="2.5"/><circle cx="16.5" cy="15" r="2.5"/>']
+  ];
+  function creditHtml() {
+    return '<div class="credit" id="credit"><p>Un proyecto de <b>Campesino Urbano</b></p><div class="social" role="group" aria-label="Redes de Campesino Urbano">' +
+      SOCIAL.map(function (s) {
+        return '<a class="soc" href="' + s[1] + '" target="_blank" rel="noopener noreferrer" data-ext="1" aria-label="' + s[0] + ' de Campesino Urbano">' +
+          '<svg viewBox="0 0 24 24" aria-hidden="true">' + s[2] + '</svg><span>' + s[0] + '</span></a>';
+      }).join('') + '</div></div>';
   }
   /* ---------- Autor y logo del reporte (2.14.0) ---------- */
   function authorBody() {
@@ -3096,6 +3112,13 @@
     var f = e.target.files && e.target.files[0];
     if (f) importCsv(f);
     e.target.value = '';
+  });
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest && e.target.closest('a[data-ext]');
+    if (!a) return;
+    if (navigator.onLine === false) { e.preventDefault(); toast('Necesitas internet para abrir ' + a.textContent.trim() + '.', { err: true }); return; }
+    // En el teléfono, ir a la dirección hace que Android la abra con la app de la red o con el navegador (no dentro de Zonas de Vida)
+    if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) { e.preventDefault(); window.location.href = a.href; }
   });
   $('#polyFile').addEventListener('change', function (e) {
     var f = e.target.files && e.target.files[0];

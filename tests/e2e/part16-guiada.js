@@ -137,6 +137,21 @@ module.exports = async function (c) {
     assert.ok(fila.every((y) => y === fila[0]), 'los tres en una fila');
     assert.deepEqual(await page.$$eval('#tab-herramientas .menurow b', (b) => b.map((x) => x.textContent)), ['Proyectos', 'Copia de seguridad y restaurar', 'Encabezado del reporte', 'Reporte con todas las secciones abiertas', 'Pegar puntos a las esquinas de otros lotes', 'Cómo usar la app', 'Para qué sirve la app', 'Cómo usar el mapa', 'Fuentes y licencias']);
     assert.match(await text('#tab-herramientas'), /Zonas de Vida · versión \d+\.\d+\.\d+\./);
+    // 2.23.1: crédito y redes de Campesino Urbano, al final y centrados
+    assert.equal(await text('#credit p'), 'Un proyecto de Campesino Urbano');
+    assert.deepEqual(await page.$$eval('#credit a.soc', (a) => a.map((x) => x.textContent + ' ' + x.getAttribute('href') + ' ' + x.getAttribute('target'))), [
+      'Instagram https://www.instagram.com/campesinourbano _blank', 'Facebook https://www.facebook.com/share/1EyHNmXiXm/ _blank',
+      'WhatsApp https://wa.me/message/L5XIHRLB5CYNI1 _blank', 'TikTok https://www.tiktok.com/@campesinourbano _blank']);
+    for (const b of await page.$$eval('#credit a.soc', (a) => a.map((x) => { const r = x.getBoundingClientRect(); return [r.width, r.height]; }))) assert.ok(b[0] >= 48 && b[1] >= 48, 'botón cómodo de tocar');
+    assert.equal(await page.$eval('#credit', (d) => getComputedStyle(d).textAlign), 'center');
+    await page.locator('#credit').scrollIntoViewIfNeeded();
+    await c.shot('v2231-credito');
+    // sin internet avisa en vez de intentar abrir
+    await page.context().setOffline(true);
+    await page.click('#credit a.soc:nth-child(1)');
+    assert.match(await c.toastText(), /^Necesitas internet para abrir Instagram\./);
+    await page.context().setOffline(false);
+    assert.equal(page.context().pages().length, 1, 'no se abrió nada');
     await shot('174-herramientas');
     await page.click('#tab-herramientas .menurow[data-act="projects"] >> nth=0');
     await page.waitForSelector('#sheet:not([hidden])');
