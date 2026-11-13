@@ -158,7 +158,7 @@ module.exports = async function (c) {
     assert.deepEqual(await page.$$eval('#sheet .guide-h', (d) => d.map((x) => x.textContent)), ['Los tres pasos', 'Lo demás']);
     // la ayuda nombra lo que la app hace hoy (2.19.0)
     const ayuda = await text('#sheet');
-    for (const w of ['Origen Nacional', 'fotos', 'Caldas-Lang del IDEAM', 'Köppen', 'pendiente', 'Shapefile', 'fincas', 'potrero', 'casilla a la izquierda', 'todo el proyecto', 'tu logo', 'copia de seguridad']) assert.ok(ayuda.includes(w), 'la ayuda no menciona: ' + w);
+    for (const w of ['Origen Nacional', 'fotos', 'Caldas-Lang del IDEAM', 'Köppen', 'pendiente', 'Shapefile', 'fincas', 'potrero', 'casilla a la izquierda', '«Completo»', '«Global»', '«Específico»', 'tu logo', 'copia de seguridad']) assert.ok(ayuda.includes(w), 'la ayuda no menciona: ' + w);
     await page.click('#sheet .btn-primary'); await waitSheetClosed();
     // la ayuda del mapa, por grupos, con lo nuevo
     await act('mapGuide'); await page.waitForSelector('#sheet:not([hidden])');

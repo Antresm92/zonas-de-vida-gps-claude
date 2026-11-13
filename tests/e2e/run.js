@@ -86,7 +86,7 @@ const arg = (n) => { const a = process.argv.find((x) => x.startsWith('--' + n + 
   await page.goto(url);
   await page.waitForSelector('#tab-puntos');
   const only = (arg('parts') || '').split(',').filter(Boolean);
-  for (const part of ['part1-puntos', 'part2-area-importar', 'part3-clima', 'part4-informe-proyectos', 'part5-offline', 'part7-mapa', 'part8-perfil-satelital', 'part9-menu-mapa', 'part10-posicion-manual', 'part11-v25', 'part12-fotos', 'part13-pdf', 'part14-herramientas', 'part15-mapa-intuitivo', 'part16-guiada', 'part17-v214', 'part18-lotes', 'part19-v216', 'part20-fincas', 'part21-clasif']) {
+  for (const part of ['part1-puntos', 'part2-area-importar', 'part3-clima', 'part4-informe-proyectos', 'part5-offline', 'part7-mapa', 'part8-perfil-satelital', 'part9-menu-mapa', 'part10-posicion-manual', 'part11-v25', 'part12-fotos', 'part13-pdf', 'part14-herramientas', 'part15-mapa-intuitivo', 'part16-guiada', 'part17-v214', 'part18-lotes', 'part19-v216', 'part20-fincas', 'part21-clasif', 'part22-v220']) {
     if (only.length && !only.some((o) => part.startsWith(o))) continue;
     const f = path.join(__dirname, part + '.js');
     if (fs.existsSync(f)) { console.log('\n' + part); await require(f)(ctx); }

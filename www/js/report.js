@@ -196,12 +196,13 @@
     if (!ok.some(function (pt) { return pt.project.points.length >= 2; })) return null;
     function color(pt) { return HEX.test(pt.project.mainColor || '') ? pt.project.mainColor : '#2F8F4E'; }
     function name(pt) { return pt.project.lotName || pt.project.name || 'Lote'; }
-    var main = ok[0], layers = ok.slice(1).map(function (pt) {
+    // las fincas van primero (debajo) y nadie lleva los puntos resaltados: es la vista de conjunto (2.20.0)
+    ok = ok.filter(function (pt) { return (pt.project.lotMeta || {}).kind === 'finca'; }).concat(ok.filter(function (pt) { return (pt.project.lotMeta || {}).kind !== 'finca'; }));
+    var layers = ok.map(function (pt) {
       var n = pt.project.points.length;
       return { name: name(pt), kind: n >= 3 ? 'polygon' : n === 2 ? 'line' : 'points', color: color(pt), visible: true, points: pt.project.points, dots: !!pt.project.dots };
     });
-    return { svg: Diagram.polygonSVG(main.project.points, { width: 560, height: 380, layers: layers, color: color(main), dots: !!main.project.dots }),
-      items: [[color(main), name(main)]].concat(layers.map(function (l) { return [l.color, l.name]; })) };
+    return { svg: Diagram.polygonSVG([], { width: 560, height: 380, layers: layers }), items: layers.map(function (l) { return [l.color, l.name]; }) };
   }
   // Cada lote lleva sus propios dibujos: para que no choquen dentro de una misma página, se le cambia el nombre interno a cada uno
   function reid(html, sfx) {
@@ -342,7 +343,7 @@
         h += '<tr><th>' + dot(p, project) + esc(p.name || 'P' + (i + 1)) + '</th><td>' + esc(Fmt.latlon(p.lat, p.lon)) + (isNum(p.alt) ? ' · ' + esc(Fmt.num(p.alt, 0)) + ' m' : '') + planaHtml(p) + '</td></tr>';
       });
       h += '</table>' + (anyPlana(project, a) ? '<p class="small">' + esc(Fmt.PLANA_NOTE) + '</p>' : '');
-      if (a.n >= 2) h += '<h2>Croquis</h2><div style="max-width:560px;margin-top:12px">' + Diagram.polygonSVG(project.points, { width: 560, height: 380, center: a.center, bad: a.selfIntersects, dots: !!project.dots, layers: project.layers, color: project.mainColor }) + Diagram.legendHTML(project.layers, project.mainColor, project.lotName || 'Mis puntos', true) + '</div>';
+      if (a.n >= 2) h += '<h2>Croquis</h2><div style="max-width:560px;margin-top:12px">' + Diagram.polygonSVG(project.points, { width: 560, height: 380, center: a.center, bad: a.selfIntersects, dots: !!project.dots, layers: project.layers, color: project.mainColor, focus: true }) + Diagram.legendHTML(project.layers, project.mainColor, project.lotName || 'Mis puntos', true) + '</div>';
       if (a.n >= 2) h += (skips(o, 'sat') ? '' : sketchHtml('Croquis satelital', 'croquis satelital', o.satellite)) + (skips(o, 'topo') ? '' : sketchHtml('Croquis topográfico', 'croquis topográfico', o.topo)) + (skips(o, 'perfil') ? '' : profileHtml(project));
     }
     if (!skips(o, 'fotos')) h += photosHtml(project, o);

@@ -30,7 +30,7 @@
     o = o || {};
     var out = [], r = a.result;
     if (a.n >= 2) {
-      out.push({ key: 'croquis', svg: Diagram.polygonSVG(project.points, { width: 560, height: 380, center: a.center, bad: a.selfIntersects, dots: !!project.dots, layers: project.layers, color: project.mainColor }) });
+      out.push({ key: 'croquis', svg: Diagram.polygonSVG(project.points, { width: 560, height: 380, center: a.center, bad: a.selfIntersects, dots: !!project.dots, layers: project.layers, color: project.mainColor, focus: true }) });
       if (!Report.skips(o, 'sat') && o.satellite && o.satellite.svg) out.push({ key: 'satelital', svg: o.satellite.svg, px: PX_MAP });
       if (!Report.skips(o, 'topo') && o.topo && o.topo.svg) out.push({ key: 'topo', svg: o.topo.svg, px: PX_MAP });
       var m = perfilModel(project);

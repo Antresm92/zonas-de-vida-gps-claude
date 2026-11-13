@@ -79,7 +79,8 @@
   }
 
   // Cuadro que contiene todo lo que se dibuja: { south, west, north, east } o null si no hay nada.
-  function extent(points, layers) {
+  // skipLots (2.20.0): no cuenta los demás polígonos del proyecto (capas con lot: true), para enfocar el propio
+  function extent(points, layers, skipLots) {
     var s = Infinity, w = Infinity, n = -Infinity, e = -Infinity, any = false;
     function add(p) {
       if (!validLL(p)) return;
@@ -88,7 +89,7 @@
       if (p.lon < w) w = p.lon; if (p.lon > e) e = p.lon;
     }
     (points || []).forEach(add);
-    visibleLayers(layers).forEach(function (l) { l.points.forEach(add); });
+    visibleLayers(layers).forEach(function (l) { if (!(skipLots && l.lot)) l.points.forEach(add); });
     return any ? { south: s, west: w, north: n, east: e } : null;
   }
 

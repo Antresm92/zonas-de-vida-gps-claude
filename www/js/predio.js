@@ -61,6 +61,18 @@
     return pref[0] || (fs.length === 1 ? fs[0] : null);
   }
 
+  // Orden de jerarquía (2.20.0): cada finca seguida de sus áreas y, al final, los lotes y las áreas sin finca (en el orden que tenían)
+  function ordered(lots) {
+    lots = (lots || []).filter(Boolean);
+    var out = [], used = [];
+    fincas(lots).forEach(function (f) {
+      out.push(f); used.push(f);
+      children(f, lots).forEach(function (c) { if (used.indexOf(c) < 0) { out.push(c); used.push(c); } });
+    });
+    lots.forEach(function (l) { if (used.indexOf(l) < 0) out.push(l); });
+    return out;
+  }
+
   /* ---------- Cuentas: el total del proyecto sin contar dos veces ---------- */
   // Un área que pertenece a una finca ya está dentro de ella: no se suma al total. Cuentan las fincas, los lotes y las áreas sueltas.
   // Devuelve { total, closed, rows: [{ lot, m2, label, parent, pct }], fincas: [{ lot, m2, areas, used, free, n }] }
@@ -107,5 +119,5 @@
   }
 
   return { CATS: CATS, FINCA_COLOR: FINCA_COLOR, isFinca: isFinca, isArea: isArea, kindLabel: kindLabel, catColor: catColor, fincas: fincas, parentOf: parentOf,
-    children: children, centroid: centroid, contains: contains, guessParent: guessParent, account: account, warnings: warnings, m2: m2 };
+    children: children, centroid: centroid, contains: contains, guessParent: guessParent, account: account, warnings: warnings, m2: m2, ordered: ordered };
 });

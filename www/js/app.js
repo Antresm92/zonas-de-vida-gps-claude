@@ -5,7 +5,7 @@
   var Geo = window.Geo, H = window.Holdridge, Climate = window.Climate, A = window.Analysis, Fmt = window.Fmt,
       Gps = window.Gps, Store = window.Store, Diagram = window.Diagram, Report = window.Report,
       Gis = window.Gis, Backup = window.Backup, IO = window.IO, WL = window.WalterLieth, Mapa = window.Mapa, MapView = window.MapView, Satelite = window.Satelite, Perfil = window.Perfil, Fotos = window.Fotos, Zip = window.Zip, Units = window.Units;
-  var APP_VERSION = '2.19.0';
+  var APP_VERSION = '2.20.0';
 
   var S = Store.loadState();
   var hadSaved = Store.hasSavedState();      // ¿había datos guardados al abrir? (solo entonces se limpian las fotos sin uso)
@@ -2055,7 +2055,7 @@
     if (cur && !force) return Promise.resolve({ svg: cur.svg, caption: caption });
     function fail(msg) { c.error = { sig: sig, msg: msg }; c.busy = false; refreshCroqBlock(kind); return { unavailable: msg }; }
     if (navigator.onLine === false) return Promise.resolve(fail('no hay conexión a internet en este momento'));
-    var pl = Satelite.plan(p.points, p.layers, { kind: kind });
+    var pl = Satelite.plan(p.points, p.layers, { kind: kind, focus: true });
     if (!pl.ok) return Promise.resolve(fail(pl.reason));
     c.busy = true; c.error = null; refreshCroqBlock(kind);
     return Satelite.render(pl).then(function (uri) {
@@ -2089,13 +2089,63 @@
     var w = walterModel(a);
     return { walter: w ? { svg: w.svg, lines: w.lines, source: w.source } : null, author: Store.loadAuthor(), skip: repSkip() };
   }
+  /* ---------- Qué polígonos van en el reporte (2.20.0) ----------
+   *   all    «Completo»: el resumen y luego cada polígono, en orden de jerarquía (cada finca seguida de sus áreas)
+   *   fincas «Global»: solo las fincas marcadas (aparece si el proyecto tiene alguna finca con puntos)
+   *   one    «Específico»: un solo polígono, el que se elija en la lista */
+  function repLots(P) { return Predio.ordered((P || proj()).lots).filter(function (l) { return l.points.length; }); }
+  function repFincas(P) { return repLots(P).filter(Predio.isFinca); }
+  function repScopeNow(P) {
+    P = P || proj();
+    if (!multi(P)) return 'one';
+    var s = ui.repScope || 'all';
+    return s === 'fincas' && !repFincas(P).length ? 'all' : s;
+  }
+  // Los polígonos que van en el reporte, en orden. Lista vacía = no hay nada elegido.
+  function repIds(P) {
+    P = P || proj();
+    var s = repScopeNow(P), off = ui.repOff || {};
+    if (s === 'all') { var all = repLots(P).map(function (l) { return l.id; }); return all.length ? all : [P.lotId]; }
+    if (s === 'fincas') return repFincas(P).filter(function (f) { return !off[f.id]; }).map(function (f) { return f.id; });
+    return [P.lots.some(function (l) { return l.id === ui.repOne; }) ? ui.repOne : P.lotId];
+  }
+  function repWhatHtml() {
+    var P = proj(), s = repScopeNow(P), fs = repFincas(P), off = ui.repOff || {};
+    var one = P.lots.some(function (l) { return l.id === ui.repOne; }) ? ui.repOne : P.lotId;
+    function b(k, label) { return '<button data-act="repScope" data-s="' + k + '" aria-pressed="' + (s === k) + '">' + label + '</button>'; }
+    var h = '<div class="seg" role="group" aria-label="Qué polígonos van en el reporte" id="repScope" style="margin-bottom:6px">' + b('all', 'Completo') + (fs.length ? b('fincas', 'Global') : '') + b('one', 'Específico') + '</div>';
+    if (s === 'fincas') {
+      h += '<div class="reppick" id="repFincas">' + fs.map(function (f) {
+        return '<label class="repfin"><input type="checkbox" data-finca="' + esc(f.id) + '"' + (off[f.id] ? '' : ' checked') + '><span class="dot" style="background:' + esc(f.mainColor || Predio.FINCA_COLOR) + '"></span>' + esc(f.name) + '</label>';
+      }).join('') + '</div><p class="small muted" style="margin-bottom:14px">«Global» trae solo ' + (fs.length > 1 ? 'las fincas marcadas: el resumen de todas y luego el reporte de cada una' : 'la finca') + ', sin el detalle de sus áreas.</p>';
+    } else if (s === 'one') {
+      h += '<div class="reppick"><label class="small" for="repOne">Polígono</label><select id="repOne">' + Predio.ordered(P.lots).map(function (l) {
+        return '<option value="' + esc(l.id) + '"' + (l.id === one ? ' selected' : '') + '>' + (Predio.parentOf(l, P.lots) ? '   · ' : '') + esc(Predio.kindLabel(l) + ': ' + l.name) + (l.points.length ? '' : ' (sin puntos)') + '</option>';
+      }).join('') + '</select></div><p class="small muted" style="margin-bottom:14px">«Específico» trae el reporte completo de ese polígono, con su croquis enfocado y sus puntos.</p>';
+    } else {
+      h += '<p class="small muted" style="margin-bottom:14px">«Completo» trae primero el resumen del proyecto (área, altitud y zona de vida de cada polígono, y el total) y después el reporte de cada uno que tenga puntos, en orden: cada finca seguida de sus áreas.</p>';
+    }
+    return h;
+  }
+  // Guarda lo marcado en la hoja (las fincas y el polígono elegido) antes de cerrarla o de volver a dibujarla
+  function repRead() {
+    var sel = $('#repOne');
+    if (sel) ui.repOne = sel.value;
+    var boxes = document.querySelectorAll('#repFincas input[data-finca]');
+    if (boxes.length) { ui.repOff = {}; Array.prototype.forEach.call(boxes, function (c) { if (!c.checked) ui.repOff[c.getAttribute('data-finca')] = true; }); }
+  }
+  // true si se puede seguir; si no hay nada que reportar lo dice y deja la hoja abierta
+  function repReady() {
+    repRead();
+    if (repIds().length) return true;
+    toast('Marca al menos una finca para el reporte.', { err: true });
+    return false;
+  }
   // «Compartir reporte» pregunta el formato: HTML (se abre en cualquier navegador) o PDF (hoja A4 lista para imprimir)
   function shareReport() {
     if (ui.sharing) return;
     openSheet('Compartir reporte',
-      (multi() ? '<p class="lead">¿Qué va en el reporte?</p><div class="seg" role="group" aria-label="Qué lotes van en el reporte" id="repScope" style="margin-bottom:6px">' +
-        '<button data-act="repScope" data-s="all" aria-pressed="' + (ui.repAll !== false) + '">Todo el proyecto</button><button data-act="repScope" data-s="one" aria-pressed="' + (ui.repAll === false) + '">Solo «' + esc(lot().name) + '»</button></div>' +
-        '<p class="small muted" style="margin-bottom:14px">«Todo el proyecto» trae primero el resumen de los lotes (área, altitud y zona de vida de cada uno, y el total) y después el reporte completo de cada lote que tenga puntos.</p>' : '') +
+      (multi() ? '<p class="lead">¿Qué va en el reporte?</p><div id="repWhat">' + repWhatHtml() + '</div>' : '') +
       '<p class="lead">¿En qué formato quieres el reporte?</p>' +
       '<div class="btns"><button class="btn btn-primary" data-act="shareReportPdf">PDF (hoja A4)</button><button class="btn" data-act="shareReportHtml">HTML</button></div>' +
       '<p class="small muted" style="margin-top:12px"><b>PDF:</b> una hoja A4 lista para imprimir o enviar; se ve igual en cualquier teléfono. <b>HTML:</b> una página web con los gráficos que se acerca bien en pantalla.</p>');
@@ -2119,8 +2169,7 @@
   // Reúne las partes del reporte y llama a build(parts, P). P es el proyecto cuando el reporte es de todos los lotes; si no, null.
   // Para el reporte de todo el proyecto se pasa por cada lote con puntos, uno tras otro (se elige por un momento y al final se vuelve al que estaba).
   function prepareReport(build) {
-    var P = proj(), home = P.lotId, all = multi(P) && ui.repAll !== false;
-    var ids = all ? P.lots.filter(function (l) { return l.points.length; }).map(function (l) { return l.id; }) : [home];
+    var P = proj(), home = P.lotId, ids = repIds(P);
     if (!ids.length) ids = [home];
     var parts = [];
     ui.sharing = true;
@@ -2132,9 +2181,9 @@
       return build(parts, parts.length > 1 ? P : null);
     }, function (e) { back(); throw e; });
   }
-  function reportName(parts, P, ext) { return IO.slug('reporte zona de vida ' + proj().name + (!P && parts[0].project.lotName ? ' ' + parts[0].project.lotName : ''), ext); }
+  function reportName(parts, P, ext) { return IO.slug('reporte zona de vida ' + proj().name + (!P && parts[0].project.lotName ? ' ' + parts[0].project.lotName : P && repScopeNow() === 'fincas' ? ' fincas' : ''), ext); }
   function shareReportPdf() {
-    if (ui.sharing || busy.on) return;
+    if (ui.sharing || busy.on || !repReady()) return;
     closeSheet();
     var name = '';
     busyRun('Elaborando el reporte en PDF', 'Reuniendo los datos del reporte…', function () {
@@ -2158,7 +2207,7 @@
     }).catch(function (e) { toast('No se pudo preparar el PDF: ' + (e && e.message || e), { err: true }); });
   }
   function shareReportHtml() {
-    if (ui.sharing || busy.on) return;
+    if (ui.sharing || busy.on || !repReady()) return;
     closeSheet();
     var name = '';
     busyRun('Elaborando el reporte en HTML', 'Reuniendo los datos del reporte…', function () {
@@ -2416,7 +2465,7 @@
     ['Lo demás', [
       ['Polígono', 'El croquis con las medidas y para exportar (KML, GeoJSON, GPX, CSV y Shapefile). En «Mapa», el terreno sobre calles, satélite o topográfico: ahí se crean, mueven y ordenan los puntos, y se mide.'],
       ['Lotes, fincas y áreas', 'Un proyecto puede tener varios polígonos: lotes sueltos, fincas y, dentro de ellas, áreas (potrero, cafetal, cultivo…). Cada uno con sus puntos, su clima y su zona de vida. Se eligen en la fila bajo el nombre del proyecto; «＋ Lote» o «＋ Polígono» crean otro.'],
-      ['Qué va en el reporte', 'En «Reporte», la casilla a la izquierda de cada sección decide si esa parte sale en el reporte que compartes. Con varios polígonos puedes compartir todo el proyecto o solo el elegido.'],
+      ['Qué va en el reporte', 'En «Reporte», la casilla a la izquierda de cada sección decide si esa parte sale en el reporte que compartes. Con varios polígonos, al compartir eliges: «Completo» (el resumen y cada polígono, cada finca seguida de sus áreas), «Global» (solo las fincas que marques) o «Específico» (un solo polígono). El croquis de cada polígono se enfoca en él y resalta solo sus puntos; los demás se ven tenues de fondo.'],
       ['Herramientas', 'Conversor de unidades, clima y GPS en vivo, proyectos y copia de seguridad, el encabezado del reporte (tu nombre y tu logo), preferencias y estas ayudas.'],
       ['Arriba', 'La franja de tres pasos dice qué está listo y qué falta. Tócala para ir a ese paso.'],
       ['Sin internet', 'La app abre y guarda puntos sin conexión. Los mapas, «Completar con internet» y el clima actual sí la necesitan.']
@@ -2750,7 +2799,7 @@
     export: function (t) { exportAs(t.getAttribute('data-fmt')); },
     lotPick: function (t) { var id = t.getAttribute('data-id'); if (id === proj().lotId) openLots(); else pickLot(id); },
     lotPickClose: function (t) { var ch = pickLot(t.getAttribute('data-id'), true); closeSheet(); if (ch) { renderTab(ui.tab); toast('Lote elegido: ' + lot().name + '.' + (ui.lockNote || '')); } },
-    repScope: function (t) { ui.repAll = t.getAttribute('data-s') !== 'one'; Array.prototype.forEach.call(document.querySelectorAll('#repScope button'), function (b) { b.setAttribute('aria-pressed', String(b === t)); }); },
+    repScope: function (t) { repRead(); ui.repScope = t.getAttribute('data-s'); var el = $('#repWhat'); if (el) el.innerHTML = repWhatHtml(); },
     lotAdd: function () { lotForm(''); }, lotEdit: function (t) { lotForm(t.getAttribute('data-id')); }, lotSave: lotSave,
     lotNewMap: function () { closeSheet(); lotForm('', 'map'); },
     mapUnlock: function () { setLock(lot(), false); },

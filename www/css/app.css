@@ -500,3 +500,9 @@ details.why summary { min-height: 32px; padding: 6px 0; color: var(--blue); font
 .block > h2.haschk > span { margin-left: 8px; }
 .guide-h { margin: 14px 0 2px; }
 .guide-h:first-child { margin-top: 0; }
+
+/* Qué va en el reporte (2.20.0) */
+.reppick { margin: 8px 0 6px; display: flex; flex-direction: column; gap: 4px; }
+.reppick select { width: 100%; min-height: 44px; }
+.repfin { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 4px; }
+.repfin input { width: 22px; height: 22px; flex: none; }

@@ -56,7 +56,9 @@
     opts = opts || {};
     var kind = kindOf(opts.kind), cfg = KINDS[kind];
     var maxZ = opts.maxZoom || cfg.maxZoom;
-    var ext = Mapa.extent(points, layers);
+    // opts.focus (2.20.0): la imagen se ajusta al polígono propio (si tiene 2 puntos o más); los demás polígonos del proyecto no la agrandan
+    var focus = !!opts.focus && (points || []).filter(validLL).length >= 2;
+    var ext = Mapa.extent(points, layers, focus);
     if (!ext) return { ok: false, reason: 'no hay puntos para dibujar' };
     // Se busca el zoom más alto en que todo cabe dentro de la imagen, dejando margen
     var w0 = worldX(ext.east, 0) - worldX(ext.west, 0), h0 = worldY(ext.south, 0) - worldY(ext.north, 0);
@@ -81,7 +83,7 @@
     }
     var midLat = (ext.north + ext.south) / 2;
     return {
-      ok: true, kind: kind, z: z, width: WIDTH, height: HEIGHT, tiles: tiles,
+      ok: true, kind: kind, z: z, focus: focus, width: WIDTH, height: HEIGHT, tiles: tiles,
       mpp: RES0 * Math.cos(midLat * Math.PI / 180) / n,       // metros por píxel de la imagen
       project: function (lat, lon) { return { x: worldX(lon, z) - left, y: worldY(lat, z) - top }; }
     };
@@ -95,18 +97,21 @@
     var xy = pts.map(function (p) { return pl.project(p.lat, p.lon); });
     function pathOf(q, close) { return q.map(function (p, i) { return (i ? 'L' : 'M') + f(p.x) + ' ' + f(p.y); }).join(' ') + (close ? ' Z' : ''); }
     var s = '';
+    function dim(l) { return !!pl.focus && !!l.lot; }                 // los demás polígonos del proyecto, tenues (2.20.0)
     Mapa.visibleLayers(o.layers).forEach(function (l) {
       var q = l.points.filter(validLL).map(function (p) { return pl.project(p.lat, p.lon); }), col = color(l.color, '#2980B9');
       if (l.kind === 'polygon' && q.length >= 3) {
         var d = pathOf(q, true);
         (l.holes || []).forEach(function (h) { var hq = h.filter(validLL).map(function (p) { return pl.project(p.lat, p.lon); }); if (hq.length >= 3) d += ' ' + pathOf(hq, true); });
-        s += '<path d="' + d + '" fill-rule="evenodd" fill="' + col + '" fill-opacity="0.22" stroke="#fff" stroke-opacity="0.9" stroke-width="5" stroke-linejoin="round"/>' +
+        s += dim(l) ? '<path class="ctx" d="' + d + '" fill-rule="evenodd" fill="' + col + '" fill-opacity="0.08" stroke="#fff" stroke-opacity="0.55" stroke-width="1.6" stroke-dasharray="5 4" stroke-linejoin="round"/>'
+          : '<path d="' + d + '" fill-rule="evenodd" fill="' + col + '" fill-opacity="0.22" stroke="#fff" stroke-opacity="0.9" stroke-width="5" stroke-linejoin="round"/>' +
           '<path d="' + d + '" fill-rule="evenodd" fill="none" stroke="' + col + '" stroke-width="2.6" stroke-linejoin="round"/>';
       } else if ((l.kind === 'line' || l.kind === 'polygon') && q.length >= 2) {
-        s += '<path d="' + pathOf(q, false) + '" fill="none" stroke="#fff" stroke-opacity="0.9" stroke-width="5" stroke-linejoin="round"/>' +
+        s += dim(l) ? '<path class="ctx" d="' + pathOf(q, false) + '" fill="none" stroke="#fff" stroke-opacity="0.55" stroke-width="1.6" stroke-dasharray="5 4" stroke-linejoin="round"/>'
+          : '<path d="' + pathOf(q, false) + '" fill="none" stroke="#fff" stroke-opacity="0.9" stroke-width="5" stroke-linejoin="round"/>' +
           '<path d="' + pathOf(q, false) + '" fill="none" stroke="' + col + '" stroke-width="2.6" stroke-dasharray="7 5" stroke-linejoin="round"/>';
       } else {
-        q.forEach(function (p) { s += '<circle cx="' + f(p.x) + '" cy="' + f(p.y) + '" r="5.5" fill="' + col + '" stroke="#fff" stroke-width="2"/>'; });
+        q.forEach(function (p) { s += dim(l) ? '<circle class="ctx" cx="' + f(p.x) + '" cy="' + f(p.y) + '" r="3.5" fill="' + col + '" opacity="0.55"/>' : '<circle cx="' + f(p.x) + '" cy="' + f(p.y) + '" r="5.5" fill="' + col + '" stroke="#fff" stroke-width="2"/>'; });
       }
     });
     var line = o.bad ? '#FF5A5A' : YELLOW;

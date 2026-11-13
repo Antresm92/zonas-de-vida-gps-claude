@@ -384,13 +384,20 @@
     var lay = (o.layers || []).filter(function (l) { return l && l.visible !== false && l.points && l.points.filter(okp).length; });
     var mainCol = o.color || COL.hex;
     if (!n && !lay.length) return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + W + ' ' + Hh + '"></svg>';
+    // Enfoque (2.20.0): con o.focus el dibujo se ajusta al polígono propio y a las capas importadas; los demás polígonos del
+    // proyecto (capas con lot: true) quedan de fondo, tenues, y no agrandan el encuadre. Sin al menos 2 puntos propios no hay qué enfocar.
+    var focus = !!o.focus && n >= 2 && lay.some(function (l) { return l.lot; });
+    function faint(l) { return focus && !!l.lot; }
     var all = pts.slice();
     lay.forEach(function (l) { all = all.concat(l.points.filter(okp)); });
+    var box = pts.slice();
+    lay.forEach(function (l) { if (!faint(l)) box = box.concat(l.points.filter(okp)); });
     var fr = Geo.localFrame(all);
     var xy = pts.map(function (p) { return Geo.toXY(fr, p); });
-    var xyAll = all.map(function (p) { return Geo.toXY(fr, p); });
+    var xyAll = (focus ? box : all).map(function (p) { return Geo.toXY(fr, p); });
     var minX = Math.min.apply(null, xyAll.map(function (p) { return p.x; })), maxX = Math.max.apply(null, xyAll.map(function (p) { return p.x; }));
     var minY = Math.min.apply(null, xyAll.map(function (p) { return p.y; })), maxY = Math.max.apply(null, xyAll.map(function (p) { return p.y; }));
+    if (focus) { var mgX = (maxX - minX) * 0.2, mgY = (maxY - minY) * 0.2; minX -= mgX; maxX += mgX; minY -= mgY; maxY += mgY; }     // un poco de aire para ver a los vecinos
     var spanX = Math.max(maxX - minX, 1), spanY = Math.max(maxY - minY, 1);
     var sc = Math.min((W - 2 * pad) / spanX, (Hh - 2 * pad) / spanY);
     var offX = (W - spanX * sc) / 2, offY = (Hh - spanY * sc) / 2;
@@ -408,11 +415,12 @@
       if (l.kind === 'polygon' && q.length >= 3) {
         var d = pathOf(q, true);
         (l.holes || []).forEach(function (h) { var hq = h.filter(okp).map(function (p) { return Geo.toXY(fr, p); }); if (hq.length >= 3) d += ' ' + pathOf(hq, true); });
-        out += '<path d="' + d + '" fill-rule="evenodd" fill="' + (l.dots ? dotsFill(l.color) : hexA(l.color, 0.2)) + '" stroke="' + esc(l.color) + '" stroke-width="2.2" stroke-linejoin="round"/>';
+        out += faint(l) ? '<path class="ctx" d="' + d + '" fill-rule="evenodd" fill="' + hexA(l.color, 0.07) + '" stroke="' + esc(l.color) + '" stroke-opacity="0.45" stroke-width="1.3" stroke-linejoin="round"/>'
+          : '<path d="' + d + '" fill-rule="evenodd" fill="' + (l.dots ? dotsFill(l.color) : hexA(l.color, 0.2)) + '" stroke="' + esc(l.color) + '" stroke-width="2.2" stroke-linejoin="round"/>';
       } else if ((l.kind === 'line' || l.kind === 'polygon') && q.length >= 2) {
-        out += '<path d="' + pathOf(q, false) + '" fill="none" stroke="' + esc(l.color) + '" stroke-width="2.2" stroke-dasharray="6 4" stroke-linejoin="round"/>';
+        out += '<path' + (faint(l) ? ' class="ctx" stroke-opacity="0.45"' : '') + ' d="' + pathOf(q, false) + '" fill="none" stroke="' + esc(l.color) + '" stroke-width="' + (faint(l) ? 1.3 : 2.2) + '" stroke-dasharray="6 4" stroke-linejoin="round"/>';
       } else {
-        q.forEach(function (p) { out += '<circle cx="' + f(X(p.x)) + '" cy="' + f(Y(p.y)) + '" r="4.5" fill="' + esc(l.color) + '" stroke="#fff" stroke-width="1.3"/>'; });
+        q.forEach(function (p) { out += '<circle' + (faint(l) ? ' class="ctx" opacity="0.45"' : '') + ' cx="' + f(X(p.x)) + '" cy="' + f(Y(p.y)) + '" r="' + (faint(l) ? 3 : 4.5) + '" fill="' + esc(l.color) + '" stroke="#fff" stroke-width="1.3"/>'; });
       }
     });
     var path = xy.map(function (p, i) { return (i ? 'L' : 'M') + f(X(p.x)) + ' ' + f(Y(p.y)); }).join(' ');

@@ -148,7 +148,7 @@ module.exports = async function (c) {
   await step('Reporte de todo el proyecto: resumen primero y luego cada lote; «Solo este lote» da el reporte del lote elegido', async () => {
     await tab('informe');
     await page.click('[data-act="share"]');
-    assert.deepEqual(await page.$$eval('#repScope button', (b) => b.map((x) => x.textContent + ':' + x.getAttribute('aria-pressed'))), ['Todo el proyecto:true', 'Solo «Cafetal»:false']);
+    assert.deepEqual(await page.$$eval('#repScope button', (b) => b.map((x) => x.textContent + ':' + x.getAttribute('aria-pressed'))), ['Completo:true', 'Específico:false']);
     const f = await download(() => page.click('[data-act="shareReportHtml"]'));
     assert.equal(f.name, 'reporte-zona-de-vida-mi-primer-proyecto.html');
     const h = f.text;
