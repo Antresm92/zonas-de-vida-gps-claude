@@ -5,7 +5,7 @@
   var Geo = window.Geo, H = window.Holdridge, Climate = window.Climate, A = window.Analysis, Fmt = window.Fmt,
       Gps = window.Gps, Store = window.Store, Diagram = window.Diagram, Report = window.Report,
       Gis = window.Gis, Backup = window.Backup, IO = window.IO, WL = window.WalterLieth, Mapa = window.Mapa, MapView = window.MapView, Satelite = window.Satelite, Perfil = window.Perfil, Fotos = window.Fotos, Zip = window.Zip, Units = window.Units;
-  var APP_VERSION = '2.23.6';
+  var APP_VERSION = '2.23.7';
 
   var S = Store.loadState();
   // 2.22.0: la primera vez, los lotes de antes que están dentro de un predio pasan a pertenecerle
@@ -669,7 +669,7 @@
       (!empty ? '<p class="small muted">' + esc(lotSub(l)) + '</p>' : '<p class="small muted" id="lotDrawHint">' + (l ? 'Al guardarlo' : 'Al crearlo') + ' se abre el mapa para que marques sus puntos tocándolo. Si prefieres caminar el lindero con el GPS o escribir coordenadas, toca «Salir» y hazlo desde Puntos.</p>');
     if (l && !empty && l.kind === 'finca' && e.k === 'finca') h += '<div class="btns"><button class="btn" data-act="lotLock" data-id="' + esc(l.id) + '">' + (l.locked ? '🔓 Desbloquear el lindero para editarlo' : '🔒 Bloquear el lindero') + '</button></div>';
     return h + '<div class="btns"><button class="btn btn-primary" data-act="lotSave">' + (!l ? 'Crear y dibujar en el mapa' : empty ? 'Guardar y dibujar en el mapa' : 'Guardar') + '</button>' +
-      (l && p.lots.length > 1 ? '<button class="btn btn-danger" data-act="lotDelete" data-id="' + esc(l.id) + '">Eliminar lote</button>' : '') + '</div>';
+      '</div>' + lotDeleteBox(l, p);
   }
   /* ---------- Importar polígonos de un archivo directamente como predios o lotes (2.23.0) ---------- */
   // La parte de la hoja para «Importar archivo»: elegir el archivo y, cuando ya se leyó, marcar cuáles de sus polígonos entran
@@ -874,6 +874,60 @@
       if (prevLot && note && !wasLocked) delete prevLot.locked;
       if (ui.mapMode === 'add') setMapMode('');
       save(); renderTab(ui.tab);
+    } });
+  }
+  // 2.23.7: el botón para quitar el polígono. Con varios, «Eliminar predio/lote»; si es el único, «Borrar sus puntos y empezar de nuevo»
+  // (un proyecto no puede quedar sin polígonos). Los dos piden confirmación y se pueden deshacer.
+  // 2.23.7: un polígono de tamaño fuera de lo normal casi siempre tiene un punto con la coordenada mal escrita
+  function hugeInfo() {
+    var l = lot(), m2 = lotArea(l);
+    if (!m2 || m2 / 10000 <= Mapa.HUGE_HA) return null;
+    var i = Mapa.outlier(l.points);
+    return { m2: m2, text: Fmt.area(Geo.areaUnits(m2), 'ha'), point: i >= 0 ? l.points[i] : null };
+  }
+  function hugeTip() {
+    var hg = hugeInfo();
+    if (!hg) return '';
+    return '<div class="tip" id="areaHuge">«' + esc(lot().name) + '» mide ' + esc(hg.text) + ', un tamaño fuera de lo normal para un predio. Casi siempre es un punto con una coordenada mal escrita' +
+      (hg.point ? ': el que más se aleja de los demás es <b>' + esc(hg.point.name || 'sin nombre') + '</b> (' + esc(Fmt.coord(hg.point.lat)) + ', ' + esc(Fmt.coord(hg.point.lon)) + ').' : '.') +
+      ' Corrígelo en Puntos, o bórralo y márcalo de nuevo.</div>';
+  }
+  function hugePoint() {
+    var hg = hugeInfo();
+    if (!hg || !hg.point || !ui.map) return;
+    ui.follow = false; ui.map.flyTo(hg.point.lat, hg.point.lon, 12);
+    ui.mapSel = hg.point.id; syncMapCard();
+  }
+  function lotDeleteBox(l, p) {
+    if (!l || (p.lots.length < 2 && !l.points.length)) return '';
+    var only = p.lots.length < 2, what = Predio.isFinca(l) ? 'predio' : 'lote';
+    return '<div class="btns" id="lotDelBox"><button class="btn btn-danger" data-act="lotDeleteAsk" data-id="' + esc(l.id) + '">' +
+      (only ? 'Borrar sus puntos y empezar de nuevo' : 'Eliminar ' + what) + '</button></div>';
+  }
+  function lotDeleteAsk(id) {
+    var p = proj(), l = p.lots.filter(function (x) { return x.id === id; })[0], box = $('#lotDelBox');
+    if (!l || !box) return;
+    var only = p.lots.length < 2, kids = Predio.isFinca(l) ? Predio.children(l, p.lots).length : 0, n = l.points.length;
+    box.innerHTML = '<p class="note" id="lotDelAsk" style="width:100%;margin:0 0 8px">' + (only ?
+      '¿Borrar los ' + n + ' puntos de «' + esc(l.name) + '» (con sus fotos) y su clima? El predio queda vacío, listo para dibujarlo o importarlo de nuevo.' :
+      '¿Eliminar «' + esc(l.name) + '»' + (n ? ' con sus ' + n + ' puntos y sus fotos' : '') + '?' + (kids ? (kids === 1 ? ' Su lote queda suelto' : ' Sus ' + kids + ' lotes quedan sueltos') + ', sin predio.' : '')) + ' Después puedes deshacerlo.</p>' +
+      '<button class="btn btn-danger" data-act="' + (only ? 'lotReset' : 'lotDelete') + '" data-id="' + esc(l.id) + '">' + (only ? 'Sí, borrar los puntos' : 'Sí, eliminar') + '</button>' +
+      '<button class="btn" data-act="lotDeleteNo">Cancelar</button>';
+    if (box.scrollIntoView) box.scrollIntoView({ block: 'end' });
+  }
+  function lotReset(id) {
+    var p = proj(), l = p.lots.filter(function (x) { return x.id === id; })[0];
+    if (!l || !l.points.length) return;
+    if (ui.track) finishTrack();
+    var before = { points: l.points, next: l.nextPoint, climate: l.climate, weatherNow: l.weatherNow, locked: l.locked };
+    l.points = []; l.nextPoint = 1; l.climate = {}; delete l.weatherNow; delete l.locked;
+    ui.mapSel = null; ui.navId = null; ui.mapFitKey = null;
+    save(); closeSheet(); renderTab(ui.tab);
+    toast('«' + l.name + '» quedó vacío: ' + before.points.length + ' puntos borrados. Ya puedes dibujarlo o importarlo de nuevo.', { action: 'Deshacer', fn: function () {
+      l.points = before.points; l.nextPoint = before.next; l.climate = before.climate;
+      if (before.weatherNow) l.weatherNow = before.weatherNow;
+      if (before.locked) l.locked = true;
+      ui.mapFitKey = null; save(); renderTab(ui.tab);
     } });
   }
   function lotDelete(id) {
@@ -1382,7 +1436,7 @@
     if (cpl) h += '<div><dt>Centro en planas (Origen Nacional)</dt><dd id="areaPlana">' + esc(cpl) + '</dd></div>';
     if (a.alt.min !== null && a.alt.n > 1) h += '<div><dt>Altitud de los puntos</dt><dd>' + Fmt.num(a.alt.min, 0) + ' a ' + Fmt.num(a.alt.max, 0) + ' m</dd></div>';
     var ovl = multi(p) ? Predio.warnings(p.lots) : [];
-    h += '</dl>' + (multi(p) ? fincaLines(Predio.account(p.lots)) : '') + (ovl.length ? '<div class="tip" id="areaOverlap">' + ovl.map(esc).join('<br>') + '</div>' : '') +
+    h += '</dl>' + (multi(p) ? fincaLines(Predio.account(p.lots)) : '') + hugeTip() + (ovl.length ? '<div class="tip" id="areaOverlap">' + ovl.map(esc).join('<br>') + '</div>' : '') +
       (multi(p) && !lot().locked && Predio.conflicts(p.lots, p.lotId) ? '<div class="btns" style="margin:8px 0"><button class="btn" data-act="adjustAsk" id="adjBtn">Ajustar «' + esc(lot().name) + '» a los linderos</button></div>' : '') + '<p class="small muted">Área calculada sobre el elipsoide WGS84. La precisión depende de la de las coordenadas: con GPS de teléfono (±5 m) una finca pequeña puede variar varios por ciento.</p></div>';
 
     h += '<div class="block"><h2>Lados</h2><dl class="kv">';
@@ -1429,6 +1483,7 @@
       (lk.locked ? '<button id="mapLock" class="maplock" data-act="mapUnlock">🔒 Lindero de «' + esc(lk.name) + '» bloqueado · <u>Editar</u></button>' : '') + '<div id="mapNotice" class="mapnotice" role="status" hidden></div>' +
       '<div id="mapMode" class="mapmode" hidden><span id="mapModeTxt" role="status"></span><button data-act="mapMode" data-mode="">Salir</button></div>' +
       // 2.23.4: aviso de linderos, solo mientras el polígono elegido se sale de su predio o se monta sobre otro
+      '<div id="mapHuge" class="mapmode mapconf" hidden><span id="mapHugeTxt" role="status"></span><button data-act="hugePoint">Ver punto</button></div>' +
       '<div id="mapConflict" class="mapmode mapconf" hidden><span id="mapConfTxt" role="status"></span><button data-act="adjustAsk">Ajustar</button></div></div>' +
       '<div id="mapLive" class="maplive" hidden></div>';
     if (ui.sampling) {
@@ -1804,6 +1859,8 @@
       cb.hidden = !cf;
       if (cf) $('#mapConfTxt').textContent = '⚠ ' + cf.text.replace(/^«[^»]*» /, '').replace(/^./, function (x) { return x.toUpperCase(); });
     }
+    var hb = $('#mapHuge'), hg = hugeInfo();
+    if (hb) { hb.hidden = !hg || !!ui.mapTool; if (hg) $('#mapHugeTxt').textContent = '⚠ Área fuera de lo normal: ¿un punto mal escrito?'; }
     // «＋ Polígono» baja si los avisos de arriba (modo y linderos) llegan hasta él
     var nb = $('.mapnew'), mt = $('.maptop');
     if (nb && mt) nb.style.top = Math.max(118, mt.offsetTop + mt.offsetHeight + 8) + 'px';
@@ -3224,7 +3281,9 @@
     layerToFinca: function (t) { layerToLot(t.getAttribute('data-id'), 'finca'); }, layerToArea: function (t) { layerToLot(t.getAttribute('data-id'), 'area'); },
     lotKind: function (t) { lotSetKind(t.getAttribute('data-k')); }, lotCat: function (t) { lotSetCat(t.getAttribute('data-c')); },
     lotLock: function (t) { var id = t.getAttribute('data-id'), l = proj().lots.filter(function (x) { return x.id === id; })[0]; if (l) { closeSheet(); setLock(l, !l.locked); } },
-    lotDelete: function (t) { lotDelete(t.getAttribute('data-id')); }, climateToAll: climateToAll,
+    lotDelete: function (t) { lotDelete(t.getAttribute('data-id')); }, lotReset: function (t) { lotReset(t.getAttribute('data-id')); },
+    lotDeleteAsk: function (t) { lotDeleteAsk(t.getAttribute('data-id')); }, lotDeleteNo: function () { var p = proj(), e = ui.edit, l = e && p.lots.filter(function (x) { return x.id === e.id; })[0], b = $('#lotDelBox'); if (b && l) b.outerHTML = lotDeleteBox(l, p); },
+    hugePoint: function () { hugePoint(); }, climateToAll: climateToAll,
     authorEdit: function () { openAuthor(false); },
     authorLogo: function () { readAuthorInputs(); $('#logoFile').click(); },
     authorLogoDel: function () { ui.authorDraft.logo = ''; refreshAuthor(); },

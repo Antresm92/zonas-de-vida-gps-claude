@@ -446,7 +446,27 @@
   var TOOLS = ['mira', 'medir', 'caminar', 'ir'];
   function toolId(t) { return TOOLS.indexOf(t) >= 0 ? t : ''; }
 
+  /* ---------- Tamaño fuera de lo normal (2.23.7) ----------
+   * Un polígono de más de HUGE_HA hectáreas casi siempre es un punto con una coordenada mal escrita (por ejemplo, un dígito de más).
+   * outlier(points) → el índice del punto más alejado del centro de los demás (la mediana, que no se deja arrastrar por el punto malo). */
+  var HUGE_HA = 50000;
+  function median(a) { var s = a.slice().sort(function (x, y) { return x - y; }), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; }
+  function outlier(points) {
+    var pts = (points || []).filter(function (p) { return p && isFinite(p.lat) && isFinite(p.lon); });
+    if (pts.length < 2) return -1;
+    var best = -1, bestD = -1;
+    (points || []).forEach(function (p, i) {
+      if (!p || !isFinite(p.lat) || !isFinite(p.lon)) return;
+      var others = pts.filter(function (q) { return q !== p; });
+      var c = { lat: median(others.map(function (q) { return q.lat; })), lon: median(others.map(function (q) { return q.lon; })) };
+      var d = haversine(p.lat, p.lon, c.lat, c.lon);
+      if (d > bestD) { bestD = d; best = i; }
+    });
+    return best;
+  }
+
   return {
+    HUGE_HA: HUGE_HA, outlier: outlier,
     insertRenumber: insertRenumber, autoNum: autoNum,
     metersPerPixel: metersPerPixel, snapRadius: snapRadius, snapVertex: snapVertex, SNAP_PX: SNAP_PX, SNAP_MAX_M: SNAP_MAX_M,
     lotAt: lotAt, haversine: haversine, bearing: bearing, compass: compass, sides: sides, sideShows: sideShows, SIDE_LABEL_MIN_PX: SIDE_LABEL_MIN_PX, SIDE_PLUS_MIN_PX: SIDE_PLUS_MIN_PX,

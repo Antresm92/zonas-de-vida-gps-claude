@@ -201,7 +201,7 @@ module.exports = async function (c) {
     await tab('puntos');
     await page.click('section.tab:not([hidden]) .lots .lotchip[aria-pressed="true"]');
     await page.click('#sheet .lotrow.on .lotmore');
-    await act('lotDelete'); await waitSheetClosed();
+    await act('lotDeleteAsk'); await act('lotDelete'); await waitSheetClosed();      // 2.23.7: pide confirmación
     assert.match(await toastText(), /^«Cafetal» eliminado con sus 3 puntos\./);
     assert.deepEqual((await lots()).map((l) => l.name), ['Potrero <b>norte</b>']);
     assert.match((await chips())[0], /^Potrero .* \*$/);
@@ -210,11 +210,12 @@ module.exports = async function (c) {
     assert.match((await chips())[1], /^Cafetal · .* \*$/, 'vuelve a quedar elegido');
     await page.click('section.tab:not([hidden]) .lots .lotchip[aria-pressed="true"]');
     await page.click('#sheet .lotrow.on .lotmore');
-    await act('lotDelete'); await waitSheetClosed();
+    await act('lotDeleteAsk'); await act('lotDelete'); await waitSheetClosed();      // 2.23.7: pide confirmación
     await page.waitForFunction(() => document.querySelector('#toast').hidden, null, { timeout: 12000 });
     await page.click('section.tab:not([hidden]) .lots .lotchip[aria-pressed="true"]');
     await page.click('#sheet .lotrow .lotmore');
-    assert.equal(await page.locator('#sheet [data-act="lotDelete"]').count(), 0, 'con un solo lote no hay «Eliminar lote»');
+    assert.equal(await page.locator('#sheet [data-act="lotDelete"]').count(), 0, 'con un solo lote no hay «Eliminar»');
+    assert.equal(await text('#lotDelBox'), 'Borrar sus puntos y empezar de nuevo', '2.23.7: en su lugar, vaciarlo');
     await page.click('#sheet [aria-label="Cerrar"]'); await waitSheetClosed();
   });
 
