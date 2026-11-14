@@ -67,6 +67,15 @@ jobs:
       - name: Nombrar el archivo
         run: cp android/app/build/outputs/apk/debug/app-debug.apk zonas-de-vida.apk
 
+      # Si el APK no lleva la llave fija, Android no lo deja instalar encima del anterior («conflicto con un paquete»): se detiene aquí
+      - name: Comprobar que el APK lleva la llave fija
+        run: |
+          AS=$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          ESPERADA=$(keytool -list -v -keystore scripts/debug.keystore -storepass android | grep 'SHA256:' | head -1 | sed 's/.*SHA256: //; s/://g' | tr 'A-F' 'a-f')
+          TIENE=$("$AS" verify --print-certs zonas-de-vida.apk | grep 'SHA-256 digest' | head -1 | sed 's/.*: //')
+          echo "llave esperada: $ESPERADA"; echo "llave del APK:  $TIENE"
+          test -n "$ESPERADA" && test "$ESPERADA" = "$TIENE"
+
       - uses: actions/upload-artifact@v4
         with:
           name: zonas-de-vida-apk

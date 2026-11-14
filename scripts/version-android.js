@@ -34,6 +34,14 @@ function patchVersion(gradle, version) {
 const SIGNING_BLOCK = [
   '    // Firma de publicación (.aab para Google Play): la llave llega por variables de entorno; sin ellas no se firma nada.',
   '    signingConfigs {',
+  // 2.23.8: el APK de prueba se firma SIEMPRE con la llave fija del repositorio (scripts/debug.keystore). Antes se copiaba a ~/.android,
+  // pero en el servidor de GitHub Android la ignoraba y creaba una llave nueva en cada compilación: por eso ningún APK se instalaba encima del anterior.
+  '        debug {',
+  "            storeFile file('../../scripts/debug.keystore')",
+  "            storePassword 'android'",
+  "            keyAlias 'androiddebugkey'",
+  "            keyPassword 'android'",
+  '        }',
   '        release {',
   "            def ksPath = System.getenv('ANDROID_KEYSTORE_PATH')",
   '            if (ksPath) {',

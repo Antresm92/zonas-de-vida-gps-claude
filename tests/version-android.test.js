@@ -95,6 +95,9 @@ test('patchSigning: agrega signingConfigs antes de buildTypes y firma «release�
   assert.ok(r.text.includes("applicationId \"co.zonasdevida.app\""), 'lo demás sigue igual');
   assert.equal((r.text.match(/buildTypes \{/g) || []).length, 1);
   assert.equal((r.text.match(/signingConfigs \{/g) || []).length, 1);
+  // 2.23.8: el APK de prueba se firma con la llave fija del repositorio, declarada en Gradle
+  assert.match(r.text, /signingConfigs \{\n\s+debug \{\n\s+storeFile file\('\.\.\/\.\.\/scripts\/debug\.keystore'\)\n\s+storePassword 'android'\n\s+keyAlias 'androiddebugkey'\n\s+keyPassword 'android'\n\s+\}/);
+  assert.ok(require('fs').existsSync(require('path').join(__dirname, '..', 'scripts', 'debug.keystore')), 'la llave está en el repositorio');
 });
 
 test('patchSigning: no duplica nada si ya estaba, y falla si el archivo no tiene buildTypes o release', () => {
