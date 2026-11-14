@@ -114,13 +114,27 @@ module.exports = async function (c) {
     assert.match((await chips())[1], /^Cafetal \*$/, 'vuelve a quedar elegido el de antes');
   });
 
-  await step('Exportar solo el polígono elegido: un archivo aparte con su nombre, en KML, CSV y Shapefile', async () => {
+  await step('Exportar (2.23.6): «Todo el proyecto» o «Elegir polígonos ▾» con una lista de casillas; con uno, el archivo lleva su nombre; con varios, solo los marcados', async () => {
     await croquis();
-    assert.deepEqual(await page.$$eval('#expScope button', (b) => b.map((x) => x.textContent + ':' + x.getAttribute('aria-pressed'))), ['Todo el proyecto:true', 'Solo «Cafetal»:false']);
+    assert.deepEqual(await page.$$eval('#expScope button', (b) => b.map((x) => x.textContent + ':' + x.getAttribute('aria-pressed'))), ['Todo el proyecto:true', 'Elegir polígonos ▾:false']);
     const todo = await download(() => page.click('[data-act="export"][data-fmt="kml"]'));
     assert.equal(todo.name, 'mi-primer-proyecto.kml'); assert.equal(todo.text.split('<Polygon>').length - 1, 4);
-    await page.click('#expScope [data-s="one"]');
-    assert.deepEqual(await page.$$eval('#expScope button', (b) => b.map((x) => x.getAttribute('aria-pressed'))), ['false', 'true']);
+    // la lista: cada predio y luego sus lotes, todos sin marcar
+    await page.click('#expScope [data-act="expPickOpen"]');
+    assert.equal(await sheetTitle(), 'Qué polígonos exportar');
+    assert.deepEqual(await page.$$eval('#expList label', (l) => l.map((x) => x.textContent.replace(/ · .*/, '') + (x.classList.contains('sub') ? ' (lote)' : '') + ':' + x.querySelector('input').checked)),
+      ['La Vega:false', 'Cafetal (lote):false', 'Bosque (lote):false', 'Potrero (lote):false']);
+    const bb = await page.locator('#expList label').first().boundingBox(); assert.ok(bb.height >= 44, 'casilla cómoda de tocar');
+    // marcar el predio marca sus lotes; luego se quitan los que no se quieren
+    await page.click('#expList label:nth-child(1) input');
+    assert.deepEqual(await page.$$eval('#expList input', (i) => i.map((x) => x.checked)), [true, true, true, true]);
+    await page.click('#expList label:nth-child(1) input');
+    assert.deepEqual(await page.$$eval('#expList input', (i) => i.map((x) => x.checked)), [false, false, false, false]);
+    await page.click('#expList label:nth-child(2) input');
+    await shot('v2236-elegir-poligonos');
+    await page.click('#sheet [data-act="expPickDone"]'); await waitSheetClosed();
+    assert.deepEqual(await page.$$eval('#expScope button', (b) => b.map((x) => x.textContent + ':' + x.getAttribute('aria-pressed'))), ['Todo el proyecto:false', 'Elegidos (1) ▾:true']);
+    assert.equal(await text('#expSelTxt'), 'Se exportará: Cafetal.');
     const uno = await download(() => page.click('[data-act="export"][data-fmt="kml"]'));
     assert.equal(uno.name, 'mi-primer-proyecto-cafetal.kml');
     assert.equal(uno.text.split('<Polygon>').length - 1, 1); assert.match(uno.text, /<name>Cafetal<\/name>/); assert.doesNotMatch(uno.text, /Bosque|La Vega/);
@@ -131,7 +145,29 @@ module.exports = async function (c) {
     const shp = await download(() => page.click('[data-act="export"][data-fmt="shp"]'));
     assert.equal(shp.name, 'mi-primer-proyecto-cafetal-shapefile.zip');
     assert.ok(Zip.entries(shp.bytes).some((e) => e.name === 'mi_primer_proyecto_cafetal_poligono.shp'));
-    await shot('v223-exportar-uno');
+    // varios: el predio y el potrero (sin el cafetal ni el bosque)
+    await page.click('#expScope [data-act="expPickOpen"]');
+    assert.deepEqual(await page.$$eval('#expList input', (i) => i.map((x) => x.checked)), [false, true, false, false], 'recuerda lo marcado');
+    await page.click('#sheet [data-act="expPickAll"][data-v="0"]');
+    await page.click('#expList label:nth-child(1) input'); await page.click('#expList label:nth-child(2) input'); await page.click('#expList label:nth-child(3) input');
+    await page.click('#sheet [data-act="expPickDone"]'); await waitSheetClosed();
+    assert.equal(await text('#expSelTxt'), 'Se exportarán: La Vega, Potrero.');
+    const dos = await download(() => page.click('[data-act="export"][data-fmt="kml"]'));
+    assert.equal(dos.name, 'mi-primer-proyecto-seleccion.kml');
+    assert.equal(dos.text.split('<Polygon>').length - 1, 2); assert.match(dos.text, /La Vega/); assert.match(dos.text, /Potrero/); assert.doesNotMatch(dos.text, /Cafetal|Bosque/);
+    const csv2 = await download(() => page.click('[data-act="export"][data-fmt="csv"]'));
+    const l2 = csv2.text.replace(/^﻿/, '').trim().split('\r\n');
+    assert.match(l2[0], /^Lote;Tipo;Punto;/); assert.equal(l2.length, 9, 'encabezado y 4 puntos de cada uno');
+    assert.ok(l2.slice(1).every((r) => /^(La Vega|Potrero);/.test(r)));
+    const shp2 = await download(() => page.click('[data-act="export"][data-fmt="shp"]'));
+    assert.equal(shp2.name, 'mi-primer-proyecto-seleccion-shapefile.zip');
+    // «Todo el proyecto» vuelve a sacarlo todo; desmarcar todo en la lista también
+    await page.click('#expScope [data-s="all"]');
+    assert.equal(await page.locator('#expSelTxt').count(), 0);
+    await page.click('#expScope [data-act="expPickOpen"]'); await page.click('#sheet [data-act="expPickAll"][data-v="0"]');
+    await page.click('#sheet [data-act="expPickDone"]'); await waitSheetClosed();
+    assert.match(await toastText(), /^No marcaste ninguno: se exportará todo el proyecto\./);
+    assert.deepEqual(await page.$$eval('#expScope button', (b) => b.map((x) => x.textContent + ':' + x.getAttribute('aria-pressed'))), ['Todo el proyecto:true', 'Elegir polígonos ▾:false']);
     // ida y vuelta: lo exportado se importa como lote en un proyecto nuevo
     await fresh();
     await act('lotAdd'); await page.click('#lotMode [data-m="file"]');

@@ -5,7 +5,7 @@
   var Geo = window.Geo, H = window.Holdridge, Climate = window.Climate, A = window.Analysis, Fmt = window.Fmt,
       Gps = window.Gps, Store = window.Store, Diagram = window.Diagram, Report = window.Report,
       Gis = window.Gis, Backup = window.Backup, IO = window.IO, WL = window.WalterLieth, Mapa = window.Mapa, MapView = window.MapView, Satelite = window.Satelite, Perfil = window.Perfil, Fotos = window.Fotos, Zip = window.Zip, Units = window.Units;
-  var APP_VERSION = '2.23.5';
+  var APP_VERSION = '2.23.6';
 
   var S = Store.loadState();
   // 2.22.0: la primera vez, los lotes de antes que están dentro de un predio pasan a pertenecerle
@@ -1096,31 +1096,68 @@
     var h = '<div class="block" id="exportBlock"><h2>Exportar</h2><p class="lead">Para abrir tu terreno en Google Earth, QGIS, ArcGIS, Excel o un GPS.</p><div class="expgrid">';
     Object.keys(EXPORTS).forEach(function (k) { h += '<button class="btn" data-act="export" data-fmt="' + k + '">' + EXPORTS[k].label + '<small>' + EXPORTS[k].sub + '</small></button>'; });
     h += '</div>';
-    // 2.23.0: con varios polígonos se puede sacar solo el elegido, en un archivo aparte (para llevarlo a otro proyecto o a otra persona)
-    if (multi()) h += '<div class="seg" role="group" aria-label="Qué exportar" id="expScope" style="margin-top:12px">' +
-      [['all', 'Todo el proyecto'], ['one', 'Solo «' + lot().name + '»']].map(function (o) { return '<button data-act="expScope" data-s="' + o[0] + '" aria-pressed="' + ((o[0] === 'one') === !!ui.expOne) + '">' + esc(o[1]) + '</button>'; }).join('') + '</div>';
+    // 2.23.6: con varios polígonos, «Todo el proyecto» o «Elegir polígonos ▾» (una lista con casillas para escoger cuáles salen en el archivo)
+    if (multi()) {
+      var sel = expPicked();
+      h += '<div class="seg" role="group" aria-label="Qué exportar" id="expScope" style="margin-top:12px">' +
+        '<button data-act="expScope" data-s="all" aria-pressed="' + !ui.expPick + '">Todo el proyecto</button>' +
+        '<button data-act="expPickOpen" aria-pressed="' + !!ui.expPick + '" aria-haspopup="true">' + (ui.expPick && sel.length ? 'Elegidos (' + sel.length + ') ▾' : 'Elegir polígonos ▾') + '</button></div>';
+      if (ui.expPick && sel.length) h += '<p class="small" id="expSelTxt" style="margin:6px 0 0">Se ' + (sel.length === 1 ? 'exportará' : 'exportarán') + ': ' + esc(sel.map(function (l) { return l.name; }).join(', ')) + '.</p>';
+    }
     h += '<div class="seg" role="group" aria-label="Formato del CSV" style="margin-top:12px">';
     [['es', 'CSV para Excel en español'], ['std', 'CSV estándar']].forEach(function (o) { h += '<button data-act="csvStyle" data-s="' + o[0] + '" aria-pressed="' + (S.settings.csvStyle === o[0]) + '">' + o[1] + '</button>'; });
-    h += '</div><p class="small muted">' + (multi() ? 'Con «Solo…» sale únicamente el polígono elegido, en un archivo con su nombre (sirve para llevarlo como lote a otro proyecto). ' : '') + 'KML, GeoJSON y GPX llevan tus puntos y las capas visibles. El CSV trae solo tus puntos: Punto, Latitud, Longitud, Altitud, Rumbo, Distancia al vértice siguiente y las coordenadas planas Este y Norte (Origen Nacional), ' + (S.settings.csvStyle === 'es' ? 'separado por «;» y con coma decimal' : 'separado por «,» y con punto decimal') + '. El Shapefile es un .zip con dos capas, tus puntos y el polígono, en grados WGS84.</p></div>';
+    h += '</div><p class="small muted">' + (multi() ? 'Con «Elegir polígonos» marcas cuáles salen en el archivo (con uno solo, el archivo lleva su nombre: sirve para llevarlo como lote a otro proyecto). ' : '') + 'KML, GeoJSON y GPX llevan tus puntos y las capas visibles. El CSV trae solo tus puntos: Punto, Latitud, Longitud, Altitud, Rumbo, Distancia al vértice siguiente y las coordenadas planas Este y Norte (Origen Nacional), ' + (S.settings.csvStyle === 'es' ? 'separado por «;» y con coma decimal' : 'separado por «,» y con punto decimal') + '. El Shapefile es un .zip con dos capas, tus puntos y el polígono, en grados WGS84.</p></div>';
     return h;
   }
-  function exportLots(p) { return p.lots.filter(function (l) { return l.points.length; }).map(function (l) { var par = Predio.parentOf(l, p.lots), o = { name: l.name, points: l.points };
+  // Los polígonos marcados en «Elegir polígonos» que existen y tienen puntos, en el orden de la jerarquía (cada predio y luego sus lotes)
+  function expPicked() {
+    var p = proj(), ids = ui.expSelProj === p.id ? (ui.expSel || []) : [];
+    return Predio.ordered(p.lots).filter(function (l) { return ids.indexOf(l.id) >= 0 && l.points.length; });
+  }
+  function openExpPick() {
+    var p = proj(), ids = ui.expSelProj === p.id ? (ui.expSel || []) : [];
+    var rows = Predio.ordered(p.lots).filter(function (l) { return l.points.length; });
+    if (!rows.length) { toast('Todavía no hay polígonos con puntos para exportar.', { err: true }); return; }
+    openSheet('Qué polígonos exportar', '<p class="small muted" style="margin-top:0">Marca los que quieres en el archivo. Al marcar un predio se marcan también sus lotes; luego puedes quitar los que no quieras.</p>' +
+      '<div id="expList">' + rows.map(function (l) {
+        var par = Predio.parentOf(l, p.lots), m2 = lotArea(l);
+        return '<label class="repfin expick' + (par ? ' sub' : '') + '"><input type="checkbox" data-id="' + esc(l.id) + '"' + (Predio.isFinca(l) ? ' data-finca="1"' : '') + (par ? ' data-parent="' + esc(par.id) + '"' : '') + (ids.indexOf(l.id) >= 0 ? ' checked' : '') + '>' +
+          '<span>' + (Predio.isFinca(l) ? '<b>' + esc(l.name) + '</b>' : esc(l.name)) + ' <small class="muted">· ' + esc(Predio.kindLabel(l)) + (m2 ? ' · ' + esc(Fmt.area(Geo.areaUnits(m2), S.settings.areaUnit)) : '') + '</small></span></label>';
+      }).join('') + '</div>' +
+      '<div class="btns" style="margin-top:10px"><button class="btn" data-act="expPickAll" data-v="1">Marcar todos</button><button class="btn" data-act="expPickAll" data-v="0">Ninguno</button></div>' +
+      '<div class="btns"><button class="btn btn-primary" data-act="expPickDone">Listo</button></div>');
+  }
+  function expPickDone() {
+    var ids = [].filter.call(document.querySelectorAll('#expList input'), function (i) { return i.checked; }).map(function (i) { return i.getAttribute('data-id'); });
+    ui.expSel = ids; ui.expSelProj = proj().id; ui.expPick = ids.length > 0;
+    closeSheet(); renderTab(ui.tab);
+    if (!ids.length) toast('No marcaste ninguno: se exportará todo el proyecto.');
+  }
+  // Un polígono como capa del archivo exportado (con su nombre y su color)
+  function lotAsLayer(l) {
+    return { id: 'lote-' + l.id, name: l.name, kind: l.points.length >= 3 ? 'polygon' : l.points.length === 2 ? 'line' : 'points', color: l.mainColor, visible: true, points: l.points };
+  }
+  function exportLots(p, only) { return p.lots.filter(function (l) { return l.points.length && (!only || only.indexOf(l) >= 0); }).map(function (l) { var par = Predio.parentOf(l, p.lots), o = { name: l.name, points: l.points };
     if (l.kind) o.tipo = Predio.kindLabel(l) + (par ? ' de ' + par.name : '');      // «Finca», «Potrero de La Esperanza»…
     return o; }); }
   function exportAs(fmt) {
     var p = proj(), spec = EXPORTS[fmt];
     if (!spec) return;
-    var one = multi(p) && !!ui.expOne, me = lot();
-    if (one && !me.points.length) { toast('«' + me.name + '» todavía no tiene puntos para exportar.', { err: true }); return; }
-    if (fmt === 'shp') { exportShp(p, spec, one ? me : null); return; }
+    var pick = multi(p) && !!ui.expPick ? expPicked() : null;
+    if (pick && !pick.length) { ui.expPick = false; pick = null; }
+    var one = pick && pick.length === 1, me = one ? pick[0] : null, many = pick && pick.length > 1 ? pick : null;
+    if (fmt === 'shp') { exportShp(p, spec, me, many); return; }
     var any = p.lots.some(function (l) { return l.points.length; });
     if (!any && !(fmt !== 'csv' && p.layers.some(function (l) { return l.visible !== false; }))) { toast('Todavía no hay puntos para exportar.', { err: true }); return; }
     // Con varios lotes van todos: el elegido como polígono principal y los demás como capas con su nombre; en el CSV, con una columna «Lote»
-    var title = one ? p.name + ' ' + me.name : p.name;
-    var model = one ? { name: me.name, points: me.points, layers: [], mainColor: me.mainColor, date: Date.now() } : { name: p.name, points: p.points, layers: viewLayers(p), mainColor: p.mainColor, date: Date.now() }, text;
+    var title = one ? p.name + ' ' + me.name : many ? p.name + ' seleccion' : p.name;
+    // varios elegidos: el primero como polígono principal y los demás como capas, como en «Todo el proyecto» pero sin los que no se marcaron
+    var model = one ? { name: me.name, points: me.points, layers: [], mainColor: me.mainColor, date: Date.now() } :
+      many ? { name: many[0].name, points: many[0].points, layers: many.slice(1).map(lotAsLayer), mainColor: many[0].mainColor, date: Date.now() } :
+      { name: p.name, points: p.points, layers: viewLayers(p), mainColor: p.mainColor, date: Date.now() }, text;
     try {
       text = fmt === 'kml' ? Gis.toKML(model) : fmt === 'geojson' ? Gis.toGeoJSON(model) : fmt === 'gpx' ? Gis.toGPX(model) :
-        Gis.toCSV(p.points, multi(p) && !one ? { style: S.settings.csvStyle, lots: exportLots(p) } : { style: S.settings.csvStyle });
+        Gis.toCSV(one ? me.points : p.points, many ? { style: S.settings.csvStyle, lots: exportLots(p, many) } : multi(p) && !one ? { style: S.settings.csvStyle, lots: exportLots(p) } : { style: S.settings.csvStyle });
     } catch (e) { toast('No se pudo preparar el archivo: ' + (e && e.message || e), { err: true }); return; }
     var name = IO.slug(title, spec.ext);
     IO.saveText(name, spec.mime, text, { title: title + ' (' + spec.label + ')', dialogTitle: 'Exportar ' + spec.label }).then(function (r) {
@@ -1130,11 +1167,11 @@
   }
 
   // El Shapefile son varios archivos: se entregan juntos en un .zip (QGIS y ArcGIS lo abren así)
-  function exportShp(p, spec, only) {
+  function exportShp(p, spec, only, many) {
     if (!p.lots.some(function (l) { return l.points.length; })) { toast('Todavía no hay puntos para exportar.', { err: true }); return; }
-    var title = only ? p.name + ' ' + only.name : p.name;
+    var title = only ? p.name + ' ' + only.name : many ? p.name + ' seleccion' : p.name;
     var name = IO.slug(title) + '-shapefile.zip', bytes, m = { name: only ? only.name : p.name, base: IO.slug(title).replace(/-/g, '_') };
-    if (only) m.points = only.points; else if (multi(p)) m.lots = exportLots(p); else m.points = p.points;
+    if (only) m.points = only.points; else if (many) m.lots = exportLots(p, many); else if (multi(p)) m.lots = exportLots(p); else m.points = p.points;
     try { bytes = Shp.zip(m, Date.now()); }
     catch (e) { toast('No se pudo preparar el archivo: ' + (e && e.message || e), { err: true }); return; }
     IO.saveBytes(name, spec.mime, bytes, { title: p.name + ' (' + spec.label + ')', dialogTitle: 'Exportar ' + spec.label }).then(function (r) {
@@ -2812,7 +2849,7 @@
       ['5 · Comparte', '«Compartir reporte» en PDF o HTML: completo, solo los predios o un solo polígono. Para Google Earth o QGIS, Polígono › Croquis › Exportar.']
     ]],
     ['Lo demás', [
-      ['Polígono', 'El croquis con las medidas y para exportar (KML, GeoJSON, GPX, CSV y Shapefile; todo el proyecto o solo el polígono elegido). En «Mapa», el terreno sobre calles, satélite o topográfico: ahí se crean, mueven y ordenan los puntos, y se mide.'],
+      ['Polígono', 'El croquis con las medidas y para exportar (KML, GeoJSON, GPX, CSV y Shapefile; todo el proyecto o los polígonos que elijas en una lista). En «Mapa», el terreno sobre calles, satélite o topográfico: ahí se crean, mueven y ordenan los puntos, y se mide.'],
       ['Predios y lotes', 'Todo proyecto empieza con su predio (el terreno completo); dentro de él van los lotes (potrero, cafetal, cultivo…), y puede haber varios predios. Cada polígono tiene sus puntos, su clima y su zona de vida. Se eligen en la fila de arriba; «＋ Predio» y «＋ Lote» crean otro, dibujándolo en el mapa o importándolo de un archivo. Si uno se sale de su predio o se monta sobre otro, un aviso en el mapa ofrece «Ajustar» sus linderos.'],
       ['Qué va en el reporte', 'En «Reporte», la casilla a la izquierda de cada sección decide si esa parte sale en el reporte que compartes. Con varios polígonos, al compartir eliges: «Completo» (el resumen y cada polígono, cada predio seguido de sus lotes), «Global» (solo los predios que marques) o «Específico» (un solo polígono). El croquis de cada polígono se enfoca en él y resalta solo sus puntos; los demás se ven tenues de fondo.'],
       ['Proyectos y copia de seguridad', 'Cada proyecto guarda en el teléfono sus predios, lotes, puntos y fotos; en Herramientas › Proyectos creas otro o cambias de proyecto. Haz con frecuencia una copia de seguridad (.zip) y guárdala fuera del teléfono: si la app se desinstala o el teléfono se pierde, es la única forma de recuperar tu trabajo.'],
@@ -2830,7 +2867,7 @@
     ['Solo predios y lotes', 'el predio es el terreno completo y los lotes (cafetal, potrero, bosque…) van dentro; cada lote dice qué parte del predio ocupa.'],
     ['Ajustar a los linderos', 'si un polígono se sale de su predio o se monta sobre otro, un aviso en el mapa ofrece recortarlo para que siga el lindero.'],
     ['Reporte a la medida', 'al compartir eliges el reporte completo, solo los predios o un solo polígono; el croquis de cada uno se enfoca en él.'],
-    ['Exportar un solo polígono', 'en Polígono › Croquis › Exportar, «Solo…» saca únicamente el polígono elegido, para llevarlo a otro proyecto.'],
+    ['Exportar lo que elijas', 'en Polígono › Croquis › Exportar, «Elegir polígonos» abre una lista para marcar cuáles salen en el archivo; con uno solo, sirve para llevarlo a otro proyecto.'],
     ['Más colores', '30 colores para distinguir predios y lotes.']
   ];
   function openWhatsNew() {
@@ -3180,7 +3217,8 @@
     lotAdd: function () { lotForm(''); }, predioAdd: function () { lotForm('', 'predio'); },
     lotMode: function (t) { var e = ui.edit; if (!e || e.kind !== 'lot') return; lotFormRead(); e.mode = t.getAttribute('data-m'); lotFormRefresh(); },
     lotFile: function () { lotFormRead(); $('#polyFile').click(); }, lotImport: lotImport, adjustMany: adjustMany,
-    expScope: function (t) { ui.expOne = t.getAttribute('data-s') === 'one'; renderTab(ui.tab); }, lotEdit: function (t) { lotForm(t.getAttribute('data-id')); }, lotSave: lotSave,
+    expScope: function () { ui.expPick = false; renderTab(ui.tab); }, expPickOpen: openExpPick, expPickDone: expPickDone,
+    expPickAll: function (t) { var v = t.getAttribute('data-v') === '1'; [].forEach.call(document.querySelectorAll('#expList input'), function (i) { i.checked = v; }); }, lotEdit: function (t) { lotForm(t.getAttribute('data-id')); }, lotSave: lotSave,
     lotNewMap: function () { closeSheet(); lotForm('', 'map'); },
     mapUnlock: function () { setLock(lot(), false); },
     layerToFinca: function (t) { layerToLot(t.getAttribute('data-id'), 'finca'); }, layerToArea: function (t) { layerToLot(t.getAttribute('data-id'), 'area'); },
@@ -3245,6 +3283,12 @@
     if (navigator.onLine === false) { e.preventDefault(); toast('Necesitas internet para abrir ' + a.textContent.trim() + '.', { err: true }); return; }
     // En el teléfono, ir a la dirección hace que Android la abra con la app de la red o con el navegador (no dentro de Zonas de Vida)
     if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) { e.preventDefault(); window.location.href = a.href; }
+  });
+  // «Qué polígonos exportar»: marcar o desmarcar un predio hace lo mismo con sus lotes (después se pueden cambiar uno por uno)
+  document.addEventListener('change', function (e) {
+    var t = e.target;
+    if (!t.matches || !t.matches('#expList input[data-finca]')) return;
+    [].forEach.call(document.querySelectorAll('#expList input[data-parent="' + t.getAttribute('data-id') + '"]'), function (i) { i.checked = t.checked; });
   });
   $('#polyFile').addEventListener('change', function (e) {
     var f = e.target.files && e.target.files[0];

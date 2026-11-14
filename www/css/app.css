@@ -523,3 +523,6 @@ details.why summary { min-height: 32px; padding: 6px 0; color: var(--blue); font
 /* 2.23.4: aviso de linderos dentro del mapa, en el mismo formato que «Ingresar puntos», con borde ámbar */
 .mapconf { border-left-color: #D68910; }
 .mapconf button { color: #9A5B00; }
+
+/* 2.23.6: lista «Qué polígonos exportar»: los lotes van con sangría bajo su predio */
+.expick.sub { padding-left: 30px; }
