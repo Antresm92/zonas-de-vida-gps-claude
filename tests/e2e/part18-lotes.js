@@ -107,11 +107,11 @@ module.exports = async function (c) {
     assert.ok(bb.width >= 44 && bb.height >= 44, 'el botón ⋮ se puede tocar con el dedo: ' + JSON.stringify(bb));
     await shot('v215-lista-lotes');
     await page.click('#sheet .lotrow:nth-child(1) .lotmore');
-    assert.equal(await sheetTitle(), 'Editar lote');
+    assert.equal(await sheetTitle(), 'Editar predio');      // 2.23.5: el título dice qué es
     await fill('#lotName', '  Potrero   <b>norte</b> ');
     await page.click('#sheet .palette .sw[data-color="#2980B9"]');
     await act('lotSave'); await waitSheetClosed();
-    assert.match(await toastText(), /^Lote guardado\.$/);
+    assert.match(await toastText(), /^(Lote|Predio) guardado\.$/);
     const ls = await lots();
     assert.equal(ls[0].name, 'Potrero <b>norte</b>'); assert.equal(ls[0].mainColor, '#2980B9');
     assert.equal(await page.locator('section.tab:not([hidden]) .lots b').count(), 0, 'el nombre se muestra como texto');

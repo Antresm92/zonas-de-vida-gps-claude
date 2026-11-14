@@ -679,7 +679,7 @@ module.exports = async function (c) {
   });
 
   await step('Ayuda de primera vez: sale sola la primera vez que se abre el mapa, no vuelve a salir y se puede abrir desde «Más opciones»', async () => {
-    await page.evaluate(() => { localStorage.clear(); localStorage.setItem('zvg.v1.flags', JSON.stringify({ appGuide: true })); });   // la ayuda general de la app se prueba en el recorrido 16
+    await page.evaluate((wn) => { localStorage.clear(); localStorage.setItem('zvg.v1.flags', JSON.stringify({ appGuide: true, whatsNew: wn })); }, c.WN_ID);   // la ayuda general de la app se prueba en el recorrido 16
     await page.goto(url); await page.waitForSelector('#tab-puntos');
     await openMap();
     await page.waitForSelector('#sheet:not([hidden])');

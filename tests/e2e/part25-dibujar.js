@@ -76,4 +76,57 @@ module.exports = async function (c) {
     assert.doesNotMatch(await text('#tab-area'), /solo capas importadas/);
     assert.deepEqual(errors, []);
   });
+  await step('Editar un polígono vacío (2.23.5): ofrece «Dibujar» e «Importar archivo»; dibujar lleva al mapa; importar le da los puntos de un polígono del archivo', async () => {
+    await fresh();
+    await tab('area');
+    await page.click('section.tab:not([hidden]) .lots .lotchip[aria-pressed="true"]');     // el «Predio» vacío del comienzo: abre la lista
+    await page.click('#sheet .lotrow:nth-child(1) .lotmore');
+    assert.equal(await c.sheetTitle(), 'Editar predio');
+    assert.deepEqual(await page.$$eval('#lotMode button', (b) => b.map((x) => x.textContent)), ['Dibujar', 'Importar archivo']);
+    assert.equal(await page.locator('[data-act="lotLock"]').count(), 0, 'sin puntos no hay candado');
+    assert.ok(await page.locator('#lotMode').isVisible(), 'los dos caminos se ven arriba de la hoja');
+    await shot('v2235-editar-vacio');
+    assert.equal(await text('[data-act="lotSave"]'), 'Guardar y dibujar en el mapa');
+    await page.click('#lotKind [data-k="area"]');
+    assert.equal(await c.sheetTitle(), 'Editar lote', 'el título sigue al tipo elegido');
+    await page.click('#lotKind [data-k="finca"]');
+    await rawAct('lotSave'); await waitSheetClosed();
+    assert.equal(await where(), 'area/mapa/add');
+    assert.match(await toastText(), /^Toca el mapa para marcar los puntos de «Predio»\./);
+    // importar: un solo polígono del archivo llena el predio vacío
+    await page.click('#mapMode button');
+    await page.click('section.tab:not([hidden]) .lots .lotchip[aria-pressed="true"]');
+    await page.click('#sheet .lotrow:nth-child(1) .lotmore');
+    await page.click('#lotMode [data-m="file"]');
+    assert.match(await text('#lotFileHint'), /Los puntos de un polígono del archivo pasan a «Predio», con el lindero bloqueado/);
+    const sq = (la, lo, d) => [[la, lo], [la, lo + d], [la + d, lo + d], [la + d, lo]];
+    const kml = '<?xml version="1.0"?><kml xmlns="http://www.opengis.net/kml/2.2"><Document>' + [['La Vega', sq(4.60, -74.08, 0.01)], ['El Rosal', sq(4.70, -74.08, 0.01)]].map(([n, pts]) =>
+      '<Placemark><name>' + n + '</name><Polygon><outerBoundaryIs><LinearRing><coordinates>' + pts.concat([pts[0]]).map(([la, lo]) => lo + ',' + la + ',900').join(' ') + '</coordinates></LinearRing></outerBoundaryIs></Polygon></Placemark>').join('') + '</Document></kml>';
+    await page.setInputFiles('#polyFile', { name: 'fincas.kml', mimeType: 'application/vnd.google-earth.kml+xml', buffer: Buffer.from(kml) });
+    await page.waitForSelector('#lotPolys');
+    assert.deepEqual(await page.$$eval('#lotPolys input', (i) => i.map((x) => x.type + ':' + x.checked)), ['radio:true', 'radio:false'], 'se elige uno solo');
+    await page.click('#lotPolys .impoly:nth-child(2) input');
+    assert.equal(await text('#lotImportBtn'), 'Usar este polígono');
+    await page.click('#lotImportBtn'); await waitSheetClosed();
+    assert.equal(await toastText(), '«El Rosal» tomó los 4 puntos de «El Rosal», con el lindero bloqueado.Deshacer');
+    let ls = await lots();
+    assert.equal(ls.length, 1, 'no se creó otro polígono: se llenó el que había');
+    assert.deepEqual([ls[0].name, ls[0].kind, ls[0].locked, ls[0].points.length, ls[0].points[0].lat], ['El Rosal', 'finca', true, 4, 4.7]);
+    await page.click('#toast button');
+    ls = await lots();
+    assert.deepEqual([ls[0].name, ls[0].points.length, !!ls[0].locked], ['Predio', 0, false], '«Deshacer» lo deja vacío otra vez');
+    // con puntos, «Editar» es la hoja de siempre
+    await page.click('section.tab:not([hidden]) .lots .lotchip[aria-pressed="true"]');
+    await page.click('#sheet .lotrow:nth-child(1) .lotmore');
+    await page.click('#lotMode [data-m="file"]');
+    await page.setInputFiles('#polyFile', { name: 'fincas.kml', mimeType: 'application/vnd.google-earth.kml+xml', buffer: Buffer.from(kml) });
+    await page.waitForSelector('#lotPolys'); await page.click('#lotImportBtn'); await waitSheetClosed();
+    await page.click('section.tab:not([hidden]) .lots .lotchip[aria-pressed="true"]');
+    await page.click('#sheet .lotrow:nth-child(1) .lotmore');
+    assert.equal(await page.locator('#lotMode').count(), 0);
+    assert.equal(await text('[data-act="lotSave"]'), 'Guardar');
+    assert.equal(await page.locator('[data-act="lotLock"]').count(), 1);
+    await page.click('#sheet [aria-label="Cerrar"]'); await waitSheetClosed();
+  });
+
 };

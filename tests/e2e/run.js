@@ -65,8 +65,10 @@ const arg = (n) => { const a = process.argv.find((x) => x.startsWith('--' + n + 
   };
   const tab = async (name) => { await page.click('#nav-' + name); await page.waitForSelector('#tab-' + name, { state: 'visible' }); };
   const text = (sel) => page.evaluate((s) => { const e = document.querySelector(s); return e ? e.textContent : null; }, sel);
+  // «Qué hay de nuevo» (2.23.5) sale a quien actualiza: en los recorridos se marca como ya visto, salvo donde se prueba
+  const WN_ID = /var WHATS_NEW_ID = '([^']+)'/.exec(require('fs').readFileSync(require('path').join(__dirname, '../../www/js/app.js'), 'utf8'))[1];
   const fresh = async () => {
-    await page.evaluate(() => { localStorage.clear(); localStorage.setItem('zvg.v1.flags', JSON.stringify({ mapGuide: true, appGuide: true, reportOpen: true })); });   // la ayuda de primera vez del mapa se prueba aparte
+    await page.evaluate((wn) => { localStorage.clear(); localStorage.setItem('zvg.v1.flags', JSON.stringify({ mapGuide: true, appGuide: true, reportOpen: true, whatsNew: wn })); }, WN_ID);   // la ayuda de primera vez del mapa se prueba aparte
     await page.goto(url);
     // Justo después de un paso sin conexión, Chromium a veces deja sin cargar uno de los archivos de la app (la página queda en blanco
     // con un error de «no definido»). No es un fallo de la app: se vuelve a cargar una vez y se anota en la consola del recorrido.
@@ -78,7 +80,12 @@ const arg = (n) => { const a = process.argv.find((x) => x.startsWith('--' + n + 
   // 2.21.0: cuando un polígono choca con otro o se sale de su finca la app pregunta; los recorridos anteriores lo dejan sobrepuesto
   const dejarSobrepuesto = async () => {
     await page.waitForFunction(() => { const h = document.querySelector('#sheet h2'); return h && h.textContent === 'Linderos'; });
-    await act('adjustKeep'); await waitSheetClosed();
+    // si el toque llega mientras la hoja todavía se está abriendo, se repite (pasa a veces en el recorrido completo, con la máquina cargada)
+    for (let k = 0; k < 4; k++) {
+      await page.click('#sheet [data-act="adjustKeep"]').catch(() => {});
+      if (await page.waitForSelector('#sheet', { state: 'hidden', timeout: 3000 }).then(() => true, () => false)) return;
+    }
+    await waitSheetClosed();
   };
   // La app enfoca el primer campo de cada ventana medio segundo después de abrirla; si se escribe antes, el texto cae en ese campo
   const settle = () => page.waitForFunction(() => { const s = document.querySelector('#sheet'); if (s.hidden) return true; const f = s.querySelector('input,textarea'); return !f || s.contains(document.activeElement); }, null, { timeout: 2000 }).catch(() => {});
@@ -102,7 +109,7 @@ const arg = (n) => { const a = process.argv.find((x) => x.startsWith('--' + n + 
   // «Compartir reporte» pregunta el formato: abre la hoja y elige HTML o PDF
   const compartir = async (formato) => { await page.click('[data-act="share"]'); await page.click('[data-act="shareReport' + formato + '"]'); };
 
-  const ctx = { rawAct, dejarSobrepuesto, compartir, page, url, state, proj, toastText, act, sheetOpen, sheetTitle, waitSheetClosed, waitToast, tab, text, fresh, fill, gpsPush, shot, addPointManual, download, setFile, step, errors, context, browser, assert, fx, shots, H, tiles };
+  const ctx = { WN_ID, rawAct, dejarSobrepuesto, compartir, page, url, state, proj, toastText, act, sheetOpen, sheetTitle, waitSheetClosed, waitToast, tab, text, fresh, fill, gpsPush, shot, addPointManual, download, setFile, step, errors, context, browser, assert, fx, shots, H, tiles };
 
   console.log('Recorrido de la app en Chromium (' + url + ')');
   await page.goto(url);

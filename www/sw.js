@@ -1,5 +1,5 @@
 /* Service worker: guarda la app para que abra sin conexión (solo se usa en la versión web instalable). */
-const CACHE = 'zonas-de-vida-v40';
+const CACHE = 'zonas-de-vida-v41';
 const FILES = ['./', 'index.html', 'manifest.webmanifest', 'css/app.css', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png',
   'js/geo.js', 'js/predio.js', 'js/recorte.js', 'js/clasif.js', 'js/holdridge.js', 'js/climate.js', 'js/analysis.js', 'js/fmt.js', 'js/units.js', 'js/gps.js', 'js/fotos.js', 'js/pdf.js', 'js/reportpdf.js', 'js/store.js', 'js/xml.js', 'js/zip.js', 'js/gis.js', 'js/shp.js', 'js/backup.js', 'js/walter-lieth.js', 'vendor/leaflet/leaflet.js', 'vendor/leaflet/leaflet.css', 'vendor/leaflet/images/layers.png', 'vendor/leaflet/images/layers-2x.png', 'vendor/leaflet/images/marker-icon.png', 'vendor/leaflet/images/marker-icon-2x.png', 'vendor/leaflet/images/marker-shadow.png', 'js/mapa.js', 'js/mapview.js', 'js/satelite.js', 'js/io.js', 'js/diagram.js', 'js/perfil.js', 'js/report.js', 'js/app.js'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)).then(() => self.skipWaiting())); });

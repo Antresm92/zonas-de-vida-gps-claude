@@ -82,7 +82,7 @@ module.exports = async function (c) {
     await tab('herramientas');
     const sel = '[data-flag="lotSnap"]';
     assert.equal(await page.isChecked(sel), true, 'viene encendido');
-    assert.match(await text('label.menurow:has(' + sel + ')'), /Pegar puntos a las esquinas de otros lotes/);
+    assert.match(await text('label.menurow:has(' + sel + ')'), /Pegar puntos a las esquinas de otros polígonos/);
     await page.click(sel);
     assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('zvg.v1.flags')).lotSnap), false);
     await openMap();
