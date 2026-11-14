@@ -41,7 +41,20 @@ const arg = (n) => { const a = process.argv.find((x) => x.startsWith('--' + n + 
   });
   const proj = async () => { const s = await state(); return s.projects.find((p) => p.id === s.currentId); };
   const toastText = () => page.evaluate(() => { const t = document.querySelector('#toast'); return t.hidden ? '' : t.textContent; });
-  const act = (name, extra) => page.click('[data-act="' + name + '"]' + (extra || ''));
+  const rawAct = (name, extra) => page.click('[data-act="' + name + '"]' + (extra || ''));
+  // 2.23.3: «Crear y dibujar en el mapa» lleva a Polígono › Mapa con «Ingresar puntos» activo. Los recorridos anteriores a esa versión
+  // siguen trabajando donde estaban: después de crear, se vuelve a la pestaña y a la vista de antes. El recorrido 25 prueba el viaje al mapa con rawAct.
+  const act = async (name, extra) => {
+    if (name !== 'lotSave') return rawAct(name, extra);
+    const before = await page.evaluate(() => { const u = window.__app.ui; return { tab: u.tab, view: u.polyView, isNew: !!(u.edit && !u.edit.id && u.edit.mode !== 'file') }; });
+    await rawAct(name, extra);
+    if (!before.isNew) return;
+    await page.waitForSelector('#sheet', { state: 'hidden' }).catch(() => {});
+    const now = await page.evaluate(() => ({ tab: window.__app.ui.tab, view: window.__app.ui.polyView, sheet: !document.querySelector('#sheet').hidden }));
+    if (now.sheet) return;
+    if (before.tab !== now.tab) { await page.evaluate((v) => { window.__app.ui.polyView = v; }, before.view); await page.click('#nav-' + before.tab); }
+    else if (before.tab === 'area' && before.view !== now.view) await page.click('[data-act="polyView"][data-v="' + before.view + '"]');
+  };
   const sheetOpen = () => page.evaluate(() => !document.querySelector('#sheet').hidden);
   const sheetTitle = () => page.evaluate(() => { const h = document.querySelector('#sheet h2'); return h ? h.textContent : ''; });
   const waitSheetClosed = () => page.waitForSelector('#sheet', { state: 'hidden' });
@@ -89,13 +102,13 @@ const arg = (n) => { const a = process.argv.find((x) => x.startsWith('--' + n + 
   // «Compartir reporte» pregunta el formato: abre la hoja y elige HTML o PDF
   const compartir = async (formato) => { await page.click('[data-act="share"]'); await page.click('[data-act="shareReport' + formato + '"]'); };
 
-  const ctx = { dejarSobrepuesto, compartir, page, url, state, proj, toastText, act, sheetOpen, sheetTitle, waitSheetClosed, waitToast, tab, text, fresh, fill, gpsPush, shot, addPointManual, download, setFile, step, errors, context, browser, assert, fx, shots, H, tiles };
+  const ctx = { rawAct, dejarSobrepuesto, compartir, page, url, state, proj, toastText, act, sheetOpen, sheetTitle, waitSheetClosed, waitToast, tab, text, fresh, fill, gpsPush, shot, addPointManual, download, setFile, step, errors, context, browser, assert, fx, shots, H, tiles };
 
   console.log('Recorrido de la app en Chromium (' + url + ')');
   await page.goto(url);
   await page.waitForSelector('#tab-puntos');
   const only = (arg('parts') || '').split(',').filter(Boolean);
-  for (const part of ['part1-puntos', 'part2-area-importar', 'part3-clima', 'part4-informe-proyectos', 'part5-offline', 'part7-mapa', 'part8-perfil-satelital', 'part9-menu-mapa', 'part10-posicion-manual', 'part11-v25', 'part12-fotos', 'part13-pdf', 'part14-herramientas', 'part15-mapa-intuitivo', 'part16-guiada', 'part17-v214', 'part18-lotes', 'part19-v216', 'part20-fincas', 'part21-clasif', 'part22-v220', 'part23-linderos', 'part24-v223']) {
+  for (const part of ['part1-puntos', 'part2-area-importar', 'part3-clima', 'part4-informe-proyectos', 'part5-offline', 'part7-mapa', 'part8-perfil-satelital', 'part9-menu-mapa', 'part10-posicion-manual', 'part11-v25', 'part12-fotos', 'part13-pdf', 'part14-herramientas', 'part15-mapa-intuitivo', 'part16-guiada', 'part17-v214', 'part18-lotes', 'part19-v216', 'part20-fincas', 'part21-clasif', 'part22-v220', 'part23-linderos', 'part24-v223', 'part25-dibujar']) {
     if (only.length && !only.some((o) => part.startsWith(o))) continue;
     const f = path.join(__dirname, part + '.js');
     if (fs.existsSync(f)) { console.log('\n' + part); await require(f)(ctx); }

@@ -23,7 +23,7 @@ module.exports = async function (c) {
     assert.equal(await page.inputValue('#lotName'), 'Predio');
     await fill('#lotName', 'La Esperanza');
     await act('lotSave'); await waitSheetClosed();
-    assert.match(await toastText(), /^«La Esperanza» creado y elegido\. Toca el mapa para marcar sus puntos\./);
+    assert.match(await toastText(), /^«La Esperanza» creado\. Toca el mapa para marcar sus puntos\./);
     assert.equal((await info()).mode, 'add');
     const l = (await lots())[0];
     assert.equal(l.kind, 'finca'); assert.equal(l.mainColor, '#2F8F4E');
@@ -44,7 +44,7 @@ module.exports = async function (c) {
     await page.click('.cat[data-c="Potrero"]');
     assert.equal(await page.inputValue('#lotName'), 'Potrero'); assert.equal(await page.inputValue('#lotCat'), 'Potrero');
     await act('lotSave'); await waitSheetClosed();
-    assert.match(await toastText(), /^«Potrero» creado y elegido\. El lindero de «La Esperanza» quedó bloqueado\. Toca el mapa/);
+    assert.match(await toastText(), /^«Potrero» creado\. El lindero de «La Esperanza» quedó bloqueado\. Toca el mapa/);
     let ls = await lots();
     assert.equal(ls[0].locked, true);
     assert.deepEqual([ls[1].kind, ls[1].cat, ls[1].parent, ls[1].mainColor], ['area', 'Potrero', ls[0].id, '#8BC34A']);

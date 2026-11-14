@@ -5,7 +5,7 @@
   var Geo = window.Geo, H = window.Holdridge, Climate = window.Climate, A = window.Analysis, Fmt = window.Fmt,
       Gps = window.Gps, Store = window.Store, Diagram = window.Diagram, Report = window.Report,
       Gis = window.Gis, Backup = window.Backup, IO = window.IO, WL = window.WalterLieth, Mapa = window.Mapa, MapView = window.MapView, Satelite = window.Satelite, Perfil = window.Perfil, Fotos = window.Fotos, Zip = window.Zip, Units = window.Units;
-  var APP_VERSION = '2.23.2';
+  var APP_VERSION = '2.23.3';
 
   var S = Store.loadState();
   // 2.22.0: la primera vez, los lotes de antes que están dentro de un predio pasan a pertenecerle
@@ -663,9 +663,9 @@
     h += '<label class="f"><span>Nombre</span><input type="text" id="lotName" value="' + esc(e.name) + '" maxlength="' + Store.LOT_NAME_MAX + '" autocomplete="off"></label>' +
       '<div class="f"><span style="display:block;margin-bottom:6px;font-weight:650">Color</span>' + colorPalette(e.color, others) +
       (Object.keys(others).length ? '<span class="f-hint" id="lotColorHint">Los colores con un punto blanco ya los usa otro lote.</span>' : '') + '</div>' +
-      (l ? '<p class="small muted">' + esc(lotSub(l)) + '</p>' : '<p class="small muted">' + 'Empieza vacío y queda elegido' + ': los puntos que marques después se guardan en él.</p>');
+      (l ? '<p class="small muted">' + esc(lotSub(l)) + '</p>' : '<p class="small muted" id="lotDrawHint">Al crearlo se abre el mapa para que marques sus puntos tocándolo. Si prefieres caminar el lindero con el GPS o escribir coordenadas, toca «Salir» y hazlo desde Puntos.</p>');
     if (l && l.kind === 'finca' && e.k === 'finca') h += '<div class="btns"><button class="btn" data-act="lotLock" data-id="' + esc(l.id) + '">' + (l.locked ? '🔓 Desbloquear el lindero para editarlo' : '🔒 Bloquear el lindero') + '</button></div>';
-    return h + '<div class="btns"><button class="btn btn-primary" data-act="lotSave">' + (l ? 'Guardar' : e.k === 'finca' ? 'Crear predio' : 'Crear lote') + '</button>' +
+    return h + '<div class="btns"><button class="btn btn-primary" data-act="lotSave">' + (l ? 'Guardar' : 'Crear y dibujar en el mapa') + '</button>' +
       (l && p.lots.length > 1 ? '<button class="btn btn-danger" data-act="lotDelete" data-id="' + esc(l.id) + '">Eliminar lote</button>' : '') + '</div>';
   }
   /* ---------- Importar polígonos de un archivo directamente como predios o lotes (2.23.0) ---------- */
@@ -745,6 +745,17 @@
     if (!finca) adjustManyAsk(made);
   }
   // Lee lo escrito y vuelve a dibujar la hoja (al cambiar el tipo o la categoría), sin perder nada
+  // Lleva a Polígono › Mapa, encuadra el predio del lote (para dibujar dentro de él) y deja activo «Ingresar puntos»
+  function goDraw(l) {
+    var p = proj(), par = Predio.parentOf(l, p.lots);
+    ui.polyView = 'mapa';
+    if (ui.tab !== 'area') showTab('area'); else renderTab('area');
+    if (!ui.map) return;
+    var ext = par && par.points.length ? Mapa.extent(par.points, []) : ui.fix ? Mapa.extent([{ lat: ui.fix.lat, lon: ui.fix.lon }], []) : null;
+    if (ext) { ui.follow = false; ui.map.fit(ext, { bottom: toolsInset(), top: toolsTop() }); }
+    ui.mapFitKey = mapKey();
+    setMapMode('add');
+  }
   function lotFormRead() {
     var e = ui.edit, n = $('#lotName'), c = $('#lotCat'), s = $('#lotParent');
     if (e.imp) [].forEach.call(document.querySelectorAll('#lotPolys input'), function (i) { var x = e.imp.polys[+i.getAttribute('data-i')]; if (x) x.on = i.checked; });
@@ -801,9 +812,10 @@
     if (ph) { p.lots.splice(p.lots.indexOf(ph), 1, nl); p.lotId = nl.id; ui.lockNote = ''; ui.mapSel = null; ui.navId = null; ui.unfolded = {}; }
     else { p.lots.push(nl); pickLot(nl.id, true); }
     var note = ui.lockNote || '', prevLot = p.lots.filter(function (x) { return x.id === prev; })[0];
-    save(); closeSheet(); renderTab(ui.tab);
-    if (e.title === 'Crear polígono' && ui.tab === 'area' && ui.polyView === 'mapa' && !ui.mapMode) setMapMode('add');      // desde el mapa: queda listo para marcar tocando
-    toast('«' + nl.name + '» creado y elegido.' + note + (e.title === 'Crear polígono' ? ' Toca el mapa para marcar sus puntos.' : ''), { action: 'Deshacer', fn: function () {
+    save(); closeSheet();
+    goDraw(nl);      // 2.23.3: desde cualquier botón o pestaña, «Dibujar» lleva al mapa listo para marcar tocando
+    var par = Predio.parentOf(nl, p.lots);
+    toast('«' + nl.name + '» creado.' + note + ' Toca el mapa para marcar sus puntos' + (par ? ' dentro de «' + par.name + '»' : '') + '.', { action: 'Deshacer', fn: function () {
       if (nl.points.length) { toast('El lote ya tiene puntos: elimínalo desde la lista de lotes.', { err: true }); return; }
       p.lots = lotsBefore; p.lotId = prev;
       if (prevLot && note && !wasLocked) delete prevLot.locked;
@@ -1241,7 +1253,10 @@
     var VL = viewLayers(p), shown = VL.filter(function (l) { return l.visible !== false && l.points.length; });
     if (a.empty) {
       if (!shown.length) return '<div class="empty"><b>Sin puntos todavía</b>Agrega al menos 3 puntos en la pestaña Puntos para calcular un área.</div>';
-      h += '<div class="tip">Tu proyecto no tiene puntos propios, solo capas importadas. Para calcular el área y la zona de vida, abre una capa en la pestaña Puntos y elige «Usar como polígono del proyecto».</div>';
+      // 2.23.3: con otros polígonos ya marcados, lo que falta son los puntos de este (no es un proyecto «solo de capas»)
+      h += p.lots.some(function (x) { return x.points.length; }) ?
+        '<div class="tip" id="lotEmptyTip">«' + esc(lot().name) + '» todavía no tiene puntos. Márcalos en el mapa, con el GPS o escribiendo coordenadas.</div>' :
+        '<div class="tip">Tu proyecto no tiene puntos propios, solo capas importadas. Para calcular el área y la zona de vida, abre una capa en la pestaña Puntos y elige «Usar como polígono del proyecto».</div>';
       h += '<div class="plot">' + Diagram.polygonSVG([], { layers: VL, color: p.mainColor }) + '</div>' + Diagram.legendHTML(VL, p.mainColor, ownLabel(), false);
       return h + exportBlock();
     }
@@ -1919,7 +1934,7 @@
       ['Cómo se ven', 'el predio, con relleno liso; los lotes, con relleno de puntos de su color.'],
       ['Candado 🔒', 'al pasar de un predio a otro polígono, su lindero se bloquea solo. Para cambiarlo, toca «Editar» en el aviso del candado.'],
       ['Linderos compartidos', 'si marcas o sueltas un punto muy cerca de la esquina de otro polígono, se pega a ella y los dos comparten el lindero exacto. Se apaga en Herramientas › Preferencias.'],
-      ['＋ Lote y ＋ Predio', 'en la fila de arriba. «＋ Predio» crea otro predio y «＋ Lote», un lote dentro del predio elegido. Los dos dejan dibujarlo o traerlo de un archivo (KML, KMZ, GeoJSON o GPX): si el archivo trae varios polígonos, eliges cuáles entran, y si alguno choca con los linderos, cuáles se ajustan.'],
+      ['＋ Lote y ＋ Predio', 'en la fila de arriba. «＋ Predio» crea otro predio y «＋ Lote», un lote dentro del predio elegido. Los dos dejan dibujarlo (con «Crear y dibujar en el mapa» se abre el mapa con su predio a la vista, listo para marcar los puntos tocándolo) o traerlo de un archivo (KML, KMZ, GeoJSON o GPX): si el archivo trae varios polígonos, eliges cuáles entran, y si alguno choca con los linderos, cuáles se ajustan.'],
       ['Ajustar a los linderos', 'si el polígono que marcas se sale de su predio o se monta sobre otro, la app pregunta: «Ajustar a los linderos» lo recorta para que su borde siga el del predio y el de los vecinos (aparecen puntos nuevos en el lindero y se numeran de nuevo; se puede deshacer); «Dejar sobrepuesto» lo deja como está, con el aviso. Más tarde lo encuentras en «Más opciones».']
     ]],
     ['Medir', [

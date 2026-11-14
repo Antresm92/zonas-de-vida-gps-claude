@@ -47,7 +47,7 @@ module.exports = async function (c) {
   await step('Crear un lote: empieza vacío, queda elegido y los puntos nuevos se guardan en él; «Deshacer» lo quita si sigue vacío', async () => {
     await tab('puntos');
     await newLot('');
-    assert.match(await toastText(), /^«Lote» creado y elegido\. El lindero de «Predio» quedó bloqueado\./);
+    assert.match(await toastText(), /^«Lote» creado\. El lindero de «Predio» quedó bloqueado\./);
     assert.deepEqual((await chips()).map((x) => x.replace(/ · [\d,]+ ha/, '')), ['Predio 🔒', 'Lote *', '＋ Lote', '＋ Predio']);
     assert.equal(await page.locator('#tab-puntos [data-act="editPoint"]').count(), 0, 'el lote nuevo no tiene puntos');
     await page.click('#toast button');                                    // deshacer

@@ -366,8 +366,8 @@
       zoom: function () { return map.getZoom(); },
       refresh: function () { map.invalidateSize(); },
       info: function () {
-        var c = map.getCenter();
-        return { mode: mode, gesture: gesture.state(), lifted: drag ? { lat: drag.ll.lat, lon: drag.ll.lng } : null, base: state.base, reference: state.reference, zoom: map.getZoom(), center: { lat: c.lat, lon: c.lng }, errors: state.errors, loaded: state.loaded,
+        var c = map.getCenter(), bb = map.getBounds();
+        return { bounds: { s: bb.getSouth(), n: bb.getNorth(), w: bb.getWest(), e: bb.getEast() }, mode: mode, gesture: gesture.state(), lifted: drag ? { lat: drag.ll.lat, lon: drag.ll.lng } : null, base: state.base, reference: state.reference, zoom: map.getZoom(), center: { lat: c.lat, lon: c.lng }, errors: state.errors, loaded: state.loaded,
                  markers: model.markers.slice(), polygon: model.polygon, layers: model.layers.slice(), fix: model.fix,
                  selected: selId, link: !!linkLine, measure: measurePts.length, measureClosed: measureClosed, scale: (el.querySelector('.leaflet-control-scale-line') || {}).textContent || '',
                  sides: sideRefs.map(function (r) { return { text: r.text, label: r.label, plus: r.plus, alt: !!r.alt }; }),
