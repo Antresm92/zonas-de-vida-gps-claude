@@ -23,8 +23,8 @@ module.exports = async function (c) {
     assert.equal(await sheetTitle(), 'Nuevo predio');
     assert.deepEqual(await page.$$eval('#lotMode button', (b) => b.map((x) => x.textContent + ':' + x.getAttribute('aria-pressed'))), ['Dibujar:true', 'Importar archivo:false']);
     assert.equal(await page.locator('#lotKind').count(), 0, '«＋ Predio» no pregunta el tipo');
-    assert.equal(await page.locator('#sheet .palette .sw').count(), 25, 'paleta de 25 colores');
-    assert.equal(new Set(await page.$$eval('#sheet .palette .sw', (b) => b.map((x) => x.getAttribute('data-color').toUpperCase()))).size, 25, 'sin colores repetidos');
+    assert.equal(await page.locator('#sheet .palette .sw').count(), 30, 'paleta de 30 colores (2.23.4)');
+    assert.equal(new Set(await page.$$eval('#sheet .palette .sw', (b) => b.map((x) => x.getAttribute('data-color').toUpperCase()))).size, 30, 'sin colores repetidos');
     const sw = await page.locator('#sheet .palette .sw').first().boundingBox(); assert.ok(sw.width >= 40 && sw.height >= 40, 'colores cómodos de tocar');
     await shot('v223-nuevo-predio');
     await page.click('#lotMode [data-m="file"]');

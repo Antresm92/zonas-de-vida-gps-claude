@@ -519,3 +519,7 @@ details.why summary { min-height: 32px; padding: 6px 0; color: var(--blue); font
 .soc { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 64px; min-height: 64px; padding: 8px 6px; border-radius: 14px; color: var(--green, #2F8F4E); text-decoration: none; font-size: 12px; font-weight: 600; }
 .soc:active { background: rgba(47, 143, 78, .12); }
 .soc svg { width: 28px; height: 28px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+/* 2.23.4: aviso de linderos dentro del mapa, en el mismo formato que «Ingresar puntos», con borde ámbar */
+.mapconf { border-left-color: #D68910; }
+.mapconf button { color: #9A5B00; }

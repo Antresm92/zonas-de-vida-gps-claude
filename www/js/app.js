@@ -5,7 +5,7 @@
   var Geo = window.Geo, H = window.Holdridge, Climate = window.Climate, A = window.Analysis, Fmt = window.Fmt,
       Gps = window.Gps, Store = window.Store, Diagram = window.Diagram, Report = window.Report,
       Gis = window.Gis, Backup = window.Backup, IO = window.IO, WL = window.WalterLieth, Mapa = window.Mapa, MapView = window.MapView, Satelite = window.Satelite, Perfil = window.Perfil, Fotos = window.Fotos, Zip = window.Zip, Units = window.Units;
-  var APP_VERSION = '2.23.3';
+  var APP_VERSION = '2.23.4';
 
   var S = Store.loadState();
   // 2.22.0: la primera vez, los lotes de antes que están dentro de un predio pasan a pertenecerle
@@ -530,7 +530,9 @@
     return LOT_COLORS.filter(function (c) { return !used[c.toUpperCase()]; })[0] || Predio.FINCA_COLOR;
   }
   // 25 colores para predios y lotes (2.23.0): los 10 de siempre y 15 más, escogidos para distinguirse entre sí, sobre la imagen satelital y con el relleno de puntos
-  var LOT_COLORS = Gis.COLORS.concat(['#00ACC1', '#5E35B1', '#AD1457', '#F4511E', '#7CB342', '#1565C0', '#FDD835', '#6D4C41', '#FF8A65', '#9E9D24', '#B39DDB', '#78909C', '#004D40', '#FFB300', '#3949AB']);      // los mismos colores de la paleta, para que el elegido quede marcado
+  // 2.23.4: 30 colores (5 filas parejas de 6); los 5 últimos son tonos claros que completan la paleta sin repetir los de antes
+  var LOT_COLORS = Gis.COLORS.concat(['#00ACC1', '#5E35B1', '#AD1457', '#F4511E', '#7CB342', '#1565C0', '#FDD835', '#6D4C41', '#FF8A65', '#9E9D24', '#B39DDB', '#78909C', '#004D40', '#FFB300', '#3949AB',
+    '#4FC3F7', '#81C784', '#F48FB1', '#CE93D8', '#A1887F']);      // los mismos colores de la paleta, para que el elegido quede marcado
   function lotSub(l) {
     var m2 = lotArea(l), n = l.points.length;
     var base = (m2 ? Fmt.area(Geo.areaUnits(m2), S.settings.areaUnit) + ' · ' : '') + n + (n === 1 ? ' punto' : ' puntos') + (!m2 && n ? ' · falta cerrar el polígono' : '');
@@ -1337,7 +1339,9 @@
     h += '<button id="mapNewPoly" class="mapnew" data-act="lotNewMap" aria-label="Crear polígono: un predio o un lote">＋ Polígono</button>';
     h += '<div class="maptop"><button id="mapSum" class="mapsum" data-act="mapSumTap" hidden></button>' +
       (lk.locked ? '<button id="mapLock" class="maplock" data-act="mapUnlock">🔒 Lindero de «' + esc(lk.name) + '» bloqueado · <u>Editar</u></button>' : '') + '<div id="mapNotice" class="mapnotice" role="status" hidden></div>' +
-      '<div id="mapMode" class="mapmode" hidden><span id="mapModeTxt" role="status"></span><button data-act="mapMode" data-mode="">Salir</button></div></div>' +
+      '<div id="mapMode" class="mapmode" hidden><span id="mapModeTxt" role="status"></span><button data-act="mapMode" data-mode="">Salir</button></div>' +
+      // 2.23.4: aviso de linderos, solo mientras el polígono elegido se sale de su predio o se monta sobre otro
+      '<div id="mapConflict" class="mapmode mapconf" hidden><span id="mapConfTxt" role="status"></span><button data-act="adjustAsk">Ajustar</button></div></div>' +
       '<div id="mapLive" class="maplive" hidden></div>';
     if (ui.sampling) {
       h += '<div class="mapprog" role="status"><div class="prog"><i id="mapProgBar"></i></div><p class="small" id="mapProgTxt">Esperando la primera lectura del GPS…</p><button class="btn btn-danger" data-act="cancelMark">Cancelar</button></div>';
@@ -1706,6 +1710,15 @@
     var ub = $('#mapUndoBtn'), last = ui.track ? null : ui.mapUndo.peek(undoKey(), pointsJson());   // caminando el lindero no se deshace paso a paso: el recorrido se deshace entero al terminar
     ub.disabled = !last;
     ub.setAttribute('aria-label', last ? 'Deshacer: ' + last.label : 'Deshacer (no hay cambios que deshacer)');
+    var cb = $('#mapConflict');
+    if (cb) {
+      var cf = multi() && !lot().locked && !ui.track && !ui.mapTool ? Predio.conflicts(proj().lots, lot().id) : null;
+      cb.hidden = !cf;
+      if (cf) $('#mapConfTxt').textContent = '⚠ ' + cf.text.replace(/^«[^»]*» /, '').replace(/^./, function (x) { return x.toUpperCase(); });
+    }
+    // «＋ Polígono» baja si los avisos de arriba (modo y linderos) llegan hasta él
+    var nb = $('.mapnew'), mt = $('.maptop');
+    if (nb && mt) nb.style.top = Math.max(118, mt.offsetTop + mt.offsetHeight + 8) + 'px';
     syncMapCard(); syncMapTool();
   }
   function applyMapFull(on) {
@@ -1935,7 +1948,7 @@
       ['Candado 🔒', 'al pasar de un predio a otro polígono, su lindero se bloquea solo. Para cambiarlo, toca «Editar» en el aviso del candado.'],
       ['Linderos compartidos', 'si marcas o sueltas un punto muy cerca de la esquina de otro polígono, se pega a ella y los dos comparten el lindero exacto. Se apaga en Herramientas › Preferencias.'],
       ['＋ Lote y ＋ Predio', 'en la fila de arriba. «＋ Predio» crea otro predio y «＋ Lote», un lote dentro del predio elegido. Los dos dejan dibujarlo (con «Crear y dibujar en el mapa» se abre el mapa con su predio a la vista, listo para marcar los puntos tocándolo) o traerlo de un archivo (KML, KMZ, GeoJSON o GPX): si el archivo trae varios polígonos, eliges cuáles entran, y si alguno choca con los linderos, cuáles se ajustan.'],
-      ['Ajustar a los linderos', 'si el polígono que marcas se sale de su predio o se monta sobre otro, la app pregunta: «Ajustar a los linderos» lo recorta para que su borde siga el del predio y el de los vecinos (aparecen puntos nuevos en el lindero y se numeran de nuevo; se puede deshacer); «Dejar sobrepuesto» lo deja como está, con el aviso. Más tarde lo encuentras en «Más opciones».']
+      ['Ajustar a los linderos', 'si el polígono que marcas se sale de su predio o se monta sobre otro, la app pregunta: «Ajustar a los linderos» lo recorta para que su borde siga el del predio y el de los vecinos (aparecen puntos nuevos en el lindero y se numeran de nuevo; se puede deshacer); «Dejar sobrepuesto» lo deja como está. Mientras siga encimado, dentro del mapa queda un aviso ámbar con el botón «Ajustar», y al tocar «Salir» la app vuelve a preguntar.']
     ]],
     ['Medir', [
       ['Medir distancia', 'toca el mapa para ir sumando tramos; al cerrar la figura da también el área. No cambia tus puntos.']
@@ -3030,7 +3043,12 @@
     mapAimAdd: function () { if (ui.map) addManualAt(ui.map.center()); },
     mapWalk: function () { var step = $('#trackStep') ? $('#trackStep').value : null; closeSheet(); startTrack(step); },
     mapToolEnd: function () { setMapTool(''); },
-    mapMode: function (t) { setMapMode(Mapa.toggleMode(ui.mapMode, t.getAttribute('data-mode'))); },
+    mapMode: function (t) {
+      var was = ui.mapMode;
+      setMapMode(Mapa.toggleMode(ui.mapMode, t.getAttribute('data-mode')));
+      // 2.23.4: al terminar de marcar («Salir»), si el polígono quedó encimado o fuera de su predio, se pregunta una vez más
+      if (was === 'add' && !ui.mapMode && multi() && !lot().locked && Predio.conflicts(proj().lots, lot().id)) adjustSheet();
+    },
     mapMark: function () { if (!ui.gpsOn) gpsStart(); markPoint(); },
     mapMyPos: goMyPosition,
     gpsOn: gpsStart, gpsOff: gpsStop, noGpsYes: useWithoutGps, mark: markPoint, cancelMark: cancelMark,
