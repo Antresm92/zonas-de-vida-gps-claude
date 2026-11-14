@@ -86,7 +86,9 @@ module.exports = async function (c) {
     assert.match(live, /^Moviendo P1 · Área [\d.,]+ (ha|m²|km²|fanegadas) · Perímetro [\d.,]+ (m|km)$/, live);
     assert.equal(await page.evaluate(() => document.querySelector('#mapLive').classList.contains('bad')), false, 'sin lados cruzados no es rojo');
     assert.equal(await visible('#mapMode'), false, 'mientras se arrastra, el aviso del modo cede su sitio');
-    assert.equal(await page.evaluate(() => document.querySelector('#mapLive').classList.contains('low')), true, 'el punto quedó en la mitad de arriba: las medidas van abajo');
+    // 2.23.2: el encuadre cambió (la fila de lotes va siempre encima): se mira en qué mitad quedó el punto y se comprueba que las medidas vayan en la otra
+    const mb = await page.locator('#mapHost .mapa-leaflet').boundingBox(), arriba = at.y + dy < mb.y + mb.height / 2;
+    assert.equal(await page.evaluate(() => document.querySelector('#mapLive').classList.contains('low')), arriba, arriba ? 'el punto quedó en la mitad de arriba: las medidas van abajo' : 'el punto quedó en la mitad de abajo: las medidas van arriba');
     const caja = await box('#mapLive'), dedo = { x: at.x + dx, y: at.y + dy };
     assert.equal(dedo.x >= caja.x && dedo.x <= caja.x + caja.width && dedo.y >= caja.y && dedo.y <= caja.y + caja.height, false, 'las medidas no tapan el punto');
     // en vivo el punto sigue al dedo y la lista todavía tiene el sitio de antes

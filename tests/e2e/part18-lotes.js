@@ -27,7 +27,7 @@ module.exports = async function (c) {
     for (const [ll, alt] of L2) await addPointManual(ll, alt);
   };
 
-  await step('Con un solo lote: la fila muestra «Predio» y «＋ Lote» en Puntos, Información y Reporte, y no le quita alto al mapa', async () => {
+  await step('Con un solo lote: la fila muestra «Predio» y «＋ Lote» en Puntos, Información y Reporte, y también en el mapa (2.23.2), con el mapa un poco más bajo para que quepa', async () => {
     await fresh();
     assert.deepEqual(await chips(), ['Predio *', '＋ Lote', '＋ Predio']);
     for (const [ll, alt] of L1) await addPointManual(ll, alt);
@@ -36,8 +36,12 @@ module.exports = async function (c) {
     await tab('area');
     assert.equal(await page.locator('#tab-area .lots').count(), 1, 'en el croquis sí va');
     await page.click('[data-act="polyView"][data-v="mapa"]');
-    assert.equal(await page.locator('#tab-area .lots').count(), 0, 'en el mapa, con un solo lote, no va la fila');
-    assert.equal(await page.locator('.mapbox.haslots').count(), 0);
+    assert.equal(await page.locator('#tab-area .lots').count(), 1, 'en el mapa también va, aunque haya un solo polígono');
+    assert.equal(await page.locator('.mapbox.haslots').count(), 1);
+    assert.deepEqual((await chips()).slice(-2), ['＋ Lote', '＋ Predio']);
+    const bar = await page.locator('#tab-area .lots').boundingBox(), map = await page.locator('#mapBox').boundingBox(), nav = await page.locator('nav.tabs, #tabs, .tabbar').first().boundingBox();
+    assert.ok(bar.y + bar.height <= map.y, 'la fila va encima del mapa, sin taparlo');
+    if (nav) assert.ok(map.y + map.height <= nav.y + 1, 'el mapa cabe completo encima de la barra de pestañas');
   });
 
   await step('Crear un lote: empieza vacío, queda elegido y los puntos nuevos se guardan en él; «Deshacer» lo quita si sigue vacío', async () => {

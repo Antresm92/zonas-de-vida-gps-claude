@@ -96,7 +96,7 @@ module.exports = async function (c) {
   await step('Sin marcar ninguno no ajusta nada; un archivo sin polígonos lo dice; «Deshacer» quita lo importado', async () => {
     await act('lotAdd'); await page.click('#lotMode [data-m="file"]');
     await page.setInputFiles('#polyFile', file('camino.kml', [['Camino', [[4.6, -74.08], [4.61, -74.07]], true]]));
-    assert.match(await toastText(), /^No se pudo importar: el archivo no trae polígonos/);
+    await c.waitToast(/^No se pudo importar: el archivo no trae polígonos/);      // el archivo se lee aparte: se espera el aviso
     assert.equal(await page.locator('#lotPolys').count(), 0);
     await page.setInputFiles('#polyFile', file('casa.kml', [['Casa', sq(4.601, -74.074, 0.001)], ['Huerta', sq(4.6065, -74.079, 0.001)]]));
     await page.waitForSelector('#lotPolys');

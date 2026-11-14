@@ -99,6 +99,9 @@ Sube la carpeta `www/` a cualquier alojamiento web con HTTPS (por ejemplo GitHub
 - **Exportar**: KML, GeoJSON y GPX llevan todos los lotes (el elegido como polígono principal, los demás como capas con su nombre); el CSV añade la columna `Lote` y el Shapefile la columna `LOTE`, con una figura por lote.
 - **Guardado**: los proyectos de versiones anteriores pasan solos a tener un «Lote 1» con todo lo que tenían. La copia de seguridad lleva los lotes, y una copia hecha con una versión anterior se sigue pudiendo restaurar. Una copia hecha con la 2.15.0 (formato 2) no se puede restaurar en una versión anterior de la app: esta avisa que hay que actualizar.
 
+**2.23.2: «＋ Lote» y «＋ Predio» también en el mapa.**
+- La fila de predios y lotes (con «＋ Lote» y «＋ Predio») ahora va siempre en *Polígono › Mapa*, también con un solo polígono o con el proyecto vacío. Antes se ocultaba en el mapa hasta que hubiera dos polígonos, una regla anterior a estos botones que no se había actualizado. El mapa queda unos 54 px más bajo para que quepa la fila; para que en teléfonos pequeños ningún nombre de punto quede debajo de un botón, el encuadre ahora deja libre también el espacio del botón «Mi posición» (abajo a la derecha) y el de «＋ Polígono» (arriba a la derecha).
+
 **2.23.1: crédito y redes de Campesino Urbano.**
 - Al final de Herramientas, centrado: «Un proyecto de **Campesino Urbano**» y cuatro botones (Instagram, Facebook, WhatsApp y TikTok) que abren cada red en su app o en el navegador del teléfono, no dentro de Zonas de Vida. Sin internet, avisan en vez de intentar abrir.
 - Los iconos son dibujos sencillos propios (cámara, personas, globo de chat, nota musical), no los logotipos de las marcas; el nombre de cada red va escrito debajo. A los enlaces de Instagram y TikTok se les quitaron los códigos de seguimiento que se agregan al compartir.

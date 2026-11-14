@@ -5,7 +5,7 @@
   var Geo = window.Geo, H = window.Holdridge, Climate = window.Climate, A = window.Analysis, Fmt = window.Fmt,
       Gps = window.Gps, Store = window.Store, Diagram = window.Diagram, Report = window.Report,
       Gis = window.Gis, Backup = window.Backup, IO = window.IO, WL = window.WalterLieth, Mapa = window.Mapa, MapView = window.MapView, Satelite = window.Satelite, Perfil = window.Perfil, Fotos = window.Fotos, Zip = window.Zip, Units = window.Units;
-  var APP_VERSION = '2.23.1';
+  var APP_VERSION = '2.23.2';
 
   var S = Store.loadState();
   // 2.22.0: la primera vez, los lotes de antes que están dentro de un predio pasan a pertenecerle
@@ -570,7 +570,8 @@
     return h + '</div>';
   }
   // La fila va en Puntos, Información, Reporte y el croquis; en el mapa solo si hay más de un lote (para dejarle el alto al mapa)
-  function hasLots(t) { return t === 'puntos' || t === 'clima' || t === 'informe' || (t === 'area' && (ui.polyView !== 'mapa' || multi())); }
+  // 2.23.2: la fila va siempre, también en el mapa con un solo polígono, para que «＋ Lote» y «＋ Predio» estén a la mano desde el comienzo
+  function hasLots(t) { return t === 'puntos' || t === 'clima' || t === 'informe' || t === 'area'; }
   function pickLot(id, quiet) {
     var p = proj();
     if (p.lotId === id || !p.lots.some(function (l) { return l.id === id; })) return false;
@@ -1315,7 +1316,7 @@
   };
   function mapaHtml() {
     var p = proj(), h = '';
-    h += '<div id="mapBox" class="mapbox' + (ui.mapFull ? ' full' : '') + (multi() ? ' haslots' : '') + '"><div id="mapHost" class="maphost"></div>';
+    h += '<div id="mapBox" class="mapbox' + (ui.mapFull ? ' full' : '') + ' haslots' + '"><div id="mapHost" class="maphost"></div>';
     h += mapMenuHtml();
     var lk = lot();
     h += '<button id="mapNewPoly" class="mapnew" data-act="lotNewMap" aria-label="Crear polígono: un predio o un lote">＋ Polígono</button>';
@@ -1468,7 +1469,19 @@
   }
 
   // Alto que tapan las herramientas de abajo (más su separación del borde): el encuadre deja ese espacio libre para que no cubran los puntos
-  function toolsInset() { var t = $('.maptools'); return t ? t.offsetHeight + 44 : 100; }
+  // Alto del borde de abajo que tapan las herramientas: la barra y, encima de ella a la derecha, el botón de «Mi posición»
+  // (2.23.2: con la fila de lotes siempre arriba, el mapa es más bajo en teléfonos pequeños y los nombres de la derecha quedaban bajo ese botón)
+  function toolsInset() {
+    var t = $('.maptools'), box = $('#mapBox'), loc = $('.maploc'), h = t ? t.offsetHeight + 44 : 100;
+    if (box && loc && loc.offsetHeight) h = Math.max(h, Math.round(box.getBoundingClientRect().bottom - loc.getBoundingClientRect().top + 8));
+    return h;
+  }
+  // Alto del borde de arriba que tapan los botones: la franja de arriba y, a la derecha, «＋ Polígono» (para que no tape el nombre de un punto)
+  function toolsTop() {
+    var box = $('#mapBox'), nb = $('.mapnew'), h = 70;
+    if (box && nb && nb.offsetHeight) h = Math.max(h, Math.round(nb.getBoundingClientRect().bottom - box.getBoundingClientRect().top + 8));
+    return h;
+  }
   // El mapa se encuadra solo al cambiar de proyecto, al llegar los primeros datos o cuando cambia cuántos lotes tienen puntos
   // (así un lote nuevo entra en la vista); elegir otro lote no lo mueve.
   function mapKey() {
@@ -1492,7 +1505,7 @@
     ui.map.draw(Mapa.shapes(view(p), { polyActive: ui.polyActive, bad: !!a.selfIntersects, fmt: function (n) { return Fmt.num(n, 0); }, dist: Geo.distance, fmtDist: Fmt.dist }));
     ui.map.setMeasure(ui.mapTool === 'medir' ? ui.measure : [], ui.measureClosed);
     var key = mapKey();
-    if (ui.mapFitKey !== key) { ui.map.fit(Mapa.extent(p.points, viewLayers(p)), { bottom: toolsInset() }); ui.mapFitKey = key; }   // solo al cambiar de proyecto o al llegar los primeros datos
+    if (ui.mapFitKey !== key) { ui.map.fit(Mapa.extent(p.points, viewLayers(p)), { bottom: toolsInset(), top: toolsTop() }); ui.mapFitKey = key; }   // solo al cambiar de proyecto o al llegar los primeros datos
     ui.map.showFix(ui.gpsOn ? ui.fix : null);
     updateMapNotice();
     syncMapMenu(); syncMapChrome();
@@ -1693,7 +1706,7 @@
     var p = proj(), ext = Mapa.extent(p.points, viewLayers(p));
     if (!ext) { toast('Todavía no hay puntos ni capas que mostrar.'); return; }
     ui.follow = false; syncMapChrome();
-    if (ui.map) ui.map.fit(ext, { bottom: toolsInset() });
+    if (ui.map) ui.map.fit(ext, { bottom: toolsInset(), top: toolsTop() });
   }
 
   // Tarjeta del punto elegido (un toque sobre él). relOnly: solo se actualiza la línea de la distancia (llega con cada lectura del GPS).

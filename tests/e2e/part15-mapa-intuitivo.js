@@ -42,7 +42,8 @@ module.exports = async function (c) {
     assert.equal(await page.locator('#tab-area .pagetitle').count(), 0, 'en la vista Mapa no va el título grande');
     assert.equal(await text('#tab-area h2.sr-only'), 'Polígono del terreno: mapa');
     const mb = await box('.mapbox'), nav = await box('nav');
-    assert.ok(mb.height >= 590, 'el mapa mide ' + mb.height + ' px de alto en un teléfono de 844 (' + await page.evaluate(() => document.querySelector('.mapbox').className + ' · ventana ' + innerHeight + ' · lotes ' + window.__app.S.projects.map((p) => p.lots.length).join(',') + ' · barra ' + !!document.querySelector('#tab-area #lotsBar')) + ')');
+    // 2.23.2: la fila de predios y lotes va siempre encima del mapa, así que el mapa mide unos 54 px menos que antes (554 en vez de 608)
+    assert.ok(mb.height >= 540, 'el mapa mide ' + mb.height + ' px de alto en un teléfono de 844 (' + await page.evaluate(() => document.querySelector('.mapbox').className + ' · ventana ' + innerHeight + ' · lotes ' + window.__app.S.projects.map((p) => p.lots.length).join(',') + ' · barra ' + !!document.querySelector('#tab-area #lotsBar')) + ')');
     assert.ok(mb.y + mb.height <= nav.y, 'y no queda detrás de la barra de pestañas');
     assert.match(await text('#mapSum'), /^\d+,\d+ ha · [\d,]+ k?m · 3 puntos$/);
     assert.ok((await box('#mapSum')).height <= 34, 'el resumen cabe en una línea');
@@ -100,10 +101,11 @@ module.exports = async function (c) {
     assert.equal(await page.locator('.mk.mk-sel').count(), 1);
     assert.deepEqual(await page.$$eval('.mapcard-btns .btn', (b) => b.map((x) => x.textContent)), ['Abrir ficha', 'Mover', 'Ir al punto', '']);   // el último es el de eliminar (solo icono)
     await shot('151-tarjeta-del-punto');
-    const p1 = await tapPoint('P1');                                       // otro punto: la tarjeta cambia
-    assert.equal(await text('.mapcard-name'), 'P1');
+    // 2.23.2: con la fila de lotes encima, el mapa es más bajo y la tarjeta tapa los puntos de abajo: el «otro punto» es P3, que queda arriba
+    const p1 = await tapPoint('P3');                                       // otro punto: la tarjeta cambia
+    assert.equal(await text('.mapcard-name'), 'P3');
     assert.equal((await info()).selected, p1.id);
-    await tapPoint('P1');                                                  // el mismo: se cierra
+    await tapPoint('P3');                                                  // el mismo: se cierra
     assert.equal(await visible('#mapCard'), false);
     assert.equal((await info()).selected, null);
     assert.equal(await page.locator('.mk.mk-sel').count(), 0);
@@ -250,9 +252,10 @@ module.exports = async function (c) {
     assert.equal(await visible('.maptools'), false, 'la franja de la herramienta ocupa el lugar de la barra');
     assert.equal(await text('#mapMeasureTxt'), 'Medir: toca lugares del mapa (o puntos) para sumar tramos.');
     assert.deepEqual(await page.$$eval('#mapToolBar .btn', (b) => b.map((x) => x.textContent + '|' + x.disabled)), ['Quitar último|true', 'Cerrar figura|true', 'Terminar|false']);
-    await tapMap(-60, 0);
+    // 2.23.2: los toques van 40 px arriba del centro, donde no hay nombres de puntos (el terreno quedó más abajo en el mapa)
+    await tapMap(-60, -40);
     assert.equal(await text('#mapMeasureTxt'), 'Medir: toca el siguiente lugar.');
-    await tapMap(60, 0);
+    await tapMap(60, -40);
     assert.match(await text('#mapMeasureTxt'), /^\d+ m · rumbo 90° \(este\)$/);
     const i = await info();
     assert.equal(i.measure, 2);
@@ -261,17 +264,17 @@ module.exports = async function (c) {
     assert.equal((await pts()).length, 3, 'medir no crea puntos');
     await shot('155-medir');
     assert.equal(await page.isDisabled('[data-act="mapMeasureClose"]'), true, 'con dos lugares no hay figura que cerrar');
-    await tapMap(60, 80);                                                  // el tercer toque suma un tramo (80 px hacia abajo)
+    await tapMap(60, 20);                                                  // el tercer toque suma un tramo (60 px hacia abajo)
     assert.equal((await ui()).measure.length, 3);
     const mpp = esperado / 120;                                            // metros por píxel
     let t = await text('#mapMeasureTxt');
     assert.match(t, /^\d+ m en 2 tramos$/);
-    near(parseFloat(t), 200 * mpp, 3, 'suma de los dos tramos');
-    await act('mapMeasureClose');                                          // cerrar: un triángulo rectángulo de 120 × 80 px
+    near(parseFloat(t), 180 * mpp, 3, 'suma de los dos tramos');
+    await act('mapMeasureClose');                                          // cerrar: un triángulo rectángulo de 120 × 60 px
     t = await text('#mapMeasureTxt');
     assert.match(t, /^Área [\d,]+ ha · perímetro \d+ m$/);
-    near(parseFloat(t.replace('Área ', '').replace(',', '.')) * 10000, 0.5 * 120 * 80 * mpp * mpp, 0.02 * 0.5 * 120 * 80 * mpp * mpp, 'área del triángulo');
-    near(parseFloat(t.split('perímetro ')[1]), (120 + 80 + Math.hypot(120, 80)) * mpp, 4, 'perímetro');
+    near(parseFloat(t.replace('Área ', '').replace(',', '.')) * 10000, 0.5 * 120 * 60 * mpp * mpp, 0.02 * 0.5 * 120 * 60 * mpp * mpp, 'área del triángulo');
+    near(parseFloat(t.split('perímetro ')[1]), (120 + 60 + Math.hypot(120, 60)) * mpp, 4, 'perímetro');
     assert.equal((await info()).measureClosed, true);
     assert.equal(await page.getAttribute('[data-act="mapMeasureClose"]', 'aria-pressed'), 'true');
     assert.equal(await text('[data-act="mapMeasureClose"]'), 'Abrir figura');

@@ -311,9 +311,9 @@
         if (ext.south === ext.north && ext.west === ext.east) { map.setView([ext.south, ext.west], 17, { animate: false }); return; }
         // Se deja más margen abajo y a la derecha: abajo está la barra de herramientas y a la derecha caben los nombres de los puntos; a la izquierda queda libre la columna de botones
         var sz = map.getSize();
-        var bottom = insets && isFinite(insets.bottom) ? insets.bottom : 185;
+        var bottom = insets && isFinite(insets.bottom) ? insets.bottom : 185, top = insets && isFinite(insets.top) ? insets.top : 70;
         map.fitBounds([[ext.south, ext.west], [ext.north, ext.east]], { animate: false, maxZoom: 18,
-          paddingTopLeft: [66, 70], paddingBottomRight: [Math.min(120, Math.round(sz.x * 0.3)), Math.min(bottom, Math.round(sz.y * 0.5))] });
+          paddingTopLeft: [66, Math.min(top, Math.round(sz.y * 0.35))], paddingBottomRight: [Math.min(120, Math.round(sz.x * 0.3)), Math.min(bottom, Math.round(sz.y * 0.5))] });
       });
     }
 
