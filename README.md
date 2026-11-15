@@ -99,6 +99,9 @@ Sube la carpeta `www/` a cualquier alojamiento web con HTTPS (por ejemplo GitHub
 - **Exportar**: KML, GeoJSON y GPX llevan todos los lotes (el elegido como polígono principal, los demás como capas con su nombre); el CSV añade la columna `Lote` y el Shapefile la columna `LOTE`, con una figura por lote.
 - **Guardado**: los proyectos de versiones anteriores pasan solos a tener un «Lote 1» con todo lo que tenían. La copia de seguridad lleva los lotes, y una copia hecha con una versión anterior se sigue pudiendo restaurar. Una copia hecha con la 2.15.0 (formato 2) no se puede restaurar en una versión anterior de la app: esta avisa que hay que actualizar.
 
+**2.27.0: herramientas, crédito y autor salen de `app.js` (sin cambiar lo que hace la app).**
+- La pestaña Herramientas (tarjetas y menú, crédito de Campesino Urbano con sus redes), la hoja del autor y logo del reporte, y el conversor, el clima actual y el GPS en vivo pasan a **`js/ui-herramientas.js`**. `app.js` queda en unas 2.580 líneas. Verificado con 703 pruebas unitarias y 305 pasos en el navegador.
+
 **2.26.0: el reporte sale de `app.js` (sin cambiar lo que hace la app).**
 - Todo lo de la pestaña Reporte (resumen, zona de vida y diagrama, clima, fotos, clima actual, perfil y croquis, qué polígonos van y la entrega en HTML o PDF) pasa a **`js/ui-reporte.js`**, que empieza con un párrafo que explica qué hace y qué usa. `app.js` queda en unas 2.780 líneas.
 - Para quien usa la app no hay nada nuevo. Verificado con las mismas pruebas (703 unitarias y 305 pasos en el navegador). Siguen: herramientas, predios y lotes, y mapa.
@@ -383,6 +386,7 @@ www/                 la app (HTML, CSS y JavaScript; el mapa usa Leaflet, inclui
   js/datos.js        qué información tiene cada polígono, limpiarla y copiar el clima sin pisar lo escrito a mano (2.25.0)
   js/ui-completar.js «Completar con internet» (uno o varios), «Usar este clima en todos los polígonos» y «Limpiar información ▾» (2.25.0)
   js/ui-reporte.js   pestaña Reporte: secciones, croquis, qué polígonos van y entrega en HTML o PDF (2.26.0)
+  js/ui-herramientas.js pestaña Herramientas, crédito, autor del reporte, conversor, clima actual y GPS en vivo (2.27.0)
   js/app.js          interfaz (el resto; se sigue dividiendo por temas)
 tests/               pruebas unitarias (npm test) y en navegador (tests/e2e)
 tools/cobertura.js   mide qué código ejecutan las pruebas
