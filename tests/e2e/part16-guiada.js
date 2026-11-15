@@ -169,7 +169,7 @@ module.exports = async function (c) {
     await page.click('#sheet .btn-primary'); await waitSheetClosed();
     await act('appGuide'); await page.waitForSelector('#sheet:not([hidden])');
     assert.equal(await sheetTitle(), 'Cómo usar la app');
-    assert.deepEqual(await page.$$eval('#sheet .guide dt', (d) => d.map((x) => x.textContent)), ['1 · Puntos', '2 · Información', '3 · Reporte', '1 · Marca el predio', '2 · Agrega los lotes', '3 · Completa el clima', '4 · Revisa el reporte', '5 · Comparte', 'Polígono', 'Predios y lotes', 'Varios polígonos a la vez', 'Qué va en el reporte', 'Proyectos y copia de seguridad', 'Herramientas', 'Arriba', 'Sin internet']);
+    assert.deepEqual(await page.$$eval('#sheet .guide dt', (d) => d.map((x) => x.textContent)), ['1 · Puntos', '2 · Información', '3 · Reporte', '1 · Marca el predio', '2 · Agrega los lotes', '3 · Completa el clima', '4 · Revisa el reporte', '5 · Comparte', 'Polígono', 'Predios y lotes', 'Varios polígonos a la vez', 'Usos recomendados y evaluar el terreno', 'Qué va en el reporte', 'Proyectos y copia de seguridad', 'Herramientas', 'Arriba', 'Sin internet']);
     assert.deepEqual(await page.$$eval('#sheet .guide-h', (d) => d.map((x) => x.textContent)), ['Los tres pasos', 'Ejemplo: tu primer predio en 5 pasos', 'Lo demás']);
     // la ayuda nombra lo que la app hace hoy (2.19.0)
     const ayuda = await text('#sheet');
@@ -187,7 +187,7 @@ module.exports = async function (c) {
     assert.deepEqual(await page.$$eval('#sheet .guide-h', (d) => d.map((x) => x.textContent)), ['Qué es', 'Qué te dice cada parte del reporte', 'Usos por área', 'Hasta dónde llega']);
     assert.deepEqual(await page.$$eval('#sheet .guide:nth-of-type(3) dt', (d) => d.map((x) => x.textContent)), ['Agrícola y pecuaria', 'Forestal', 'Ambiental', 'Estudio y docencia', 'Predios y trámites']);
     const usos = await text('#sheet');
-    for (const w of ['Walter-Lieth', 'cuándo sembrar', 'el más alto y el más bajo', 'curvas de nivel', 'No reemplaza un plano hecho por un topógrafo', 'orientativo']) assert.ok(usos.includes(w), 'los usos no mencionan: ' + w);
+    for (const w of ['Walter-Lieth', 'cuándo sembrar', 'el más alto y el más bajo', 'curvas de nivel', 'No reemplaza un plano hecho por un topógrafo', 'orientativo', 'capacidad de uso del IGAC', 'No reemplaza un estudio de suelos']) assert.ok(usos.includes(w), 'los usos no mencionan: ' + w);
     await shot('177-para-que-sirve');
     await page.click('#sheet .btn-primary'); await waitSheetClosed();
     // fuentes: también las de las clasificaciones nuevas
