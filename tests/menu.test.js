@@ -27,7 +27,9 @@ test('menú inferior: ya no quedan los nombres viejos «Clima» e «Informe» co
 });
 
 test('textos de la app: el reporte y la pestaña de información se llaman con su nombre nuevo', () => {
-  const app = fs.readFileSync(path.join(__dirname, '..', 'www', 'js', 'app.js'), 'utf8');
+  // desde la 2.24.0 la interfaz se reparte entre app.js y sus partes (ui-*.js, ayudas.js): se revisan todas juntas
+  const dir = path.join(__dirname, '..', 'www', 'js');
+  const app = ['app.js', 'ayudas.js'].concat(fs.readdirSync(dir).filter((f) => /^ui-.*\.js$/.test(f))).map((f) => fs.readFileSync(path.join(dir, f), 'utf8')).join('\n');
   assert.match(app, /Compartir reporte/);
   assert.match(app, /Ir a Información/);
   assert.match(app, /desde la pestaña Información/);
