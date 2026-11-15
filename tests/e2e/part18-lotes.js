@@ -77,11 +77,11 @@ module.exports = async function (c) {
     assert.equal(raw.lotId, raw.lots[1].id);
   });
 
-  await step('«Usar este clima en todos los lotes» copia la lluvia y se puede deshacer; cada lote conserva su altitud', async () => {
+  await step('«Usar este clima en todos los polígonos» copia la lluvia y se puede deshacer; cada lote conserva su altitud', async () => {
     await page.click('section.tab:not([hidden]) .lots .lotchip:not([aria-pressed="true"]):not(.add)');       // Predio (el que tiene la lluvia)
     await tab('clima');
     await act('climateToAll');
-    assert.match(await toastText(), /^Clima copiado a 1 lote\./);
+    assert.match(await toastText(), /^Clima copiado a 1 polígono\./);
     assert.deepEqual((await lots()).map((l) => l.climate.pManual), [1200, 1200]);
     await page.click('#toast button');
     assert.deepEqual((await lots()).map((l) => l.climate.pManual), [1200, undefined]);

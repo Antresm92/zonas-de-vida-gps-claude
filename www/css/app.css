@@ -526,3 +526,4 @@ details.why summary { min-height: 32px; padding: 6px 0; color: var(--blue); font
 
 /* 2.23.6: lista «Qué polígonos exportar»: los lotes van con sangría bajo su predio */
 .expick.sub { padding-left: 30px; }
+.expick.warnrow small { color: var(--amber); }

@@ -35,7 +35,8 @@
         ['Candado 🔒', 'al pasar de un predio a otro polígono, su lindero se bloquea solo. Para cambiarlo, toca «Editar» en el aviso del candado.'],
         ['Linderos compartidos', 'si marcas o sueltas un punto muy cerca de la esquina de otro polígono, se pega a ella y los dos comparten el lindero exacto. Se apaga en Herramientas › Preferencias.'],
         ['＋ Lote y ＋ Predio', 'en la fila de arriba. «＋ Predio» crea otro predio y «＋ Lote», un lote dentro del predio elegido. Los dos dejan dibujarlo (con «Crear y dibujar en el mapa» se abre el mapa con su predio a la vista, listo para marcar los puntos tocándolo) o traerlo de un archivo (KML, KMZ, GeoJSON o GPX): si el archivo trae varios polígonos, eliges cuáles entran, y si alguno choca con los linderos, cuáles se ajustan.'],
-        ['Ajustar a los linderos', 'si el polígono que marcas se sale de su predio o se monta sobre otro, la app pregunta: «Ajustar a los linderos» lo recorta para que su borde siga el del predio y el de los vecinos (aparecen puntos nuevos en el lindero y se numeran de nuevo; se puede deshacer); «Dejar sobrepuesto» lo deja como está. Mientras siga encimado, dentro del mapa queda un aviso ámbar con el botón «Ajustar», y al tocar «Salir» la app vuelve a preguntar.']
+        ['Ajustar a los linderos', 'si el polígono que marcas se sale de su predio o se monta sobre otro, la app pregunta: «Ajustar a los linderos» lo recorta para que su borde siga el del predio y el de los vecinos (aparecen puntos nuevos en el lindero y se numeran de nuevo; se puede deshacer); «Dejar sobrepuesto» lo deja como está. Mientras siga encimado, dentro del mapa queda un aviso ámbar con el botón «Ajustar», y al tocar «Salir» la app vuelve a preguntar.'],
+          ['Exportar un polígono', 'en la hoja «Editar» del predio o lote (su nombre en la fila de arriba › Editar), «Exportar polígono» te lleva a Exportar con él ya marcado: solo eliges el formato (KML, Shapefile…). También en Polígono › Croquis › Exportar › «Elegir polígonos».']
       ]],
       ['Medir', [
         ['Medir distancia', 'toca el mapa para ir sumando tramos; al cerrar la figura da también el área. No cambia tus puntos.']
@@ -56,13 +57,14 @@
       ['Ejemplo: tu primer predio en 5 pasos', [
         ['1 · Marca el predio', 'En Polígono › Mapa usa el «Predio» que trae el proyecto (o «＋ Predio») y elige «Dibujar»: toca el mapa en cada esquina del terreno. También puedes caminar el lindero con el GPS desde Puntos o importarlo de un archivo.'],
         ['2 · Agrega los lotes', 'Con «＋ Lote» marca el cafetal, el potrero o el bosque dentro del predio. Si alguno se monta sobre otro, toca «Ajustar» en el aviso del mapa.'],
-        ['3 · Completa el clima', 'En Información toca «Completar con internet» (o escribe tus datos medidos). Si todos los lotes comparten el clima del predio, «Usar este clima en todos los lotes» lo copia.'],
+        ['3 · Completa el clima', 'En Información toca «Completar con internet» (o escribe tus datos medidos). Con «Elegir polígonos ▾» completas varios a la vez. Si todos comparten el clima del predio, «Usar este clima en todos los polígonos» lo copia (los que tienen datos escritos a mano los conservan).'],
         ['4 · Revisa el reporte', 'En Reporte mira la zona de vida, el clima y los croquis, y desmarca las secciones que no necesites.'],
         ['5 · Comparte', '«Compartir reporte» en PDF o HTML: completo, solo los predios o un solo polígono. Para Google Earth o QGIS, Polígono › Croquis › Exportar.']
       ]],
       ['Lo demás', [
         ['Polígono', 'El croquis con las medidas y para exportar (KML, GeoJSON, GPX, CSV y Shapefile; todo el proyecto o los polígonos que elijas en una lista). En «Mapa», el terreno sobre calles, satélite o topográfico: ahí se crean, mueven y ordenan los puntos, y se mide.'],
         ['Predios y lotes', 'Todo proyecto empieza con su predio (el terreno completo); dentro de él van los lotes (potrero, cafetal, cultivo…), y puede haber varios predios. Cada polígono tiene sus puntos, su clima y su zona de vida. Se eligen en la fila de arriba; «＋ Predio» y «＋ Lote» crean otro, dibujándolo en el mapa o importándolo de un archivo. Si uno se sale de su predio o se monta sobre otro, un aviso en el mapa ofrece «Ajustar» sus linderos.'],
+        ['Varios polígonos a la vez', 'En Información, «Elegir polígonos ▾» completa con internet los que marques, uno por uno, y al final dice cuáles quedaron listos. «Limpiar información del polígono» borra lo que elijas (clima o altitudes según su origen) para volver a completarlo; se puede deshacer.'],
         ['Qué va en el reporte', 'En «Reporte», la casilla a la izquierda de cada sección decide si esa parte sale en el reporte que compartes. Con varios polígonos, al compartir eliges: «Completo» (el resumen y cada polígono, cada predio seguido de sus lotes), «Global» (solo los predios que marques) o «Específico» (un solo polígono). El croquis de cada polígono se enfoca en él y resalta solo sus puntos; los demás se ven tenues de fondo.'],
         ['Proyectos y copia de seguridad', 'Cada proyecto guarda en el teléfono sus predios, lotes, puntos y fotos; en Herramientas › Proyectos creas otro o cambias de proyecto. Haz con frecuencia una copia de seguridad (.zip) y guárdala fuera del teléfono: si la app se desinstala o el teléfono se pierde, es la única forma de recuperar tu trabajo.'],
         ['Herramientas', 'Conversor de unidades, clima y GPS en vivo, proyectos y copia de seguridad, el encabezado del reporte (tu nombre y tu logo), preferencias y estas ayudas.'],
@@ -73,14 +75,13 @@
     /* ---------- Qué hay de nuevo (2.23.5) ----------
      * Quien ya usaba la app y la actualiza ve, una sola vez, un resumen corto de lo nuevo; quien la instala por primera vez ve la ayuda
      * completa y no esto. Para una actualización grande futura basta con cambiar WHATS_NEW_ID y la lista. */
-    var WHATS_NEW_ID = '2.23';
+    var WHATS_NEW_ID = '2.25';
     var WHATS_NEW = [
-      ['＋ Predio y ＋ Lote', 'en la fila de arriba de cada pantalla: crean un predio o un lote dentro del predio elegido, dibujándolo en el mapa o importándolo de un archivo (si trae varios, eliges cuáles).'],
-      ['Solo predios y lotes', 'el predio es el terreno completo y los lotes (cafetal, potrero, bosque…) van dentro; cada lote dice qué parte del predio ocupa.'],
-      ['Ajustar a los linderos', 'si un polígono se sale de su predio o se monta sobre otro, un aviso en el mapa ofrece recortarlo para que siga el lindero.'],
-      ['Reporte a la medida', 'al compartir eliges el reporte completo, solo los predios o un solo polígono; el croquis de cada uno se enfoca en él.'],
-      ['Exportar lo que elijas', 'en Polígono › Croquis › Exportar, «Elegir polígonos» abre una lista para marcar cuáles salen en el archivo; con uno solo, sirve para llevarlo a otro proyecto.'],
-      ['Más colores', '30 colores para distinguir predios y lotes.']
+      ['Exportar polígono', 'en la hoja «Editar» de cada predio o lote: te lleva a Exportar con ese polígono ya marcado; solo eliges el formato.'],
+      ['Siempre a la vista', 'la fila de arriba se desliza sola hasta el polígono elegido, en todas las pantallas.'],
+      ['Completar varios', 'en Información, «Elegir polígonos ▾» completa con internet los que marques, uno por uno, y al final muestra cuáles quedaron listos y cuáles no.'],
+      ['Lo escrito a mano manda', 'internet solo llena lo que falta, y «Usar este clima en todos los polígonos» ya no reemplaza los datos que escribiste a mano en los demás.'],
+      ['Limpiar información', 'en Información, borra lo que elijas de un polígono (clima de internet o a mano, altitudes según su origen) y, si quieres, lo vuelve a completar con internet. Se puede deshacer.']
     ];
     function openWhatsNew() {
       openSheet('Qué hay de nuevo', '<p class="lead">Versión ' + esc(APP_VERSION) + '</p><dl class="guide" id="whatsNew">' +

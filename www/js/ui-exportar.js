@@ -107,6 +107,8 @@
       }).catch(function (e) { toast('No se pudo guardar el archivo: ' + (e && e.message || e), { err: true }); });
     }
 
+    // 2.25.0: «Exportar polígono» (hoja Editar) deja marcado solo ese polígono en «Elegir polígonos»
+    function pickOnly(id) { ui.expSel = [id]; ui.expSelProj = proj().id; ui.expPick = true; }
     // Botones de la hoja: «Todo el proyecto» y «Marcar todos» / «Ninguno»
     function expScope() { ui.expPick = false; renderTab(ui.tab); }
     function expPickAll(t) { var v = t.getAttribute('data-v') === '1'; [].forEach.call(document.querySelectorAll('#expList input'), function (i) { i.checked = v; }); }
@@ -117,6 +119,6 @@
       [].forEach.call(document.querySelectorAll('#expList input[data-parent="' + t.getAttribute('data-id') + '"]'), function (i) { i.checked = t.checked; });
     });
 
-    return { exportBlock: exportBlock, exportAs: exportAs, openExpPick: openExpPick, expPickDone: expPickDone, expScope: expScope, expPickAll: expPickAll };
+    return { exportBlock: exportBlock, exportAs: exportAs, openExpPick: openExpPick, expPickDone: expPickDone, expScope: expScope, expPickAll: expPickAll, pickOnly: pickOnly };
   };
 })();

@@ -5,7 +5,7 @@
   var Geo = window.Geo, H = window.Holdridge, Climate = window.Climate, A = window.Analysis, Fmt = window.Fmt,
       Gps = window.Gps, Store = window.Store, Diagram = window.Diagram, Report = window.Report,
       Gis = window.Gis, Backup = window.Backup, IO = window.IO, WL = window.WalterLieth, Mapa = window.Mapa, MapView = window.MapView, Satelite = window.Satelite, Perfil = window.Perfil, Fotos = window.Fotos, Zip = window.Zip, Units = window.Units;
-  var APP_VERSION = '2.24.0';
+  var APP_VERSION = '2.25.0';
 
   var S = Store.loadState();
   // 2.22.0: la primera vez, los lotes de antes que están dentro de un predio pasan a pertenecerle
@@ -669,7 +669,7 @@
       (!empty ? '<p class="small muted">' + esc(lotSub(l)) + '</p>' : '<p class="small muted" id="lotDrawHint">' + (l ? 'Al guardarlo' : 'Al crearlo') + ' se abre el mapa para que marques sus puntos tocándolo. Si prefieres caminar el lindero con el GPS o escribir coordenadas, toca «Salir» y hazlo desde Puntos.</p>');
     if (l && !empty && l.kind === 'finca' && e.k === 'finca') h += '<div class="btns"><button class="btn" data-act="lotLock" data-id="' + esc(l.id) + '">' + (l.locked ? '🔓 Desbloquear el lindero para editarlo' : '🔒 Bloquear el lindero') + '</button></div>';
     return h + '<div class="btns"><button class="btn btn-primary" data-act="lotSave">' + (!l ? 'Crear y dibujar en el mapa' : empty ? 'Guardar y dibujar en el mapa' : 'Guardar') + '</button>' +
-      '</div>' + lotDeleteBox(l, p);
+      '</div>' + (l && !empty ? '<div class="btns" id="lotExpBox"><button class="btn" data-act="expOne" data-id="' + esc(l.id) + '">Exportar polígono</button></div>' : '') + lotDeleteBox(l, p);
   }
   /* ---------- Importar polígonos de un archivo directamente como predios o lotes (2.23.0) ---------- */
   // La parte de la hoja para «Importar archivo»: elegir el archivo y, cuando ya se leyó, marcar cuáles de sus polígonos entran
@@ -944,22 +944,6 @@
       p.lots.splice(Math.min(i, p.lots.length), 0, gone); p.lotId = prev; save(); renderTab(ui.tab);
     } });
   }
-  // Copia el clima del lote elegido a los demás (la altitud escrita a mano no se copia: cada lote tiene la suya)
-  function climateToAll() {
-    var p = proj(), cur = lot(), n = 0, before = p.lots.map(function (l) { return JSON.stringify(l.climate); });
-    p.lots.forEach(function (l) {
-      if (l === cur) return;
-      var c = JSON.parse(JSON.stringify(cur.climate)), own = l.climate.altOverride;
-      delete c.altOverride;
-      if (own !== undefined) c.altOverride = own;
-      l.climate = c; n++;
-    });
-    save(); renderTab(ui.tab);
-    toast('Clima copiado a ' + n + (n === 1 ? ' lote' : ' lotes') + '. La temperatura de cada uno se ajusta con su altitud.', { action: 'Deshacer', fn: function () {
-      p.lots.forEach(function (l, k) { if (before[k] !== undefined) l.climate = JSON.parse(before[k]); }); save(); renderTab(ui.tab);
-    } });
-  }
-
   function editMain() {
     var p = proj();
     ui.edit = { kind: 'main', color: p.mainColor };
@@ -1993,17 +1977,8 @@
     if (a.empty) return '<div class="empty"><b>Sin puntos todavía</b>Agrega un punto en la pestaña Puntos para ver o completar el clima.</div>';
     var cl = a.climate;
 
-    // Lo primero, lo que más ahorra trabajo: traer los datos de internet
-    h += '<div class="block"><h2>Completar con internet</h2>';
-    h += '<p class="lead">Trae la altitud de cada punto sin altitud y el clima de la zona, mes por mes (NASA POWER y, si no responde, Open-Meteo). Lo que traes queda guardado en el equipo para usarlo sin conexión.</p>';
-    if (ui.staleOnline) h += '<div class="tip">Los datos de internet guardados son de otro lugar; vuelve a completarlos.</div>';
-    if (c.online && !ui.staleOnline) h += '<p class="small muted">Última descarga: ' + esc(Fmt.date(c.online.date)) + (c.online.source ? ' · ' + esc(c.online.source) : '') + '.</p>';
-    var offline = navigator.onLine === false;
-    h += '<button class="btn btn-primary btn-block" data-act="fetchOnline"' + (ui.fetching ? ' disabled' : '') + '>' + (ui.fetching ? 'Consultando…' : 'Completar con internet') + '</button>';
-    if (offline) h += '<p class="small muted">Ahora no hay conexión. Tus puntos quedan guardados; completa cuando tengas internet.</p>';
-    if (multi()) h += '<button class="btn btn-block" style="margin-top:10px" data-act="climateToAll">Usar este clima en todos los lotes</button><p class="small muted">Cada lote guarda su propio clima, tomado desde su centro. La lluvia de internet viene en cuadros de unos 50 km, así que en una misma finca suele ser igual; la temperatura cambia con la altitud de cada lote.</p>';
-    h += '</div>';
-
+    // Lo primero, lo que más ahorra trabajo: traer los datos de internet (y elegir varios, copiar o limpiar)
+    h += Completar.block(a);
 
     h += '<div class="block"><h2>Altitud</h2>';
     if (a.alt.value !== null) {
@@ -2126,40 +2101,9 @@
     save(); renderTab('clima');
   }
 
-  function fetchOnline() {
-    var a = analysis();
-    if (a.empty || ui.fetching) return;
-    if (navigator.onLine === false) { toast('Sin conexión. Tus puntos quedan guardados; completa cuando tengas internet.', { err: true }); return; }
-    var p = proj(), c = p.climate;
-    var need = p.points.filter(function (pt) { return !isNum(pt.alt); });
-    ui.fetching = true; renderTab('clima');
-    Climate.fetchOnline(a.center.lat, a.center.lon, null, { points: need.map(function (pt) { return { lat: pt.lat, lon: pt.lon }; }) })
-      .then(function (res) {
-        ui.fetching = false;
-        var did = [];
-        if (res.pointElevations && need.length) {
-          var k = 0;
-          need.forEach(function (pt, i) { var e = res.pointElevations[i]; if (isNum(e)) { pt.alt = e; pt.altSrc = 'internet'; k++; } });
-          if (k) did.push('altitud de ' + k + ' punto' + (k > 1 ? 's' : ''));
-        }
-        if (res.climate || isNum(res.elevation)) {
-          var rc = res.climate, yrs = rc && rc.years ? ' ' + rc.years[0] + '–' + rc.years[1] : '';
-          c.online = { T: rc ? rc.T : null, P: rc ? rc.P : null, monthlyT: rc ? rc.monthlyT : null, monthlyP: rc ? rc.monthlyP : null,
-                       elevCell: rc ? rc.elevCell : null, elevation: res.elevation, date: Date.now(), lat: a.center.lat, lon: a.center.lon,
-                       source: rc ? (rc.source || 'NASA POWER') + yrs : null };
-        }
-        if (res.climate) {
-          did.push('clima de la zona');
-          MEM.add([{ lat: a.center.lat, lon: a.center.lon, alt: res.climate.elevCell, T: res.climate.T, P: res.climate.P, src: 'internet', date: Date.now() }]);
-          saveMemory();
-        }
-        save();
-        if (did.length) toast('Listo: ' + did.join(' y ') + '.' + (res.notes && res.notes.length ? ' ' + res.notes[0] : '') + (res.errors.length ? ' Algo no se pudo traer: ' + res.errors[0] : ''));
-        else toast('No se pudo consultar internet. ' + (res.errors[0] || '') + ' Puedes escribir los datos a mano.', { err: true });
-        renderTab(ui.tab);
-      })
-      .catch(function (e) { ui.fetching = false; toast('No se pudo consultar internet: ' + (e && e.message || e), { err: true }); renderTab(ui.tab); });
-  }
+  /* ---------- Completar, copiar y limpiar la información (en js/ui-completar.js desde 2.25.0) ---------- */
+  var Completar = window.ZV.completar({ S: S, ui: ui, MEM: MEM, proj: proj, lot: lot, multi: multi, esc: esc, toast: toast,
+    openSheet: openSheet, closeSheet: closeSheet, renderTab: renderTab, save: save, saveMemory: saveMemory });
 
   function importCsv(file) {
     var fr = new FileReader();
@@ -2923,11 +2867,29 @@
     if (!el) return;
     var sy = window.scrollY;
     el.innerHTML = (hasLots(t) ? lotsBar() : '') + (hasSteps(t) ? stepsHtml() : '') + TABS[t]();
+    syncLotsBar(el, t);
     hydratePhotos(el);
     if (t === 'puntos') { updateReadout(); updateProgress(); }
     if (t === 'area') { mountMap(); updateProgress(); }
     if (t === 'informe') { foldReport(); mountDiagram(); }
     window.scrollTo(0, sy);
+  }
+  // 2.25.0: la fila de polígonos se desliza sola hasta el elegido al cambiar de polígono, de pestaña o de vista. Si la persona la
+  // desliza a mano, se respeta dónde la dejó mientras siga en el mismo polígono y la misma pantalla (cada dibujo la vuelve a crear).
+  function syncLotsBar(el, t) {
+    var bar = el.querySelector('.lots');
+    if (!bar) return;
+    var p = proj(), key = p.id + '|' + p.lotId + '|' + t + '|' + (t === 'area' ? ui.polyView : '');
+    if (ui.lotsKey === key && typeof ui.lotsLeft === 'number') bar.scrollLeft = ui.lotsLeft;
+    else {
+      var on = bar.querySelector('[aria-pressed="true"]');
+      if (on && bar.getBoundingClientRect) {
+        var br = bar.getBoundingClientRect(), or = on.getBoundingClientRect();
+        if (br.width) bar.scrollLeft = Math.max(0, bar.scrollLeft + or.left - br.left - (br.width - or.width) / 2);
+      }
+    }
+    ui.lotsKey = key; ui.lotsLeft = bar.scrollLeft;
+    bar.addEventListener('scroll', function () { ui.lotsLeft = bar.scrollLeft; }, { passive: true });
   }
   // Al salir del mapa se sueltan la mira y la medida (caminar el lindero sigue, porque depende del GPS y no de la pantalla)
   function leaveMap() {
@@ -3019,7 +2981,8 @@
     unit: function (t) { S.settings.areaUnit = t.getAttribute('data-u'); save(); renderTab('area'); },
     reorder: reorder,
     clearField: function (t) { delete proj().climate[t.getAttribute('data-field')]; save(); renderTab('clima'); },
-    fetchOnline: fetchOnline,
+    fetchOnline: Completar.fetchOnline, fetchPick: Completar.openFetchPick, fetchPickAll: Completar.fetchPickAll, fetchPickGo: Completar.fetchPickGo,
+    cleanAsk: Completar.openClean, cleanDo: Completar.cleanDo,
     importCsv: function () { $('#csvFile').click(); },
     askClearMem: function () { openSheet('¿Borrar los datos guardados?', '<p>Se borran los ' + MEM.count + ' registros de clima de este equipo. Tus puntos y proyectos no cambian.</p><div class="btns"><button class="btn btn-danger" data-act="doClearMem">Borrar</button><button class="btn" data-act="closeSheet">Conservar</button></div>'); },
     doClearMem: function () { MEM.clear(); saveMemory(); closeSheet(); renderTab(ui.tab); toast('Datos borrados.'); },
@@ -3055,6 +3018,7 @@
     lotAdd: function () { lotForm(''); }, predioAdd: function () { lotForm('', 'predio'); },
     lotMode: function (t) { var e = ui.edit; if (!e || e.kind !== 'lot') return; lotFormRead(); e.mode = t.getAttribute('data-m'); lotFormRefresh(); },
     lotFile: function () { lotFormRead(); $('#polyFile').click(); }, lotImport: lotImport, adjustMany: adjustMany,
+    expOne: function (t) { Exportar.pickOnly(t.getAttribute('data-id')); closeSheet(); goExport(); },
     expScope: Exportar.expScope, expPickOpen: openExpPick, expPickDone: expPickDone,
     expPickAll: Exportar.expPickAll, lotEdit: function (t) { lotForm(t.getAttribute('data-id')); }, lotSave: lotSave,
     lotNewMap: function () { closeSheet(); lotForm('', 'map'); },
@@ -3064,7 +3028,7 @@
     lotLock: function (t) { var id = t.getAttribute('data-id'), l = proj().lots.filter(function (x) { return x.id === id; })[0]; if (l) { closeSheet(); setLock(l, !l.locked); } },
     lotDelete: function (t) { lotDelete(t.getAttribute('data-id')); }, lotReset: function (t) { lotReset(t.getAttribute('data-id')); },
     lotDeleteAsk: function (t) { lotDeleteAsk(t.getAttribute('data-id')); }, lotDeleteNo: function () { var p = proj(), e = ui.edit, l = e && p.lots.filter(function (x) { return x.id === e.id; })[0], b = $('#lotDelBox'); if (b && l) b.outerHTML = lotDeleteBox(l, p); },
-    hugePoint: function () { hugePoint(); }, climateToAll: climateToAll,
+    hugePoint: function () { hugePoint(); }, climateToAll: Completar.climateToAll,
     authorEdit: function () { openAuthor(false); },
     authorLogo: function () { readAuthorInputs(); $('#logoFile').click(); },
     authorLogoDel: function () { ui.authorDraft.logo = ''; refreshAuthor(); },

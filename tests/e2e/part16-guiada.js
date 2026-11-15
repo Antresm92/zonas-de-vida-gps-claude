@@ -169,7 +169,7 @@ module.exports = async function (c) {
     await page.click('#sheet .btn-primary'); await waitSheetClosed();
     await act('appGuide'); await page.waitForSelector('#sheet:not([hidden])');
     assert.equal(await sheetTitle(), 'Cómo usar la app');
-    assert.deepEqual(await page.$$eval('#sheet .guide dt', (d) => d.map((x) => x.textContent)), ['1 · Puntos', '2 · Información', '3 · Reporte', '1 · Marca el predio', '2 · Agrega los lotes', '3 · Completa el clima', '4 · Revisa el reporte', '5 · Comparte', 'Polígono', 'Predios y lotes', 'Qué va en el reporte', 'Proyectos y copia de seguridad', 'Herramientas', 'Arriba', 'Sin internet']);
+    assert.deepEqual(await page.$$eval('#sheet .guide dt', (d) => d.map((x) => x.textContent)), ['1 · Puntos', '2 · Información', '3 · Reporte', '1 · Marca el predio', '2 · Agrega los lotes', '3 · Completa el clima', '4 · Revisa el reporte', '5 · Comparte', 'Polígono', 'Predios y lotes', 'Varios polígonos a la vez', 'Qué va en el reporte', 'Proyectos y copia de seguridad', 'Herramientas', 'Arriba', 'Sin internet']);
     assert.deepEqual(await page.$$eval('#sheet .guide-h', (d) => d.map((x) => x.textContent)), ['Los tres pasos', 'Ejemplo: tu primer predio en 5 pasos', 'Lo demás']);
     // la ayuda nombra lo que la app hace hoy (2.19.0)
     const ayuda = await text('#sheet');
@@ -215,7 +215,7 @@ module.exports = async function (c) {
     await page.reload(); await page.waitForSelector('#sheet:not([hidden])');
     assert.equal(await sheetTitle(), 'Qué hay de nuevo');
     const dts = await page.$$eval('#whatsNew dt', (d) => d.map((x) => x.textContent));
-    assert.deepEqual(dts.slice(0, 3), ['＋ Predio y ＋ Lote', 'Solo predios y lotes', 'Ajustar a los linderos']);
+    assert.deepEqual(dts.slice(0, 3), ['Exportar polígono', 'Siempre a la vista', 'Completar varios']);
     assert.deepEqual(await page.$$eval('#sheet .btns button', (b) => b.map((x) => x.textContent)), ['Entendido', 'Ver la ayuda completa']);
     await shot('177-que-hay-de-nuevo');
     await page.click('#sheet [data-act="appGuide"]');
