@@ -99,6 +99,12 @@ Sube la carpeta `www/` a cualquier alojamiento web con HTTPS (por ejemplo GitHub
 - **Exportar**: KML, GeoJSON y GPX llevan todos los lotes (el elegido como polígono principal, los demás como capas con su nombre); el CSV añade la columna `Lote` y el Shapefile la columna `LOTE`, con una figura por lote.
 - **Guardado**: los proyectos de versiones anteriores pasan solos a tener un «Lote 1» con todo lo que tenían. La copia de seguridad lleva los lotes, y una copia hecha con una versión anterior se sigue pudiendo restaurar. Una copia hecha con la 2.15.0 (formato 2) no se puede restaurar en una versión anterior de la app: esta avisa que hay que actualizar.
 
+**2.28.0: predios, lotes y mapa salen de `app.js`; termina la división (sin cambiar lo que hace la app).**
+- **`js/ui-lotes.js`**: la fila de polígonos, la lista «Lotes de…», la ficha «Editar predio/lote», predios con sus lotes, importar polígonos directo y el aviso de áreas enormes.
+- **`js/ui-mapa.js`**: la vista Mapa (dibujo, menú ⋮, tocar, arrastrar y pegar puntos, deshacer, «Ajustar a los linderos», lo que va encima y las herramientas de abajo).
+- Como cada parte usa funciones de la otra (los lotes llaman al mapa y el mapa a los lotes), las que se arman después se pasan «diferidas»: se buscan en el momento en que se usan.
+- `app.js` pasó de unas 3.400 líneas (2.23.8) a unas 1.460: queda el núcleo (estado, GPS, puntos, hojas, pestañas, eventos, inicio) y las pestañas Puntos, Polígono › Croquis e Información. Verificado con 703 pruebas unitarias y 305 pasos en el navegador.
+
 **2.27.0: herramientas, crédito y autor salen de `app.js` (sin cambiar lo que hace la app).**
 - La pestaña Herramientas (tarjetas y menú, crédito de Campesino Urbano con sus redes), la hoja del autor y logo del reporte, y el conversor, el clima actual y el GPS en vivo pasan a **`js/ui-herramientas.js`**. `app.js` queda en unas 2.580 líneas. Verificado con 703 pruebas unitarias y 305 pasos en el navegador.
 
@@ -387,7 +393,9 @@ www/                 la app (HTML, CSS y JavaScript; el mapa usa Leaflet, inclui
   js/ui-completar.js «Completar con internet» (uno o varios), «Usar este clima en todos los polígonos» y «Limpiar información ▾» (2.25.0)
   js/ui-reporte.js   pestaña Reporte: secciones, croquis, qué polígonos van y entrega en HTML o PDF (2.26.0)
   js/ui-herramientas.js pestaña Herramientas, crédito, autor del reporte, conversor, clima actual y GPS en vivo (2.27.0)
-  js/app.js          interfaz (el resto; se sigue dividiendo por temas)
+  js/ui-lotes.js     predios y lotes: fila, lista, ficha, importar directo y borrar (2.28.0)
+  js/ui-mapa.js      vista Mapa: dibujo, menú, puntos, deshacer, ajustar a los linderos y herramientas (2.28.0)
+  js/app.js          núcleo de la interfaz: estado, GPS, puntos, hojas, pestañas, eventos e inicio
 tests/               pruebas unitarias (npm test) y en navegador (tests/e2e)
 tools/cobertura.js   mide qué código ejecutan las pruebas
 android-res/         íconos de Android
