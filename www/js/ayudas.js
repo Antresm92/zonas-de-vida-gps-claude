@@ -66,6 +66,7 @@
         ['Predios y lotes', 'Todo proyecto empieza con su predio (el terreno completo); dentro de él van los lotes (potrero, cafetal, cultivo…), y puede haber varios predios. Cada polígono tiene sus puntos, su clima y su zona de vida. Se eligen en la fila de arriba; «＋ Predio» y «＋ Lote» crean otro, dibujándolo en el mapa o importándolo de un archivo. Si uno se sale de su predio o se monta sobre otro, un aviso en el mapa ofrece «Ajustar» sus linderos.'],
         ['Varios polígonos a la vez', 'En Información, «Elegir polígonos ▾» completa con internet los que marques, uno por uno, y al final dice cuáles quedaron listos. «Limpiar información ▾» borra, en los polígonos que marques, lo que elijas (clima o altitudes según su origen) para volver a completarlos; se puede deshacer.'],
         ['Usos recomendados y evaluar el terreno', 'Al final de Información, «Usos recomendados» 🌱 da la clase de capacidad de uso del IGAC (1 a 8) del polígono elegido, qué la limita y para qué sirve esa tierra. La pendiente, el piso térmico y la humedad los pone la app; lo demás lo respondes en «Evaluar el terreno ▾»: lo que ves en campo (erosión, drenaje, inundaciones, piedras, profundidad, heladas, lluvias) y, si tienes análisis de suelos, lo del laboratorio. Si no sabes algo, deja «No sé»: la clase queda «provisional» porque lo que falta puede bajarla. Para las lluvias por semestre la app propone una estimación con la lluvia mes por mes; lo que observes en campo manda. El [1] y el [2] muestran las fuentes.'],
+        ['Cultivos a evaluar y conclusión', 'En «Usos recomendados», «Cultivos a evaluar ▾» compara la temperatura y la lluvia del polígono con las de 127 cultivos sembrados en Colombia (base ECOCROP de la FAO) y con la clase de tierra del IGAC: los separa en óptimos, posibles con limitaciones (y qué los limita), marginales y no recomendados. Al final de cada polígono, el reporte trae «Conclusión y recomendaciones» con un resumen, recomendaciones con su fuente y esos cultivos. Es una estimación: valídala con un profesional.'],
         ['Qué va en el reporte', 'En «Reporte», la casilla a la izquierda de cada sección decide si esa parte sale en el reporte que compartes. Con varios polígonos, al compartir eliges: «Completo» (el resumen y cada polígono, cada predio seguido de sus lotes), «Global» (solo los predios que marques) o «Específico» (un solo polígono). El croquis de cada polígono se enfoca en él y resalta solo sus puntos; los demás se ven tenues de fondo.'],
         ['Proyectos y copia de seguridad', 'Cada proyecto guarda en el teléfono sus predios, lotes, puntos y fotos; en Herramientas › Proyectos creas otro o cambias de proyecto. Haz con frecuencia una copia de seguridad (.zip) y guárdala fuera del teléfono: si la app se desinstala o el teléfono se pierde, es la única forma de recuperar tu trabajo.'],
         ['Herramientas', 'Conversor de unidades, clima y GPS en vivo, proyectos y copia de seguridad, el encabezado del reporte (tu nombre y tu logo), preferencias y estas ayudas.'],
@@ -76,12 +77,11 @@
     /* ---------- Qué hay de nuevo (2.23.5) ----------
      * Quien ya usaba la app y la actualiza ve, una sola vez, un resumen corto de lo nuevo; quien la instala por primera vez ve la ayuda
      * completa y no esto. Para una actualización grande futura basta con cambiar WHATS_NEW_ID y la lista. */
-    var WHATS_NEW_ID = '2.29';
+    var WHATS_NEW_ID = '2.30';
     var WHATS_NEW = [
-      ['Usos recomendados 🌱', 'en Información, la clase de capacidad de uso de cada polígono según la metodología oficial del IGAC (clases 1 a 8), qué la limita y los usos de esa clase, con la fuente y su enlace. También sale en el reporte.'],
-      ['Evaluar el terreno', 'en «Usos recomendados», responde lo que ves en campo (erosión, drenaje, inundaciones, piedras, profundidad…) y lo del laboratorio, si lo tienes. Siempre puedes dejar «No sé»: la clase queda como provisional.'],
-      ['Lluvias por semestre', 'se preguntan en campo; la app propone una estimación con la lluvia mes por mes y explica cómo la calcula. Lo que tú observes manda.'],
-      ['Más ordenada por dentro', 'el código de la app se dividió en partes más pequeñas para corregir y mejorar más fácil. Para ti funciona igual.']
+      ['Cultivos a evaluar', 'en Información › Usos recomendados, «Cultivos a evaluar ▾» compara el clima de cada polígono y su clase de tierra con 127 cultivos sembrados en Colombia: óptimos, posibles con limitaciones (y qué los limita), marginales y no recomendados.'],
+      ['Conclusión y recomendaciones', 'al final de cada polígono del reporte: un resumen del predio, recomendaciones con su fuente y los cultivos a evaluar. Es una estimación y no reemplaza a un profesional.'],
+      ['Usos recomendados 🌱', 'la clase de capacidad de uso del IGAC (1 a 8) de cada polígono, con «Evaluar el terreno» para lo de campo y laboratorio, todo con «No sé».']
     ];
     function openWhatsNew() {
       openSheet('Qué hay de nuevo', '<p class="lead">Versión ' + esc(APP_VERSION) + '</p><dl class="guide" id="whatsNew">' +
@@ -108,6 +108,7 @@
         ['De Martonne y Köppen', 'Dos clasificaciones del clima usadas en todo el mundo: De Martonne dice qué tan seco o húmedo es el sitio; Köppen lo ubica entre los grandes tipos de clima y sirve para compararlo con otras regiones.'],
         ['Resumen de predios y lotes', 'Cuánto mide cada predio y qué parte ocupa cada lote (en hectáreas y en % del predio); avisa si algún polígono se sale de su predio o se monta sobre otro.'],
         ['Usos recomendados', 'Qué tan intensamente se puede usar esa tierra sin dañarla y para qué: cultivos, ganadería, bosque o conservación, según la clase de capacidad de uso del IGAC (1 a 8), y qué la limita (pendiente, erosión, agua, suelo o clima). Sirve como base técnica para planear un cultivo o un proyecto.'],
+        ['Conclusión y recomendaciones', 'Un resumen del polígono (zona de vida, clima, meses secos y clase de tierra), recomendaciones con su fuente (pendiente, riego, drenaje, análisis de suelos) y los cultivos a evaluar según el clima y la tierra. Sirve como punto de partida para proyectar un cultivo o un proyecto.'],
         ['Coordenadas', 'La ubicación de cada punto en grados y en coordenadas planas (MAGNA-SIRGAS / Origen Nacional), lista para pasarla a un plano o a QGIS.'],
         ['Fotos', 'Las fotos tomadas en cada punto, como evidencia de lo que había el día de la visita.']
       ]],
@@ -121,6 +122,7 @@
       ['Hasta dónde llega', [
         ['Precisión', 'El GPS de un teléfono tiene un error de varios metros: en un predio pequeño el área puede variar varios por ciento. El clima viene de datos en cuadros de varios kilómetros, ajustados con la altitud.'],
         ['Es orientativo', 'El resultado sirve para orientar decisiones y preparar visitas; para decisiones legales o inversiones grandes, confírmalo con mediciones y con un profesional.'],
+        ['Cultivos a evaluar', 'Salen de rangos generales de temperatura y lluvia (FAO) y de la clase de tierra: no tienen en cuenta la variedad, el suelo que no evaluaste, el riego disponible, las plagas ni el mercado. Son cultivos para evaluar, no una orden de siembra.'],
         ['La clase de uso', 'Sale solo de los datos que evaluaste: el suelo, las heladas o las inundaciones que no hayas revisado pueden bajarla. No reemplaza un estudio de suelos ni la visita de un profesional.']
       ]]
     ];
@@ -140,6 +142,7 @@
         ['Köppen-Geiger y De Martonne', 'Criterios de Peel, Finlayson y McMahon (2007) para Köppen-Geiger; índice de aridez de E. de Martonne (1926).'],
         ['Diagrama de Walter-Lieth', 'Climodiagrama de H. Walter y H. Lieth: un mes es seco cuando la lluvia (mm) es menor que el doble de la temperatura (°C).'],
         ['Usos recomendados', 'Instituto Geográfico Agustín Codazzi (IGAC), «Clasificación de las tierras por su capacidad de uso», instructivo IN-GAG-PC05-02, versión 1 (2021). La estimación de las lluvias por semestre es una regla de la app basada en el criterio de mes seco de Walter-Lieth.'],
+        ['Cultivos a evaluar', 'FAO, base de datos ECOCROP (requerimientos de temperatura y lluvia), en la versión del paquete Recocrop de R. J. Hijmans y R. Manners (2025, licencia GPL-3); método de aptitud de Hackett (1991). El nombre en Colombia, el tipo de cultivo y la lectura de la clase del IGAC son de la app.'],
         ['Clases de pendiente', 'Instituto Geográfico Agustín Codazzi (IGAC), clases de pendiente de sus levantamientos de suelos y geomorfología.'],
         ['Coordenadas planas', 'MAGNA-SIRGAS / Origen Nacional (EPSG:9377), sistema único adoptado por el IGAC en 2020.']
       ];

@@ -33,4 +33,6 @@ test('la ayuda explica «Usos recomendados» donde corresponde', () => {
   assert.match(sheets[0][1], /Usos recomendados y evaluar el terreno/);
   assert.match(sheets[1][1], /capacidad de uso del IGAC/); assert.match(sheets[1][1], /No reemplaza un estudio de suelos/);
   assert.match(sheets[2][1], /IN-GAG-PC05-02/);
+  assert.match(sheets[0][1], /Cultivos a evaluar y conclusión/); assert.match(sheets[1][1], /Conclusión y recomendaciones/);
+  assert.match(sheets[1][1], /no una orden de siembra/); assert.match(sheets[2][1], /ECOCROP/);
 });

@@ -2,18 +2,32 @@
  * Muestra la clase de capacidad de uso del polígono elegido según el IGAC, qué la limita y los usos de esa clase, con lo
  * que la app calcula (pendiente, piso térmico, humedad) y lo que la persona evalúa en campo y en laboratorio (hoja
  * «Evaluar el terreno», con «No sé» en todo). Cada dato lleva su número de fuente, que abre la cita con su enlace.
- * La lógica está en usos.js y capacidad.js; aquí solo se dibuja y se guarda lot.terreno.
- * Usa lo que app.js le pasa al llamarla: ui, lot, analysis, esc, toast, openSheet, closeSheet, save y renderTab. */
+ * Desde 2.30.0 también «Cultivos a evaluar ▾» (cultivos.js, con los requerimientos de ECOCROP de la FAO) y el modelo de la
+ * sección final del reporte «Conclusión y recomendaciones».
+ * La lógica está en usos.js, capacidad.js y cultivos.js; aquí solo se dibuja y se guarda lot.terreno.
+ * Usa lo que app.js le pasa al llamarla: ui, lot, analysis, lotArea, esc, toast, openSheet, closeSheet, save y renderTab. */
 (function () {
   'use strict';
   window.ZV = window.ZV || {};
   window.ZV.usos = function (ctx) {
     var ui = ctx.ui, lot = ctx.lot, analysis = ctx.analysis, esc = ctx.esc, toast = ctx.toast,
-      openSheet = ctx.openSheet, closeSheet = ctx.closeSheet, save = ctx.save, renderTab = ctx.renderTab;
-    var Usos = window.Usos, Capacidad = window.Capacidad, Fmt = window.Fmt;
+      openSheet = ctx.openSheet, closeSheet = ctx.closeSheet, save = ctx.save, renderTab = ctx.renderTab, lotArea = ctx.lotArea;
+    var Usos = window.Usos, Capacidad = window.Capacidad, Cultivos = window.Cultivos, Fmt = window.Fmt;
 
     function monthlyOf(a) { var cl = a && a.climate; return cl && cl.chartT && cl.chartP ? { T: cl.chartT, P: cl.chartP } : null; }
     function modelFor(l, a) { return Usos.model(l.points, a, l.terreno, monthlyOf(a)); }
+    // Cultivos a evaluar del polígono, con el clima del análisis y la clase del IGAC
+    function cultivosOf(l, a, m) {
+      m = m || modelFor(l, a);
+      var cl = a && a.climate;
+      return Cultivos.evaluar({ T: cl ? cl.T : null, P: cl ? cl.P : null, clase: m.eval.clase, terreno: m.terreno });
+    }
+    // Meses secos según Walter-Lieth (lluvia menor que el doble de la temperatura), si hay serie mes por mes
+    function secosOf(a) {
+      var mo = monthlyOf(a); if (!mo) return null;
+      var n = 0; for (var i = 0; i < 12; i++) if (mo.P[i] < 2 * mo.T[i]) n++;
+      return n;
+    }
     function ref(n) { return '<button type="button" class="srcref" data-act="usosFuente" aria-label="Ver la fuente ' + n + '">[' + n + ']</button>'; }
 
     // El bloque de Información
@@ -34,6 +48,8 @@
         '<div><dt>Humedad del clima</dt><dd>' + (au.humedad ? esc(Usos.catName('humedad', au.humedad.cat) + ' (ETP/P ' + Fmt.num(au.humedad.ratio, 2) + ')') : 'falta la precipitación') + '</dd></div></dl>';
       var nT = Object.keys(m.terreno).filter(function (k) { return k !== 'lluviasEst'; }).length;
       h += '<button class="btn btn-block" data-act="usosEdit" id="usosEditBtn" style="margin-top:8px">' + (nT ? 'Evaluación del terreno (' + nT + ' respuestas) ▾' : 'Evaluar el terreno ▾') + '</button>';
+      var cu = cultivosOf(l, a, m);
+      if (cu) h += '<button class="btn btn-block" data-act="cultivosOpen" id="cultivosBtn" style="margin-top:10px" aria-haspopup="true">Cultivos a evaluar (' + cu.grupos.optimo.length + ' óptimos, ' + cu.grupos.posible.length + ' posibles) ▾</button>';
       h += '<p class="small muted" style="margin-top:10px">' + esc(Usos.NOTE) + ' ' + ref(1) + '</p>';
       return h + '</div>';
     }
@@ -96,7 +112,43 @@
       openSheet('Fuentes de «Usos recomendados»', '<dl class="guide" id="usosFuentes">' +
         '<div><dt>[1] IGAC</dt><dd>' + esc(F.cita) + ' Clases 1 a 8: Tablas 1–8 (pp. 3–14); el limitante más severo decide la clase (pp. 33–34). <a href="' + F.url + '" target="_blank" rel="noopener noreferrer" data-ext="1">Abrir el instructivo (PDF)</a></dd></div>' +
         '<div><dt>[2] Estimación de las lluvias</dt><dd>Regla de la app, no del IGAC: un mes es seco cuando la lluvia (mm) es menor que el doble de la temperatura (°C), criterio del climodiagrama de H. Walter y H. Lieth; un semestre con al menos un mes seco tiene «deficiencias». El exceso de agua no se estima. Lo que observes en campo manda.</dd></div>' +
+        '<div><dt>[3] Cultivos a evaluar</dt><dd>' + esc(Cultivos.FUENTES[3]) + ' Rangos de temperatura y lluvia de ' + Cultivos.total + ' cultivos sembrados en Colombia, copiados sin cambios; el nombre en Colombia y el tipo los puso la app. La correspondencia entre la clase del IGAC y el tipo de cultivo es una lectura de la app de la frase de usos de cada clase. <a href="https://www.fao.org/geospatial/data-and-tools/data-portals/ecocrop/en" target="_blank" rel="noopener noreferrer" data-ext="1">ECOCROP (FAO)</a> · <a href="https://github.com/cropmodels/Recocrop" target="_blank" rel="noopener noreferrer" data-ext="1">Recocrop</a></dd></div>' +
         '</dl><div class="btns"><button class="btn btn-primary" data-act="closeSheet">Entendido</button></div>');
+    }
+    // La hoja «Cultivos a evaluar»: grupos plegables, cada cultivo con su tipo, su aptitud por clima y qué lo limita
+    var GRUPOS = [['optimo', 'Óptimos', 'Clima dentro de su rango óptimo y la clase de tierra los admite.'],
+      ['posible', 'Posibles con limitaciones', 'Se pueden evaluar, cuidando lo que los limita.'],
+      ['marginal', 'Marginales', 'El clima está cerca del límite del cultivo.'],
+      ['no', 'No recomendados', 'Fuera del rango de clima del cultivo o excluidos por la clase de tierra.']];
+    function openCultivos() {
+      var l = lot(), a = analysis(), cu = cultivosOf(l, a);
+      if (!cu) { toast('Faltan la temperatura y la lluvia para evaluar cultivos.', { err: true }); return; }
+      var h = '<p class="small muted" style="margin-top:0">De «' + esc(l.name) + '», con ' + esc(Fmt.num(a.climate.T, 1)) + ' °C y ' + esc(Fmt.num(a.climate.P, 0)) + ' mm al año' +
+        (cu.conClase ? ' y la clase de tierra del IGAC ' + ref(1) : ' (sin clase de tierra: falta evaluarla)') + '. Requerimientos de ' + cu.total + ' cultivos ' + ref(3) + '.</p>';
+      GRUPOS.forEach(function (g, i) {
+        var list = cu.grupos[g[0]];
+        h += '<details class="help cultgrp" data-grupo="' + g[0] + '"' + (i === 0 ? ' open' : '') + '><summary>' + g[1] + ' (' + list.length + ')</summary><p class="small muted">' + g[2] + '</p>' +
+          (list.length ? '<ul class="cultlist">' + list.map(function (c) {
+            return '<li><b>' + esc(c.es) + '</b> <small class="muted">· ' + esc(c.tipoTxt) + ' · clima ' + Math.round(c.clima * 100) + ' %</small>' +
+              (c.lim.length ? '<br><small>' + esc(c.lim.join('; ')) + '</small>' : '') + '</li>';
+          }).join('') + '</ul>' : '<p class="small">Ninguno.</p>') + '</details>';
+      });
+      h += '<p class="small muted">' + esc(Cultivos.NOTA) + '</p><div class="btns"><button class="btn btn-primary" data-act="closeSheet">Entendido</button></div>';
+      openSheet('Cultivos a evaluar', h);
+    }
+    // Para el reporte: «Conclusión y recomendaciones» del polígono elegido
+    function conclusionModel(a) {
+      var l = lot(), m = modelFor(l, a), e = m.eval, cu = cultivosOf(l, a, m), r = a && a.result, cl = a && a.climate;
+      var lab = Capacidad.VARS.some(function (v) { return v.group === 'lab' && m.terreno[v.key]; });
+      var k = Cultivos.conclusion({ nombre: l.name, ha: lotArea(l) ? lotArea(l) / 10000 : null, zona: r && r.ok ? r.zone.name + ' (' + r.zone.symbol + ')' : null, T: cl ? cl.T : null, P: cl ? cl.P : null,
+        secos: secosOf(a), clase: e.clase, subclase: e.subclase, limita: e.limita.map(function (x) { return x.name; }), provisional: e.provisional, faltan: e.total - e.conocidas,
+        pendiente: m.auto.pendiente ? m.auto.pendiente.pct : null, humedad: m.datos.humedad, lab: lab, cultivos: cu });
+      if (!k) return null;
+      return { parrafo: k.parrafo, recomendaciones: k.recomendaciones.map(function (x) { return x.t + (x.f ? ' [' + x.f + ']' : ''); }),
+        optimos: cu ? cu.grupos.optimo.map(function (c) { return c.es; }) : [],
+        posibles: cu ? cu.grupos.posible.slice(0, 12).map(function (c) { return [c.es, c.lim.join('; ')]; }) : [],
+        masPosibles: cu ? Math.max(0, cu.grupos.posible.length - 12) : 0,
+        nota: Cultivos.NOTA, fuentes: [1, 2, 3].map(function (n) { return '[' + n + '] ' + Cultivos.FUENTES[n]; }) };
     }
     // Para el reporte: filas y nota del polígono elegido
     function reportModel(a) {
@@ -104,6 +156,7 @@
       return rows.length ? { rows: rows, note: Usos.NOTE, fuente: m.fuente.cita + ' ' + m.fuente.url } : null;
     }
 
-    return { block: block, openEdit: openEdit, estUse: estUse, saveEdit: saveEdit, clearEdit: clearEdit, openFuente: openFuente, reportModel: reportModel };
+    return { block: block, openEdit: openEdit, estUse: estUse, saveEdit: saveEdit, clearEdit: clearEdit, openFuente: openFuente, reportModel: reportModel,
+      openCultivos: openCultivos, conclusionModel: conclusionModel };
   };
 })();

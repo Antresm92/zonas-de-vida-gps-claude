@@ -535,3 +535,6 @@ details.why summary { min-height: 32px; padding: 6px 0; color: var(--blue); font
 .usosub { font-size: 15px; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: var(--green-soft, #E7F4EA); color: var(--ink); }
 .srcref { border: 0; background: none; padding: 0 2px; font: inherit; font-size: .85em; font-weight: 700; color: var(--blue); cursor: pointer; vertical-align: super; line-height: 1; min-height: 0; }
 #usosAuto { margin-top: 6px; }
+/* Cultivos a evaluar (2.30.0) */
+.cultlist { margin: 6px 0 0; padding-left: 18px; }
+.cultlist li { margin: 0 0 8px; line-height: 1.35; }

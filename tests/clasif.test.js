@@ -118,12 +118,13 @@ test('secciones opcionales: lo desmarcado no sale en el HTML, el PDF ni el resum
   const { project, a } = mk();
   project.weatherNow = { T: 22.8, ts: Date.UTC(2026, 10, 12, 5), lat: 4.93, lon: -74.95, source: 'Open-Meteo' };
   const o = { walter: { svg: '<svg xmlns="http://www.w3.org/2000/svg"></svg>', lines: ['x'], source: 'S.' }, satellite: { svg: '<svg xmlns="http://www.w3.org/2000/svg"></svg>', caption: 'c' }, topo: { svg: '<svg xmlns="http://www.w3.org/2000/svg"></svg>', caption: 'c' },
-    usos: { rows: [['Clase de capacidad de uso', 'Clase 6 · subclase 6p']], note: 'Nota.', fuente: 'IGAC.' } };
+    usos: { rows: [['Clase de capacidad de uso', 'Clase 6 · subclase 6p']], note: 'Nota.', fuente: 'IGAC.' },
+    conclusion: { parrafo: 'El polígono «X».', recomendaciones: ['Hacer un análisis de suelos. [1]'], optimos: ['Café', 'Cacao'], posibles: [['Papa', 'poca lluvia']], masPosibles: 3, nota: 'Estimación.', fuentes: ['[1] IGAC.'] } };
   const todas = Report.SECTIONS.map((s) => s[0]);
-  assert.deepEqual(todas, ['clasif', 'usos', 'actual', 'fotos', 'zonas', 'perfil', 'sat', 'topo', 'walter', 'holdridge']);
+  assert.deepEqual(todas, ['clasif', 'usos', 'conclusion', 'actual', 'fotos', 'zonas', 'perfil', 'sat', 'topo', 'walter', 'holdridge']);
   const h2 = (h) => (h.match(/<h2[^>]*>[^<]*<\/h2>/g) || []).map((x) => x.replace(/<[^>]+>/g, ''));
   const full = h2(Report.html(project, a, o));
-  for (const t of ['Otras clasificaciones del clima', 'Usos recomendados', 'Clima actual', 'Perfil del relieve', 'Croquis satelital', 'Croquis topográfico', 'Diagrama de Walter-Lieth', 'Diagrama de Holdridge']) assert.ok(full.includes(t), t);
+  for (const t of ['Otras clasificaciones del clima', 'Usos recomendados', 'Conclusión y recomendaciones', 'Clima actual', 'Perfil del relieve', 'Croquis satelital', 'Croquis topográfico', 'Diagrama de Walter-Lieth', 'Diagrama de Holdridge']) assert.ok(full.includes(t), t);
   const skip = {}; todas.forEach((k) => { skip[k] = true; });
   const min = h2(Report.html(project, a, Object.assign({ skip }, o)));
   assert.deepEqual(min, ['Datos del clima', 'Terreno', 'Puntos', 'Croquis', 'Calidad de los datos']);
@@ -151,5 +152,14 @@ test('secciones opcionales: lo desmarcado no sale en el HTML, el PDF ni el resum
   assert.match(Report.text(project, a, o), /Usos recomendados:\n  Clase de capacidad de uso: Clase 6 · subclase 6p\n  Nota\. Fuente: IGAC\./);
   assert.doesNotMatch(Report.text(project, a, Object.assign({ skip: { usos: true } }, o)), /Usos recomendados/);
   assert.ok(titulos(ReportPdf.blocks(project, a, o, imgs)).includes('Usos recomendados'));
+  // 2.30.0: «Conclusión y recomendaciones» al final del polígono, en los tres formatos
+  const hh = Report.html(project, a, o);
+  assert.match(hh, /<h2>Conclusión y recomendaciones<\/h2><p>El polígono «X»\.<\/p><h3>Recomendaciones<\/h3><ul><li>Hacer un análisis de suelos\. \[1\]<\/li><\/ul><h3>Cultivos a evaluar<\/h3><p><b>Óptimos por clima y tierra:<\/b> Café, Cacao\.<\/p><p><b>Posibles con limitaciones:<\/b><\/p><table><tr><th>Papa<\/th><td>poca lluvia<\/td><\/tr><\/table><p class="small">Y 3 más en la app/);
+  assert.match(hh, /<div class="note">Estimación\.<\/div><p class="small">\[1\] IGAC\.<\/p>/);
+  assert.ok(hh.indexOf('Conclusión y recomendaciones') > hh.indexOf('Diagrama de Holdridge'), 'va al final');
+  const tx = Report.text(project, a, o);
+  assert.match(tx, /Conclusión y recomendaciones:\n  El polígono «X»\.\n  Recomendaciones:\n  - Hacer un análisis de suelos\. \[1\]\n  Cultivos óptimos por clima y tierra: Café, Cacao\n  Posibles con limitaciones: Papa y 3 más\n  Estimación\.\n  \[1\] IGAC\./);
+  assert.ok(titulos(ReportPdf.blocks(project, a, o, imgs)).includes('Conclusión y recomendaciones'));
+  assert.doesNotMatch(Report.html(project, a, Object.assign({}, o, { skip: { conclusion: true } })), /Conclusión y recomendaciones/);
   assert.match(Report.html(project, a, o), /<h2>Usos recomendados<\/h2><table><tr><th>Clase de capacidad de uso<\/th><td>Clase 6 · subclase 6p<\/td><\/tr><\/table><p class="small">Nota\. Fuente: IGAC\.<\/p>/);
 });

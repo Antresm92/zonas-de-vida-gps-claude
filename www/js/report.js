@@ -112,6 +112,7 @@
     if (a.quality !== undefined) { L.push(''); L.push('Calidad de los datos: ' + QUALITY[a.quality]); }
     (a.warnings || []).forEach(function (w) { L.push('Aviso: ' + w); });
     (a.info || []).forEach(function (w) { L.push('Nota: ' + w); });
+    conclusionText(o).forEach(function (x) { L.push(x); });
     L.push('');
     L.push(DISCLAIMER);
     return L.join('\n');
@@ -304,7 +305,7 @@
   // Todo lo que va debajo del encabezado: resultado, clima, terreno, puntos, croquis, perfil, fotos, calidad y diagramas
   /* ---------- Secciones que la persona puede dejar fuera del reporte (2.18.0) ----------
    * o.skip = { clave: true }. Lo esencial (zona de vida, datos del clima, terreno, puntos, croquis y calidad) va siempre. */
-  var SECTIONS = [['clasif', 'Otras clasificaciones del clima'], ['usos', 'Usos recomendados'], ['actual', 'Clima actual'], ['fotos', 'Fotos de los puntos'], ['zonas', 'Zonas según la altitud de cada punto'],
+  var SECTIONS = [['clasif', 'Otras clasificaciones del clima'], ['usos', 'Usos recomendados'], ['conclusion', 'Conclusión y recomendaciones'], ['actual', 'Clima actual'], ['fotos', 'Fotos de los puntos'], ['zonas', 'Zonas según la altitud de cada punto'],
     ['perfil', 'Perfil del relieve'], ['sat', 'Croquis satelital'], ['topo', 'Croquis topográfico'], ['walter', 'Diagrama de Walter-Lieth'], ['holdridge', 'Diagrama de Holdridge']];
   function skips(o, key) { return !!(o && o.skip && o.skip[key] === true); }
   function clasifRows(a) { return a && a.clasif ? Clasif.rows(a.clasif) : []; }
@@ -371,7 +372,26 @@
       h += '<h2 class="diag">Diagrama de Holdridge</h2>' + Diagram.staticSVG({ hex: r.hex, point: r.point, vertices: (a.vertexZones || []).map(function (v) { return { point: v.point, name: v.name }; }), width: 1100 });
       h += '<p class="small">El anillo rojo marca la posición del punto de análisis; el hexágono resaltado es su zona de vida.</p>';
     }
-    return h;
+    return h + conclusionHtml(o);
+  }
+  // Conclusión y recomendaciones (2.30.0): o.conclusion = { parrafo, recomendaciones, optimos, posibles, masPosibles, nota, fuentes } o null
+  function conclusionOf(o) { var k = o && !skips(o, 'conclusion') ? o.conclusion : null; return k && k.parrafo ? k : null; }
+  function conclusionHtml(o) {
+    var k = conclusionOf(o); if (!k) return '';
+    var h = '<h2>Conclusión y recomendaciones</h2><p>' + esc(k.parrafo) + '</p><h3>Recomendaciones</h3><ul>' + k.recomendaciones.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>';
+    h += '<h3>Cultivos a evaluar</h3>';
+    h += k.optimos.length ? '<p><b>Óptimos por clima y tierra:</b> ' + esc(k.optimos.join(', ')) + '.</p>' : '<p>Ningún cultivo de la lista queda óptimo con estos datos.</p>';
+    if (k.posibles.length) h += '<p><b>Posibles con limitaciones:</b></p><table>' + k.posibles.map(function (x) { return '<tr><th>' + esc(x[0]) + '</th><td>' + esc(x[1]) + '</td></tr>'; }).join('') + '</table>' + (k.masPosibles ? '<p class="small">Y ' + k.masPosibles + ' más en la app (Información › Usos recomendados › Cultivos a evaluar).</p>' : '');
+    return h + '<div class="note">' + esc(k.nota) + '</div><p class="small">' + k.fuentes.map(esc).join('<br>') + '</p>';
+  }
+  function conclusionText(o) {
+    var k = conclusionOf(o); if (!k) return [];
+    var L = ['', 'Conclusión y recomendaciones:', '  ' + k.parrafo, '  Recomendaciones:'];
+    k.recomendaciones.forEach(function (x) { L.push('  - ' + x); });
+    L.push('  Cultivos óptimos por clima y tierra: ' + (k.optimos.length ? k.optimos.join(', ') : 'ninguno'));
+    if (k.posibles.length) L.push('  Posibles con limitaciones: ' + k.posibles.map(function (x) { return x[0]; }).join(', ') + (k.masPosibles ? ' y ' + k.masPosibles + ' más' : ''));
+    L.push('  ' + k.nota); k.fuentes.forEach(function (f) { L.push('  ' + f); });
+    return L;
   }
   // Usos recomendados (2.29.0): filas que arma la app (usos.js) con la clase del IGAC; o.usos = { rows, note, fuente } o null
   function usosHtml(o) {
@@ -387,5 +407,5 @@
 
   }
 
-  return { CLASIF_NOTE: Clasif.NOTE, SECTIONS: SECTIONS, skips: skips, clasifRows: clasifRows, lotTitle: lotTitle, kindText: kindText, overview: overview, summary: summary, htmlAll: htmlAll, textAll: textAll, bodyHtml: bodyHtml, reid: reid, headLines: headLines, authorOf: authorOf, withPlana: withPlana, anyPlana: anyPlana, text: text, html: html, rows: rows, dot: dot, currentRows: currentRows, currentStamp: currentStamp, CURRENT_NOTE: CURRENT_NOTE, QUALITY: QUALITY, DISCLAIMER: DISCLAIMER, SRC_T: SRC_T, SRC_P: SRC_P };
+  return { conclusionText: conclusionText, conclusionOf: conclusionOf, CLASIF_NOTE: Clasif.NOTE, SECTIONS: SECTIONS, skips: skips, clasifRows: clasifRows, lotTitle: lotTitle, kindText: kindText, overview: overview, summary: summary, htmlAll: htmlAll, textAll: textAll, bodyHtml: bodyHtml, reid: reid, headLines: headLines, authorOf: authorOf, withPlana: withPlana, anyPlana: anyPlana, text: text, html: html, rows: rows, dot: dot, currentRows: currentRows, currentStamp: currentStamp, CURRENT_NOTE: CURRENT_NOTE, QUALITY: QUALITY, DISCLAIMER: DISCLAIMER, SRC_T: SRC_T, SRC_P: SRC_P };
 });

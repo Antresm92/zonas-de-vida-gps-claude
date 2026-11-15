@@ -218,6 +218,20 @@
       pic('holdridge', 520, 'el diagrama de Holdridge');
       B.push({ t: 'p', small: true, text: 'El anillo rojo marca la posición del punto de análisis; el hexágono resaltado es su zona de vida.' });
     }
+    var k = skip('conclusion') ? null : Report.conclusionOf(o);
+    if (k) {
+      B.push({ t: 'h2', text: 'Conclusión y recomendaciones' });
+      B.push({ t: 'p', text: k.parrafo });
+      B.push({ t: 'h3', text: 'Recomendaciones' }); B.push({ t: 'list', items: k.recomendaciones });
+      B.push({ t: 'h3', text: 'Cultivos a evaluar' });
+      B.push({ t: 'p', text: k.optimos.length ? 'Óptimos por clima y tierra: ' + k.optimos.join(', ') + '.' : 'Ningún cultivo de la lista queda óptimo con estos datos.' });
+      if (k.posibles.length) {
+        B.push({ t: 'p', text: 'Posibles con limitaciones:' }); B.push({ t: 'table', rows: k.posibles });
+        if (k.masPosibles) B.push({ t: 'p', small: true, text: 'Y ' + k.masPosibles + ' más en la app (Información › Usos recomendados › Cultivos a evaluar).' });
+      }
+      B.push({ t: 'note', text: k.nota });
+      k.fuentes.forEach(function (f) { B.push({ t: 'p', small: true, text: f }); });
+    }
     B.push({ t: 'spacer', h: 10 });
     if (!o.noHead) B.push({ t: 'p', small: true, text: Report.DISCLAIMER });      // en el reporte de todo el proyecto va una sola vez, al final
     return B;
