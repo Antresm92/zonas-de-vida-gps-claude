@@ -43,6 +43,18 @@
   function lotName(v, i) { var s = typeof v === 'string' ? v.replace(/[\u0000-\u001F\u007F]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, LOT_NAME_MAX) : ''; return s || 'Lote ' + (i + 1); }
   var CAT_MAX = 30;
   function newLot(name, color) { return { id: uid(), name: lotName(name, 0), points: [], climate: {}, nextPoint: 1, mainColor: HEX.test(color || '') ? color : MAIN_COLOR }; }
+  // Evaluación del terreno de un polígono (2.29.0, «Usos recomendados»): { clave: 'categoría', … }. Aquí solo se revisa la forma
+  // (claves y valores cortos); qué categorías existen lo sabe capacidad.js, y lo que no conozca simplemente no se usa.
+  function cleanTerreno(t) {
+    if (!t || typeof t !== 'object' || Array.isArray(t)) return null;
+    var out = {}, n = 0;
+    Object.keys(t).slice(0, 40).forEach(function (k) {
+      if (!/^[a-zA-Z][a-zA-Z0-9]{1,19}$/.test(k)) return;
+      if (typeof t[k] === 'string' && /^[a-zA-Z0-9.+<>-]{1,16}$/.test(t[k])) { out[k] = t[k]; n++; }
+      else if (k === 'lluviasEst' && t[k] === true) out[k] = true;
+    });
+    return n ? out : null;
+  }
   function cleanLot(l, i) {
     l.id = typeof l.id === 'string' && l.id ? l.id : uid();
     l.name = lotName(l.name, i);
@@ -57,6 +69,7 @@
     if (cat) l.cat = cat; else delete l.cat;                           // tipo del área, con el título que la persona quiera («Cacaotera», «Casa»)
     if (!(l.kind === 'area' && typeof l.parent === 'string' && l.parent)) delete l.parent;   // la finca a la que pertenece (se valida en toLots)
     if (l.kind === 'finca' && l.locked === true) l.locked = true; else delete l.locked;      // lindero bloqueado contra cambios por descuido
+    var tr = cleanTerreno(l.terreno); if (tr) l.terreno = tr; else delete l.terreno;          // evaluación del terreno (2.29.0)
     l.points.forEach(function (pt) {                                  // fotos de cada punto (2.5.0): solo la lista de ids; la imagen vive aparte
       if (!pt || typeof pt !== 'object' || pt.photos === undefined) return;
       var ph = Fotos.cleanList(pt.photos);

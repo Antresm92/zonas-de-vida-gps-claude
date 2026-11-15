@@ -2,7 +2,7 @@
 /* Clase de capacidad de uso según el IGAC (IN-GAG-PC05-02, 2021). Borrador: la tabla se verifica contra el PDF antes de usarla en la app. */
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const C = require('../borradores/capacidad.js');
+const C = require('../www/js/capacidad.js');
 
 // Para cada clase, un terreno con TODAS las variables en el peor valor que esa clase todavía admite (Tablas 1–8)
 // debe dar justo esa clase; así se comprueba cada columna de la tabla.

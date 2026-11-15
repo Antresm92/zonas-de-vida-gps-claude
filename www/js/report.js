@@ -71,6 +71,8 @@
     if (a.area) { L.push('Área: ' + Fmt.area(a.area, 'ha') + ' = ' + Fmt.area(a.area, 'm2') + ' = ' + Fmt.area(a.area, 'fanegadas')); }
     if (a.n >= 2) L.push('Perímetro: ' + Fmt.dist(a.perimeter));
     if (a.center) L.push('Centro: ' + Fmt.latlon(a.center.lat, a.center.lon) + withPlana(a.center));
+    var us = o && !skips(o, 'usos') ? o.usos : null;
+    if (us && us.rows && us.rows.length) { L.push(''); L.push('Usos recomendados:'); us.rows.forEach(function (x) { L.push('  ' + x[0] + ': ' + x[1]); }); L.push('  ' + us.note + ' Fuente: ' + us.fuente); L.push(''); }
     var pf = Perfil.build(project.points);
     if (pf.ok) L.push('Desnivel entre puntos: ' + Fmt.num(pf.relief, 0) + ' m (más alto ' + pf.high.name + ', ' + Fmt.num(pf.high.alt, 0) + ' m; más bajo ' + pf.low.name + ', ' + Fmt.num(pf.low.alt, 0) + ' m)');
     if (a.alternatives && a.alternatives.length) {
@@ -302,7 +304,7 @@
   // Todo lo que va debajo del encabezado: resultado, clima, terreno, puntos, croquis, perfil, fotos, calidad y diagramas
   /* ---------- Secciones que la persona puede dejar fuera del reporte (2.18.0) ----------
    * o.skip = { clave: true }. Lo esencial (zona de vida, datos del clima, terreno, puntos, croquis y calidad) va siempre. */
-  var SECTIONS = [['clasif', 'Otras clasificaciones del clima'], ['actual', 'Clima actual'], ['fotos', 'Fotos de los puntos'], ['zonas', 'Zonas según la altitud de cada punto'],
+  var SECTIONS = [['clasif', 'Otras clasificaciones del clima'], ['usos', 'Usos recomendados'], ['actual', 'Clima actual'], ['fotos', 'Fotos de los puntos'], ['zonas', 'Zonas según la altitud de cada punto'],
     ['perfil', 'Perfil del relieve'], ['sat', 'Croquis satelital'], ['topo', 'Croquis topográfico'], ['walter', 'Diagrama de Walter-Lieth'], ['holdridge', 'Diagrama de Holdridge']];
   function skips(o, key) { return !!(o && o.skip && o.skip[key] === true); }
   function clasifRows(a) { return a && a.clasif ? Clasif.rows(a.clasif) : []; }
@@ -338,6 +340,7 @@
       if (a.area) h += '<tr><th>Área</th><td>' + esc(Fmt.area(a.area, 'ha')) + ' · ' + esc(Fmt.area(a.area, 'm2')) + ' · ' + esc(Fmt.area(a.area, 'fanegadas')) + '</td></tr>';
       if (a.n >= 2) h += '<tr><th>Perímetro</th><td>' + esc(Fmt.dist(a.perimeter)) + '</td></tr>';
       h += '<tr><th>Centro</th><td>' + esc(Fmt.latlon(a.center.lat, a.center.lon)) + planaHtml(a.center) + '</td></tr></table>';
+      h += usosHtml(o);
       h += '<h2>Puntos</h2><table>';
       project.points.forEach(function (p, i) {
         h += '<tr><th>' + dot(p, project) + esc(p.name || 'P' + (i + 1)) + '</th><td>' + esc(Fmt.latlon(p.lat, p.lon)) + (isNum(p.alt) ? ' · ' + esc(Fmt.num(p.alt, 0)) + ' m' : '') + planaHtml(p) + '</td></tr>';
@@ -369,6 +372,14 @@
       h += '<p class="small">El anillo rojo marca la posición del punto de análisis; el hexágono resaltado es su zona de vida.</p>';
     }
     return h;
+  }
+  // Usos recomendados (2.29.0): filas que arma la app (usos.js) con la clase del IGAC; o.usos = { rows, note, fuente } o null
+  function usosHtml(o) {
+    var u = o && !skips(o, 'usos') ? o.usos : null;
+    if (!u || !u.rows || !u.rows.length) return '';
+    var h = '<h2>Usos recomendados</h2><table>';
+    u.rows.forEach(function (x) { h += '<tr><th>' + esc(x[0]) + '</th><td>' + esc(x[1]) + '</td></tr>'; });
+    return h + '</table><p class="small">' + esc(u.note) + ' Fuente: ' + esc(u.fuente) + '</p>';
   }
   function html(project, a, o) {
     o = o || {};

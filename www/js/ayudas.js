@@ -51,7 +51,7 @@
     var APP_GUIDE = [
       ['Los tres pasos', [
         ['1 · Puntos', 'Marca los linderos del terreno con el GPS, escribe sus coordenadas (también salen en planas, Origen Nacional) o importa un archivo de Google Earth, GeoJSON o GPX. Con un punto ya hay zona de vida; con tres o más, también el área. Cada punto puede llevar fotos.'],
-        ['2 · Información', 'Pulsa «Completar con internet» para traer la altitud, la temperatura y la lluvia. Si tienes datos medidos, escríbelos: mandan sobre lo estimado. Sin la lluvia no hay zona de vida.'],
+        ['2 · Información', 'Pulsa «Completar con internet» para traer la altitud, la temperatura y la lluvia. Si tienes datos medidos, escríbelos: mandan sobre lo estimado. Al final, «Usos recomendados» da la clase de capacidad de uso del IGAC. Sin la lluvia no hay zona de vida.'],
         ['3 · Reporte', 'La zona de vida de Holdridge con su diagrama, otras clasificaciones del clima (Caldas-Lang del IDEAM, De Martonne y Köppen), el clima actual, el perfil del relieve con la pendiente y los croquis. Compártelo en PDF o HTML.']
       ]],
       ['Ejemplo: tu primer predio en 5 pasos', [
@@ -75,13 +75,12 @@
     /* ---------- Qué hay de nuevo (2.23.5) ----------
      * Quien ya usaba la app y la actualiza ve, una sola vez, un resumen corto de lo nuevo; quien la instala por primera vez ve la ayuda
      * completa y no esto. Para una actualización grande futura basta con cambiar WHATS_NEW_ID y la lista. */
-    var WHATS_NEW_ID = '2.25';
+    var WHATS_NEW_ID = '2.29';
     var WHATS_NEW = [
-      ['Exportar polígono', 'en la hoja «Editar» de cada predio o lote: te lleva a Exportar con ese polígono ya marcado; solo eliges el formato.'],
-      ['Siempre a la vista', 'la fila de arriba se desliza sola hasta el polígono elegido, en todas las pantallas.'],
-      ['Completar varios', 'en Información, «Elegir polígonos ▾» completa con internet los que marques, uno por uno, y al final muestra cuáles quedaron listos y cuáles no.'],
-      ['Lo escrito a mano manda', 'internet solo llena lo que falta, y «Usar este clima en todos los polígonos» ya no reemplaza los datos que escribiste a mano en los demás.'],
-      ['Limpiar información', 'en Información, «Limpiar información ▾»: marca los polígonos y lo que quieres borrar (clima de internet o a mano, altitudes según su origen); «Limpiar y completar con internet» lo vuelve a traer. Se puede deshacer.']
+      ['Usos recomendados 🌱', 'en Información, la clase de capacidad de uso de cada polígono según la metodología oficial del IGAC (clases 1 a 8), qué la limita y los usos de esa clase, con la fuente y su enlace. También sale en el reporte.'],
+      ['Evaluar el terreno', 'en «Usos recomendados», responde lo que ves en campo (erosión, drenaje, inundaciones, piedras, profundidad…) y lo del laboratorio, si lo tienes. Siempre puedes dejar «No sé»: la clase queda como provisional.'],
+      ['Lluvias por semestre', 'se preguntan en campo; la app propone una estimación con la lluvia mes por mes y explica cómo la calcula. Lo que tú observes manda.'],
+      ['Más ordenada por dentro', 'el código de la app se dividió en partes más pequeñas para corregir y mejorar más fácil. Para ti funciona igual.']
     ];
     function openWhatsNew() {
       openSheet('Qué hay de nuevo', '<p class="lead">Versión ' + esc(APP_VERSION) + '</p><dl class="guide" id="whatsNew">' +
@@ -137,6 +136,7 @@
         ['Caldas-Lang', 'IDEAM, Nota técnica NT_IDEAM-2025-003, «Actualización de la clasificación climática de Caldas-Lang».'],
         ['Köppen-Geiger y De Martonne', 'Criterios de Peel, Finlayson y McMahon (2007) para Köppen-Geiger; índice de aridez de E. de Martonne (1926).'],
         ['Diagrama de Walter-Lieth', 'Climodiagrama de H. Walter y H. Lieth: un mes es seco cuando la lluvia (mm) es menor que el doble de la temperatura (°C).'],
+        ['Usos recomendados', 'Instituto Geográfico Agustín Codazzi (IGAC), «Clasificación de las tierras por su capacidad de uso», instructivo IN-GAG-PC05-02, versión 1 (2021). La estimación de las lluvias por semestre es una regla de la app basada en el criterio de mes seco de Walter-Lieth.'],
         ['Clases de pendiente', 'Instituto Geográfico Agustín Codazzi (IGAC), clases de pendiente de sus levantamientos de suelos y geomorfología.'],
         ['Coordenadas planas', 'MAGNA-SIRGAS / Origen Nacional (EPSG:9377), sistema único adoptado por el IGAC en 2020.']
       ];

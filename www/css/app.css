@@ -528,3 +528,10 @@ details.why summary { min-height: 32px; padding: 6px 0; color: var(--blue); font
 .expick.sub { padding-left: 30px; }
 .expick.warnrow small { color: var(--amber); }
 .expick.off { opacity: .45; }
+
+/* Usos recomendados (2.29.0) */
+.usoclase { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.usoclase .big { display: inline-block; }
+.usosub { font-size: 15px; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: var(--green-soft, #E7F4EA); color: var(--ink); }
+.srcref { border: 0; background: none; padding: 0 2px; font: inherit; font-size: .85em; font-weight: 700; color: var(--blue); cursor: pointer; vertical-align: super; line-height: 1; min-height: 0; }
+#usosAuto { margin-top: 6px; }

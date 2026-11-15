@@ -1,7 +1,9 @@
-/* capacidad.js — clase de capacidad de uso de las tierras según el IGAC (borrador, 2.29 en preparación).
+/* capacidad.js — clase de capacidad de uso de las tierras según el IGAC (2.29.0), para «Usos recomendados».
  *
- * TODAVÍA NO SE CARGA EN LA APP (vive en borradores/, fuera de www, así que no entra en el APK): espera la verificación de la tabla contra el PDF y la aprobación de las preguntas
- * (documento «Usos recomendados · borrador para revisión»).
+ * La tabla se leyó dos veces del PDF del IGAC (texto extraído); la persona la compara con las páginas originales (4 a 14)
+ * con la lista del documento «Usos recomendados · borrador para revisión». Decisiones tomadas con ella (15 nov 2026):
+ * los derrumbes usan los rangos de las tablas de clases; la clase 5 solo se avisa; la distribución de las lluvias se
+ * pregunta en campo y la app puede proponer una estimación justificada (usos.js).
  *
  * Fuente: Instituto Geográfico Agustín Codazzi (IGAC). «Clasificación de las tierras por su capacidad de uso».
  * Instructivo IN-GAG-PC05-02, versión 1, vigente desde el 11/05/2021.
@@ -60,8 +62,8 @@
       ['<15', 'Menos de 15 %', 1], ['15-30', '15–30 %', 3], ['30-60', '30–60 %', 4], ['60-90', '60–90 %', 6], ['90+', 'Más de 90 %', 7]] },
     { key: 'sales', letter: 's', group: 'lab', name: 'Sales', src: 'Tablas 1–8; Tabla 26, p. 28', cats: [
       ['no', 'No hay (normal)', 1], ['ligero', 'Ligeramente salino', 2], ['moderado', 'Moderadamente salino', 3], ['fuerte', 'Fuertemente salino', 6], ['muyfuerte', 'Muy fuertemente salino', 8]] },
-    { key: 'sodio', letter: 's', group: 'lab', name: 'Sodio', src: 'Tablas 1–8; Tabla 26, p. 28', cats: [
-      ['no', 'No hay', 1], ['100+', 'Solo a más de 100 cm', 3], ['50-100', 'Solo a 50–100 cm', 4], ['<50', 'A menos de 50 cm', 6]] },
+    { key: 'sodio', letter: 's', group: 'lab', name: 'Sodio (profundidad a la que aparece)', src: 'Tablas 1–8; Tabla 26, p. 28', cats: [
+      ['no', 'No hay', 1], ['100+', 'A más de 100 cm', 3], ['50-100', 'Entre 50 y 100 cm', 4], ['25-50', 'Entre 25 y 50 cm', 6], ['<25', 'A menos de 25 cm', 7]] },
     { key: 'camg', letter: 's', group: 'lab', name: 'Relación calcio/magnesio', src: 'Tablas 1–8', cats: [
       ['normal', 'Normal', 1], ['estrechaprof', 'Estrecha, a más de 50 cm', 2], ['estrecha', 'Estrecha', 3], ['invertida', 'Invertida', 3]] },
     { key: 'piso', letter: 'c', group: 'app', name: 'Piso térmico', src: 'Tablas 1–8; Tabla 28, p. 30', cats: [
@@ -106,8 +108,8 @@
     if (typeof t !== 'number' || !isFinite(t)) return null;
     return t > 24 ? 'calido' : t >= 18 ? 'templado' : t >= 12 ? 'frio' : t >= 8 ? 'muyfrio' : t >= 4 ? 'extfrio' : t >= 1.5 ? 'subnival' : 'nival';
   }
-  // Tabla 31, p. 32: por la relación evapotranspiración potencial / precipitación. LOS LÍMITES ESTÁN POR VERIFICAR contra la
-  // tabla original; aquí se usan los de Holdridge (cada provincia de humedad dobla la relación).
+  // Tabla 31 (pp. 31–32): por la relación evapotranspiración potencial / precipitación (ETP/P): pluvial 0,125–0,25;
+  // muy húmedo 0,25–0,5; húmedo 0,5–1; seco 1–2; muy seco 2–4; semiárido 4–8; árido más de 8 (los mismos cortes de Holdridge).
   function humedadCat(r) {
     if (typeof r !== 'number' || !isFinite(r) || r <= 0) return null;
     return r < 0.25 ? 'pluvial' : r < 0.5 ? 'muyhumedo' : r < 1 ? 'humedo' : r < 2 ? 'seco' : r < 4 ? 'muyseco' : r < 8 ? 'semiarido' : 'arido';

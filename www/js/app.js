@@ -5,7 +5,7 @@
   var Geo = window.Geo, H = window.Holdridge, Climate = window.Climate, A = window.Analysis, Fmt = window.Fmt,
       Gps = window.Gps, Store = window.Store, Diagram = window.Diagram, Report = window.Report,
       Gis = window.Gis, Backup = window.Backup, IO = window.IO, WL = window.WalterLieth, Mapa = window.Mapa, MapView = window.MapView, Satelite = window.Satelite, Perfil = window.Perfil, Fotos = window.Fotos, Zip = window.Zip, Units = window.Units;
-  var APP_VERSION = '2.28.0';
+  var APP_VERSION = '2.29.0';
 
   var S = Store.loadState();
   // 2.22.0: la primera vez, los lotes de antes que están dentro de un predio pasan a pertenecerle
@@ -883,6 +883,7 @@
     (cl.notes || []).concat(a.warnings || []).forEach(function (n) { h += '<p class="small muted" style="margin:4px 0">• ' + esc(n) + '</p>'; });
 
     h += walterBlock(a);
+    h += UsosUI.block(a);
 
     h += '<div class="block"><h2>Datos guardados en este equipo</h2>';
     h += '<p class="lead">' + (MEM.count ? MEM.count + ' registro' + (MEM.count > 1 ? 's' : '') + ' de clima. Se usan sin conexión para puntos a menos de 25 km.' : 'Todavía no hay datos. Importa un archivo CSV con estaciones o celdas de clima, o completa con internet una vez.') + '</p>';
@@ -998,8 +999,11 @@
     fr.readAsText(file);
   }
 
+  /* ---------- Usos recomendados (en js/ui-usos.js desde 2.29.0) ---------- */
+  var UsosUI = window.ZV.usos({ ui: ui, lot: lot, analysis: analysis, esc: esc, toast: toast, openSheet: openSheet, closeSheet: closeSheet, save: save, renderTab: renderTab });
+
   /* ---------- Reporte (en js/ui-reporte.js desde 2.26.0) ---------- */
-  var Reporte = window.ZV.reporte({ S: S, ui: ui, busy: busy, '$': $, analysis: analysis, busyHide: busyHide, busyMin: busyMin, busyPaint: busyPaint, busyRun: busyRun, busyStep: busyStep, closeSheet: closeSheet, esc: esc, foldReport: foldReport, isNum: isNum, multi: multi, openSheet: openSheet, photosOf: photosOf, proj: proj, reportPhotos: reportPhotos, save: save, sizeText: sizeText, toast: toast, view: view, walterModel: walterModel });
+  var Reporte = window.ZV.reporte({ S: S, ui: ui, busy: busy, '$': $, analysis: analysis, busyHide: busyHide, busyMin: busyMin, busyPaint: busyPaint, busyRun: busyRun, busyStep: busyStep, closeSheet: closeSheet, esc: esc, foldReport: foldReport, isNum: isNum, multi: multi, openSheet: openSheet, photosOf: photosOf, proj: proj, reportPhotos: reportPhotos, save: save, sizeText: sizeText, toast: toast, view: view, walterModel: walterModel, usosReport: UsosUI.reportModel });
   var tabInforme = Reporte.tabInforme, mountDiagram = Reporte.mountDiagram, shareReport = Reporte.shareReport, shareReportPdf = Reporte.shareReportPdf, shareReportHtml = Reporte.shareReportHtml, copySummary = Reporte.copySummary, copyText = Reporte.copyText, fetchNow = Reporte.fetchNow, croqPrepareClick = Reporte.croqPrepareClick, repRead = Reporte.repRead, repWhatHtml = Reporte.repWhatHtml;
 
   /* ---------- Proyectos ---------- */
@@ -1307,6 +1311,7 @@
     reorder: reorder,
     clearField: function (t) { delete proj().climate[t.getAttribute('data-field')]; save(); renderTab('clima'); },
     fetchOnline: Completar.fetchOnline, fetchPick: Completar.openFetchPick, fetchPickAll: Completar.fetchPickAll, fetchPickGo: Completar.fetchPickGo,
+    usosEdit: UsosUI.openEdit, usosSave: UsosUI.saveEdit, usosClear: UsosUI.clearEdit, usosEstUse: UsosUI.estUse, usosFuente: UsosUI.openFuente,
     cleanAsk: Completar.openClean, cleanDo: Completar.cleanDo, cleanUndo: Completar.cleanUndo,
     importCsv: function () { $('#csvFile').click(); },
     askClearMem: function () { openSheet('¿Borrar los datos guardados?', '<p>Se borran los ' + MEM.count + ' registros de clima de este equipo. Tus puntos y proyectos no cambian.</p><div class="btns"><button class="btn btn-danger" data-act="doClearMem">Borrar</button><button class="btn" data-act="closeSheet">Conservar</button></div>'); },

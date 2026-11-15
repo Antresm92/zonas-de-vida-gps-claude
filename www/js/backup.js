@@ -190,9 +190,23 @@
     var cat = out.kind === 'area' ? str(p.cat, 30, '') : '';
     if (cat) out.cat = cat;
     if (out.kind === 'finca' && p.locked === true) out.locked = true;
+    var tr = cleanTerreno(p.terreno);
+    if (tr) out.terreno = tr;                                                       // evaluación del terreno (2.29.0)
     return out;
   };
 
+  // Evaluación del terreno de un polígono (2.29.0, «Usos recomendados»): { clave: 'categoría', … }. Aquí solo se revisa la forma
+  // (claves y valores cortos); qué categorías existen lo sabe capacidad.js, y lo que no conozca simplemente no se usa.
+  function cleanTerreno(t) {
+    if (!t || typeof t !== 'object' || Array.isArray(t)) return null;
+    var out = {}, n = 0;
+    Object.keys(t).slice(0, 40).forEach(function (k) {
+      if (!/^[a-zA-Z][a-zA-Z0-9]{1,19}$/.test(k)) return;
+      if (typeof t[k] === 'string' && /^[a-zA-Z0-9.+<>-]{1,16}$/.test(t[k])) { out[k] = t[k]; n++; }
+      else if (k === 'lluviasEst' && t[k] === true) out[k] = true;
+    });
+    return n ? out : null;
+  }
   function cleanSettings(s) {
     s = obj(s) || {};
     return { areaUnit: oneOf(s.areaUnit, UNITS, 'ha'), minAcc: oneOf(s.minAcc, MIN_ACC, 10), csvStyle: oneOf(s.csvStyle, ['es', 'std'], 'es') };   // las copias de la 2.4.0 traían holdMs: se ignora
