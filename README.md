@@ -99,6 +99,11 @@ Sube la carpeta `www/` a cualquier alojamiento web con HTTPS (por ejemplo GitHub
 - **Exportar**: KML, GeoJSON y GPX llevan todos los lotes (el elegido como polígono principal, los demás como capas con su nombre); el CSV añade la columna `Lote` y el Shapefile la columna `LOTE`, con una figura por lote.
 - **Guardado**: los proyectos de versiones anteriores pasan solos a tener un «Lote 1» con todo lo que tenían. La copia de seguridad lleva los lotes, y una copia hecha con una versión anterior se sigue pudiendo restaurar. Una copia hecha con la 2.15.0 (formato 2) no se puede restaurar en una versión anterior de la app: esta avisa que hay que actualizar.
 
+**2.24.0: `app.js` empieza a dividirse en partes (sin cambiar lo que hace la app).**
+- `app.js` tenía unas 3.400 líneas. Dos temas salen a archivos propios: **`js/ayudas.js`** (los textos y hojas de «Cómo usar el mapa», «Cómo usar la app», «Qué hay de nuevo», «Para qué sirve la app» y «Fuentes y licencias») y **`js/ui-exportar.js`** (el bloque «Exportar», la lista «Elegir polígonos» y los archivos KML, GeoJSON, GPX, CSV y Shapefile). `app.js` queda en unas 3.170 líneas.
+- Cada archivo nuevo empieza con un párrafo que explica qué hace y qué usa. `app.js` lo llama pasándole lo que necesita (por ejemplo `openSheet` o `toast`) y recibe sus funciones con el mismo nombre de antes, así que el resto del código no cambió.
+- Para la persona que usa la app no hay nada nuevo: se verificó con las mismas pruebas (696 unitarias y los 296 pasos en el navegador, todos correctos). Siguen, uno por versión: reporte, herramientas, predios y lotes, y mapa.
+
 **2.23.8: las actualizaciones ya se instalan encima.**
 - **El error**: cada APK salía firmado con una llave distinta. El flujo copiaba la llave fija (`scripts/debug.keystore`) a `~/.android`, pero en el servidor de GitHub Android la ignoraba y creaba una llave nueva en cada compilación; por eso el teléfono decía «No se instaló la app debido a un conflicto con un paquete» al instalar un APK encima de otro. Se comprobó leyendo la firma de los APK de la 2.23.6 y la 2.23.7: eran distintas entre sí y distintas de la llave fija.
 - **El arreglo**: la llave fija se declara directamente en `build.gradle` (`signingConfigs.debug`, desde `scripts/patch-android.js`), y el flujo tiene un paso nuevo, **«Comprobar que el APK lleva la llave fija»**, que compara la huella SHA-256 del APK con la de la llave y detiene la compilación si no coinciden.
@@ -355,7 +360,9 @@ www/                 la app (HTML, CSS y JavaScript; el mapa usa Leaflet, inclui
   js/store.js        datos guardados en el equipo; los lotes de cada proyecto (2.15.0)
   js/clasif.js       otras clasificaciones del clima (2.18.0): Caldas-Lang del IDEAM, De Martonne y Köppen-Geiger
   js/predio.js       fincas y áreas (2.17.0): tipos, a qué finca pertenece un área, cuentas sin contar dos veces y avisos
-  js/app.js          interfaz
+  js/ayudas.js       textos y hojas de ayuda, «Qué hay de nuevo» y «Fuentes y licencias» (2.24.0)
+  js/ui-exportar.js  bloque «Exportar», lista «Elegir polígonos» y archivos que salen (2.24.0)
+  js/app.js          interfaz (el resto; se sigue dividiendo por temas)
 tests/               pruebas unitarias (npm test) y en navegador (tests/e2e)
 tools/cobertura.js   mide qué código ejecutan las pruebas
 android-res/         íconos de Android

@@ -5,7 +5,7 @@
   var Geo = window.Geo, H = window.Holdridge, Climate = window.Climate, A = window.Analysis, Fmt = window.Fmt,
       Gps = window.Gps, Store = window.Store, Diagram = window.Diagram, Report = window.Report,
       Gis = window.Gis, Backup = window.Backup, IO = window.IO, WL = window.WalterLieth, Mapa = window.Mapa, MapView = window.MapView, Satelite = window.Satelite, Perfil = window.Perfil, Fotos = window.Fotos, Zip = window.Zip, Units = window.Units;
-  var APP_VERSION = '2.23.8';
+  var APP_VERSION = '2.24.0';
 
   var S = Store.loadState();
   // 2.22.0: la primera vez, los lotes de antes que están dentro de un predio pasan a pertenecerle
@@ -1138,101 +1138,10 @@
     toast('Proyecto «' + np.name + '» creado con lo importado.', { action: 'Deshacer', fn: function () { S.projects = S.projects.filter(function (x) { return x.id !== np.id; }); S.currentId = prev; save(); renderAll(); } });
   }
 
-  /* ---------- Exportar (KML, GeoJSON, GPX, CSV) ---------- */
-  var EXPORTS = {
-    kml: { ext: 'kml', mime: 'application/vnd.google-earth.kml+xml', label: 'KML', sub: 'Google Earth' },
-    geojson: { ext: 'geojson', mime: 'application/geo+json', label: 'GeoJSON', sub: 'QGIS, web' },
-    gpx: { ext: 'gpx', mime: 'application/gpx+xml', label: 'GPX', sub: 'GPS de mano' },
-    csv: { ext: 'csv', mime: 'text/csv', label: 'CSV', sub: 'Excel' },
-    shp: { ext: 'zip', mime: 'application/zip', label: 'Shapefile', sub: 'ArcGIS, QGIS' }
-  };
-  function exportBlock() {
-    var h = '<div class="block" id="exportBlock"><h2>Exportar</h2><p class="lead">Para abrir tu terreno en Google Earth, QGIS, ArcGIS, Excel o un GPS.</p><div class="expgrid">';
-    Object.keys(EXPORTS).forEach(function (k) { h += '<button class="btn" data-act="export" data-fmt="' + k + '">' + EXPORTS[k].label + '<small>' + EXPORTS[k].sub + '</small></button>'; });
-    h += '</div>';
-    // 2.23.6: con varios polígonos, «Todo el proyecto» o «Elegir polígonos ▾» (una lista con casillas para escoger cuáles salen en el archivo)
-    if (multi()) {
-      var sel = expPicked();
-      h += '<div class="seg" role="group" aria-label="Qué exportar" id="expScope" style="margin-top:12px">' +
-        '<button data-act="expScope" data-s="all" aria-pressed="' + !ui.expPick + '">Todo el proyecto</button>' +
-        '<button data-act="expPickOpen" aria-pressed="' + !!ui.expPick + '" aria-haspopup="true">' + (ui.expPick && sel.length ? 'Elegidos (' + sel.length + ') ▾' : 'Elegir polígonos ▾') + '</button></div>';
-      if (ui.expPick && sel.length) h += '<p class="small" id="expSelTxt" style="margin:6px 0 0">Se ' + (sel.length === 1 ? 'exportará' : 'exportarán') + ': ' + esc(sel.map(function (l) { return l.name; }).join(', ')) + '.</p>';
-    }
-    h += '<div class="seg" role="group" aria-label="Formato del CSV" style="margin-top:12px">';
-    [['es', 'CSV para Excel en español'], ['std', 'CSV estándar']].forEach(function (o) { h += '<button data-act="csvStyle" data-s="' + o[0] + '" aria-pressed="' + (S.settings.csvStyle === o[0]) + '">' + o[1] + '</button>'; });
-    h += '</div><p class="small muted">' + (multi() ? 'Con «Elegir polígonos» marcas cuáles salen en el archivo (con uno solo, el archivo lleva su nombre: sirve para llevarlo como lote a otro proyecto). ' : '') + 'KML, GeoJSON y GPX llevan tus puntos y las capas visibles. El CSV trae solo tus puntos: Punto, Latitud, Longitud, Altitud, Rumbo, Distancia al vértice siguiente y las coordenadas planas Este y Norte (Origen Nacional), ' + (S.settings.csvStyle === 'es' ? 'separado por «;» y con coma decimal' : 'separado por «,» y con punto decimal') + '. El Shapefile es un .zip con dos capas, tus puntos y el polígono, en grados WGS84.</p></div>';
-    return h;
-  }
-  // Los polígonos marcados en «Elegir polígonos» que existen y tienen puntos, en el orden de la jerarquía (cada predio y luego sus lotes)
-  function expPicked() {
-    var p = proj(), ids = ui.expSelProj === p.id ? (ui.expSel || []) : [];
-    return Predio.ordered(p.lots).filter(function (l) { return ids.indexOf(l.id) >= 0 && l.points.length; });
-  }
-  function openExpPick() {
-    var p = proj(), ids = ui.expSelProj === p.id ? (ui.expSel || []) : [];
-    var rows = Predio.ordered(p.lots).filter(function (l) { return l.points.length; });
-    if (!rows.length) { toast('Todavía no hay polígonos con puntos para exportar.', { err: true }); return; }
-    openSheet('Qué polígonos exportar', '<p class="small muted" style="margin-top:0">Marca los que quieres en el archivo. Al marcar un predio se marcan también sus lotes; luego puedes quitar los que no quieras.</p>' +
-      '<div id="expList">' + rows.map(function (l) {
-        var par = Predio.parentOf(l, p.lots), m2 = lotArea(l);
-        return '<label class="repfin expick' + (par ? ' sub' : '') + '"><input type="checkbox" data-id="' + esc(l.id) + '"' + (Predio.isFinca(l) ? ' data-finca="1"' : '') + (par ? ' data-parent="' + esc(par.id) + '"' : '') + (ids.indexOf(l.id) >= 0 ? ' checked' : '') + '>' +
-          '<span>' + (Predio.isFinca(l) ? '<b>' + esc(l.name) + '</b>' : esc(l.name)) + ' <small class="muted">· ' + esc(Predio.kindLabel(l)) + (m2 ? ' · ' + esc(Fmt.area(Geo.areaUnits(m2), S.settings.areaUnit)) : '') + '</small></span></label>';
-      }).join('') + '</div>' +
-      '<div class="btns" style="margin-top:10px"><button class="btn" data-act="expPickAll" data-v="1">Marcar todos</button><button class="btn" data-act="expPickAll" data-v="0">Ninguno</button></div>' +
-      '<div class="btns"><button class="btn btn-primary" data-act="expPickDone">Listo</button></div>');
-  }
-  function expPickDone() {
-    var ids = [].filter.call(document.querySelectorAll('#expList input'), function (i) { return i.checked; }).map(function (i) { return i.getAttribute('data-id'); });
-    ui.expSel = ids; ui.expSelProj = proj().id; ui.expPick = ids.length > 0;
-    closeSheet(); renderTab(ui.tab);
-    if (!ids.length) toast('No marcaste ninguno: se exportará todo el proyecto.');
-  }
-  // Un polígono como capa del archivo exportado (con su nombre y su color)
-  function lotAsLayer(l) {
-    return { id: 'lote-' + l.id, name: l.name, kind: l.points.length >= 3 ? 'polygon' : l.points.length === 2 ? 'line' : 'points', color: l.mainColor, visible: true, points: l.points };
-  }
-  function exportLots(p, only) { return p.lots.filter(function (l) { return l.points.length && (!only || only.indexOf(l) >= 0); }).map(function (l) { var par = Predio.parentOf(l, p.lots), o = { name: l.name, points: l.points };
-    if (l.kind) o.tipo = Predio.kindLabel(l) + (par ? ' de ' + par.name : '');      // «Finca», «Potrero de La Esperanza»…
-    return o; }); }
-  function exportAs(fmt) {
-    var p = proj(), spec = EXPORTS[fmt];
-    if (!spec) return;
-    var pick = multi(p) && !!ui.expPick ? expPicked() : null;
-    if (pick && !pick.length) { ui.expPick = false; pick = null; }
-    var one = pick && pick.length === 1, me = one ? pick[0] : null, many = pick && pick.length > 1 ? pick : null;
-    if (fmt === 'shp') { exportShp(p, spec, me, many); return; }
-    var any = p.lots.some(function (l) { return l.points.length; });
-    if (!any && !(fmt !== 'csv' && p.layers.some(function (l) { return l.visible !== false; }))) { toast('Todavía no hay puntos para exportar.', { err: true }); return; }
-    // Con varios lotes van todos: el elegido como polígono principal y los demás como capas con su nombre; en el CSV, con una columna «Lote»
-    var title = one ? p.name + ' ' + me.name : many ? p.name + ' seleccion' : p.name;
-    // varios elegidos: el primero como polígono principal y los demás como capas, como en «Todo el proyecto» pero sin los que no se marcaron
-    var model = one ? { name: me.name, points: me.points, layers: [], mainColor: me.mainColor, date: Date.now() } :
-      many ? { name: many[0].name, points: many[0].points, layers: many.slice(1).map(lotAsLayer), mainColor: many[0].mainColor, date: Date.now() } :
-      { name: p.name, points: p.points, layers: viewLayers(p), mainColor: p.mainColor, date: Date.now() }, text;
-    try {
-      text = fmt === 'kml' ? Gis.toKML(model) : fmt === 'geojson' ? Gis.toGeoJSON(model) : fmt === 'gpx' ? Gis.toGPX(model) :
-        Gis.toCSV(one ? me.points : p.points, many ? { style: S.settings.csvStyle, lots: exportLots(p, many) } : multi(p) && !one ? { style: S.settings.csvStyle, lots: exportLots(p) } : { style: S.settings.csvStyle });
-    } catch (e) { toast('No se pudo preparar el archivo: ' + (e && e.message || e), { err: true }); return; }
-    var name = IO.slug(title, spec.ext);
-    IO.saveText(name, spec.mime, text, { title: title + ' (' + spec.label + ')', dialogTitle: 'Exportar ' + spec.label }).then(function (r) {
-      if (r.how === 'download') toast('Archivo descargado: ' + name);
-      else if (r.how === 'share') toast('Archivo listo: ' + name);
-    }).catch(function (e) { toast('No se pudo guardar el archivo: ' + (e && e.message || e), { err: true }); });
-  }
-
-  // El Shapefile son varios archivos: se entregan juntos en un .zip (QGIS y ArcGIS lo abren así)
-  function exportShp(p, spec, only, many) {
-    if (!p.lots.some(function (l) { return l.points.length; })) { toast('Todavía no hay puntos para exportar.', { err: true }); return; }
-    var title = only ? p.name + ' ' + only.name : many ? p.name + ' seleccion' : p.name;
-    var name = IO.slug(title) + '-shapefile.zip', bytes, m = { name: only ? only.name : p.name, base: IO.slug(title).replace(/-/g, '_') };
-    if (only) m.points = only.points; else if (many) m.lots = exportLots(p, many); else if (multi(p)) m.lots = exportLots(p); else m.points = p.points;
-    try { bytes = Shp.zip(m, Date.now()); }
-    catch (e) { toast('No se pudo preparar el archivo: ' + (e && e.message || e), { err: true }); return; }
-    IO.saveBytes(name, spec.mime, bytes, { title: p.name + ' (' + spec.label + ')', dialogTitle: 'Exportar ' + spec.label }).then(function (r) {
-      if (r.how === 'download') toast('Archivo descargado: ' + name);
-      else if (r.how === 'share') toast('Archivo listo: ' + name);
-    }).catch(function (e) { toast('No se pudo guardar el archivo: ' + (e && e.message || e), { err: true }); });
-  }
+  /* ---------- Exportar (en js/ui-exportar.js desde 2.24.0) ---------- */
+  var Exportar = window.ZV.exportar({ S: S, ui: ui, proj: proj, multi: multi, esc: esc, lotArea: lotArea, toast: toast,
+    openSheet: openSheet, closeSheet: closeSheet, renderTab: renderTab, viewLayers: viewLayers });
+  var exportBlock = Exportar.exportBlock, exportAs = Exportar.exportAs, openExpPick = Exportar.openExpPick, expPickDone = Exportar.expPickDone;
 
   function coordFormBody(pt) {
     var isEdit = !!pt;
@@ -2067,42 +1976,6 @@
       '<div class="btns"><button class="btn" data-act="mapReorder">Ordenar los puntos</button></div>' +
       '<h3 class="sub" style="margin-top:18px">Ayuda</h3><div class="btns"><button class="btn" data-act="mapGuide">Cómo usar el mapa</button></div>');
   }
-  function guideHtml(groups) {
-    return groups.map(function (g) {
-      return (g[0] ? '<h3 class="sub guide-h">' + esc(g[0]) + '</h3>' : '') + '<dl class="guide">' + g[1].map(function (r) { return '<div><dt>' + esc(r[0]) + '</dt><dd>' + esc(r[1]) + '</dd></div>'; }).join('') + '</dl>';
-    }).join('');
-  }
-  var MAP_GUIDE = [
-    ['Lo básico', [
-      ['Toca un punto', 'para ver sus datos, abrir su ficha, moverlo, eliminarlo o ir hasta él (con el GPS encendido te guía con una flecha y los metros que faltan). El número dentro de cada punto es su orden en el recorrido.'],
-      ['Arriba', 'el área, el perímetro y el número de puntos del polígono elegido se actualizan solos. Si dice «Los lados se cruzan», tócalo para ordenar los puntos.'],
-      ['Botones de la izquierda', 'bajo el menú ⋮: cambiar la capa (calles, satélite o topográfico), ver todo el terreno, pantalla completa y deshacer el último cambio, paso a paso. A la derecha, acercar y alejar.'],
-      ['Mi posición', 'el botón redondo de abajo centra el mapa donde estás y te sigue hasta que muevas el mapa.']
-    ]],
-    ['Crear y cambiar puntos', [
-      ['Marcar punto', 'el botón azul de abajo guarda el lugar donde estás, con el GPS.'],
-      ['Menú ⋮', '«Ingresar puntos» crea un punto donde toques. «Posición manual» deja mover un punto manteniéndolo pulsado un segundo y arrastrándolo.'],
-      ['Insertar entre dos', 'con «Posición manual» aparece un «+» en la mitad de cada lado: al tocarlo entre P4 y P5, el nuevo es P5 y los que siguen suben un número. La forma del polígono no cambia.'],
-      ['Cambiar el orden', 'en la tarjeta del punto, marca la casilla «Orden» y usa las flechas ◀ ▶. La casilla viene desmarcada para que el orden no cambie por descuido.'],
-      ['Más opciones', '«Agregar con mira» (una cruz fija en el centro, más precisa que el dedo), «Caminar el lindero» (el GPS deja los puntos mientras recorres el borde) y «Ordenar los puntos».']
-    ]],
-    ['Predios y lotes', [
-      ['＋ Polígono', 'crea un predio (el terreno completo) o un lote dentro de él: potrero, cafetal, cultivo… o el nombre que escribas. Queda elegido y listo para marcar.'],
-      ['Elegir otro', 'toca dentro de otro polígono o su nombre en la fila de arriba. Los cambios se hacen solo en el polígono elegido; los demás se ven más tenues.'],
-      ['Cómo se ven', 'el predio, con relleno liso; los lotes, con relleno de puntos de su color.'],
-      ['Candado 🔒', 'al pasar de un predio a otro polígono, su lindero se bloquea solo. Para cambiarlo, toca «Editar» en el aviso del candado.'],
-      ['Linderos compartidos', 'si marcas o sueltas un punto muy cerca de la esquina de otro polígono, se pega a ella y los dos comparten el lindero exacto. Se apaga en Herramientas › Preferencias.'],
-      ['＋ Lote y ＋ Predio', 'en la fila de arriba. «＋ Predio» crea otro predio y «＋ Lote», un lote dentro del predio elegido. Los dos dejan dibujarlo (con «Crear y dibujar en el mapa» se abre el mapa con su predio a la vista, listo para marcar los puntos tocándolo) o traerlo de un archivo (KML, KMZ, GeoJSON o GPX): si el archivo trae varios polígonos, eliges cuáles entran, y si alguno choca con los linderos, cuáles se ajustan.'],
-      ['Ajustar a los linderos', 'si el polígono que marcas se sale de su predio o se monta sobre otro, la app pregunta: «Ajustar a los linderos» lo recorta para que su borde siga el del predio y el de los vecinos (aparecen puntos nuevos en el lindero y se numeran de nuevo; se puede deshacer); «Dejar sobrepuesto» lo deja como está. Mientras siga encimado, dentro del mapa queda un aviso ámbar con el botón «Ajustar», y al tocar «Salir» la app vuelve a preguntar.']
-    ]],
-    ['Medir', [
-      ['Medir distancia', 'toca el mapa para ir sumando tramos; al cerrar la figura da también el área. No cambia tus puntos.']
-    ]]
-  ];
-  function openMapGuide() {
-    openSheet('Cómo usar el mapa', guideHtml(MAP_GUIDE) +
-      '<p class="small muted">Puedes volver a ver esta ayuda en «Más opciones».</p><div class="btns"><button class="btn btn-primary" data-act="closeSheet">Entendido</button></div>');
-  }
 
   /* ---------- Clima ---------- */
   function srcBadge(src) {
@@ -2891,102 +2764,10 @@
   // La franja va arriba en Puntos, Información, Reporte y el croquis de Polígono (en el mapa no: ese alto es del mapa)
   function hasSteps(t) { return t === 'puntos' || t === 'clima' || t === 'informe' || (t === 'area' && ui.polyView !== 'mapa'); }
 
-  /* ---------- Ayuda y licencias ---------- */
-  var APP_GUIDE = [
-    ['Los tres pasos', [
-      ['1 · Puntos', 'Marca los linderos del terreno con el GPS, escribe sus coordenadas (también salen en planas, Origen Nacional) o importa un archivo de Google Earth, GeoJSON o GPX. Con un punto ya hay zona de vida; con tres o más, también el área. Cada punto puede llevar fotos.'],
-      ['2 · Información', 'Pulsa «Completar con internet» para traer la altitud, la temperatura y la lluvia. Si tienes datos medidos, escríbelos: mandan sobre lo estimado. Sin la lluvia no hay zona de vida.'],
-      ['3 · Reporte', 'La zona de vida de Holdridge con su diagrama, otras clasificaciones del clima (Caldas-Lang del IDEAM, De Martonne y Köppen), el clima actual, el perfil del relieve con la pendiente y los croquis. Compártelo en PDF o HTML.']
-    ]],
-    ['Ejemplo: tu primer predio en 5 pasos', [
-      ['1 · Marca el predio', 'En Polígono › Mapa usa el «Predio» que trae el proyecto (o «＋ Predio») y elige «Dibujar»: toca el mapa en cada esquina del terreno. También puedes caminar el lindero con el GPS desde Puntos o importarlo de un archivo.'],
-      ['2 · Agrega los lotes', 'Con «＋ Lote» marca el cafetal, el potrero o el bosque dentro del predio. Si alguno se monta sobre otro, toca «Ajustar» en el aviso del mapa.'],
-      ['3 · Completa el clima', 'En Información toca «Completar con internet» (o escribe tus datos medidos). Si todos los lotes comparten el clima del predio, «Usar este clima en todos los lotes» lo copia.'],
-      ['4 · Revisa el reporte', 'En Reporte mira la zona de vida, el clima y los croquis, y desmarca las secciones que no necesites.'],
-      ['5 · Comparte', '«Compartir reporte» en PDF o HTML: completo, solo los predios o un solo polígono. Para Google Earth o QGIS, Polígono › Croquis › Exportar.']
-    ]],
-    ['Lo demás', [
-      ['Polígono', 'El croquis con las medidas y para exportar (KML, GeoJSON, GPX, CSV y Shapefile; todo el proyecto o los polígonos que elijas en una lista). En «Mapa», el terreno sobre calles, satélite o topográfico: ahí se crean, mueven y ordenan los puntos, y se mide.'],
-      ['Predios y lotes', 'Todo proyecto empieza con su predio (el terreno completo); dentro de él van los lotes (potrero, cafetal, cultivo…), y puede haber varios predios. Cada polígono tiene sus puntos, su clima y su zona de vida. Se eligen en la fila de arriba; «＋ Predio» y «＋ Lote» crean otro, dibujándolo en el mapa o importándolo de un archivo. Si uno se sale de su predio o se monta sobre otro, un aviso en el mapa ofrece «Ajustar» sus linderos.'],
-      ['Qué va en el reporte', 'En «Reporte», la casilla a la izquierda de cada sección decide si esa parte sale en el reporte que compartes. Con varios polígonos, al compartir eliges: «Completo» (el resumen y cada polígono, cada predio seguido de sus lotes), «Global» (solo los predios que marques) o «Específico» (un solo polígono). El croquis de cada polígono se enfoca en él y resalta solo sus puntos; los demás se ven tenues de fondo.'],
-      ['Proyectos y copia de seguridad', 'Cada proyecto guarda en el teléfono sus predios, lotes, puntos y fotos; en Herramientas › Proyectos creas otro o cambias de proyecto. Haz con frecuencia una copia de seguridad (.zip) y guárdala fuera del teléfono: si la app se desinstala o el teléfono se pierde, es la única forma de recuperar tu trabajo.'],
-      ['Herramientas', 'Conversor de unidades, clima y GPS en vivo, proyectos y copia de seguridad, el encabezado del reporte (tu nombre y tu logo), preferencias y estas ayudas.'],
-      ['Arriba', 'La franja de tres pasos dice qué está listo y qué falta. Tócala para ir a ese paso.'],
-      ['Sin internet', 'La app abre y guarda puntos sin conexión. Los mapas, «Completar con internet» y el clima actual sí la necesitan.']
-    ]]
-  ];
-  /* ---------- Qué hay de nuevo (2.23.5) ----------
-   * Quien ya usaba la app y la actualiza ve, una sola vez, un resumen corto de lo nuevo; quien la instala por primera vez ve la ayuda
-   * completa y no esto. Para una actualización grande futura basta con cambiar WHATS_NEW_ID y la lista. */
-  var WHATS_NEW_ID = '2.23';
-  var WHATS_NEW = [
-    ['＋ Predio y ＋ Lote', 'en la fila de arriba de cada pantalla: crean un predio o un lote dentro del predio elegido, dibujándolo en el mapa o importándolo de un archivo (si trae varios, eliges cuáles).'],
-    ['Solo predios y lotes', 'el predio es el terreno completo y los lotes (cafetal, potrero, bosque…) van dentro; cada lote dice qué parte del predio ocupa.'],
-    ['Ajustar a los linderos', 'si un polígono se sale de su predio o se monta sobre otro, un aviso en el mapa ofrece recortarlo para que siga el lindero.'],
-    ['Reporte a la medida', 'al compartir eliges el reporte completo, solo los predios o un solo polígono; el croquis de cada uno se enfoca en él.'],
-    ['Exportar lo que elijas', 'en Polígono › Croquis › Exportar, «Elegir polígonos» abre una lista para marcar cuáles salen en el archivo; con uno solo, sirve para llevarlo a otro proyecto.'],
-    ['Más colores', '30 colores para distinguir predios y lotes.']
-  ];
-  function openWhatsNew() {
-    openSheet('Qué hay de nuevo', '<p class="lead">Versión ' + esc(APP_VERSION) + '</p><dl class="guide" id="whatsNew">' +
-      WHATS_NEW.map(function (r) { return '<div><dt>' + esc(r[0]) + '</dt><dd>' + esc(r[1]) + '</dd></div>'; }).join('') + '</dl>' +
-      '<div class="btns"><button class="btn btn-primary" data-act="closeSheet">Entendido</button><button class="btn" data-act="appGuide">Ver la ayuda completa</button></div>');
-  }
-  function openAppGuide() {
-    openSheet('Cómo usar la app', guideHtml(APP_GUIDE) +
-      '<p class="small muted">Puedes volver a ver esta ayuda en «Herramientas», donde también está «Para qué sirve la app».</p><div class="btns"><button class="btn btn-primary" data-act="closeSheet">Entendido</button></div>');
-  }
-  // Mini tutorial de usos (2.19.0): qué se puede hacer con cada parte del reporte y a quién le sirve
-  var USES_GUIDE = [
-    ['Qué es', [
-      ['En una frase', 'Una mezcla de mapa y medidor de terrenos con enfoque ambiental: delimitas un predio en campo y la app entrega un reporte de su zona de vida, su clima y su relieve.'],
-      ['De dónde salen los datos', 'Los puntos, de tu GPS o de lo que escribas. La altitud, la temperatura y la lluvia, de servicios públicos de internet (promedios de varios años), o de tus propias mediciones si las tienes. La app calcula con eso: no reemplaza una estación meteorológica ni un levantamiento topográfico.']
-    ]],
-    ['Qué te dice cada parte del reporte', [
-      ['Croquis', 'Cuál es el predio: su forma, su tamaño y sus linderos, para reconocerlo y mostrarlo.'],
-      ['Croquis satelital y topográfico', 'Qué hay dentro y alrededor (bosque, potreros, caminos, quebradas) y cómo es el terreno: las curvas de nivel muestran dónde sube y dónde baja.'],
-      ['Perfil del relieve y pendiente', 'A qué altura está cada punto, cuál es el más alto y el más bajo, y qué tan inclinado es el terreno. Sirve para planear por dónde llegar, por dónde baja el agua o dónde cuesta más trabajar.'],
-      ['Diagrama de Walter-Lieth', 'Cómo se reparte la lluvia en el año: meses húmedos y meses secos. Sirve para pensar cuándo sembrar, cuándo hay riesgo de falta de agua y qué labores hacer en cada época.'],
-      ['Zona de vida de Holdridge', 'Qué tipo de vegetación natural corresponde a ese clima. Es la base para comparar el uso actual con lo que el sitio da de forma natural.'],
-      ['Caldas-Lang (IDEAM)', 'El piso térmico y la humedad en el lenguaje que usa la asistencia técnica en Colombia: «templado húmedo», «frío semihúmedo».'],
-      ['De Martonne y Köppen', 'Dos clasificaciones del clima usadas en todo el mundo: De Martonne dice qué tan seco o húmedo es el sitio; Köppen lo ubica entre los grandes tipos de clima y sirve para compararlo con otras regiones.'],
-      ['Resumen de predios y lotes', 'Cuánto mide cada predio y qué parte ocupa cada lote (en hectáreas y en % del predio); avisa si algún polígono se sale de su predio o se monta sobre otro.'],
-      ['Coordenadas', 'La ubicación de cada punto en grados y en coordenadas planas (MAGNA-SIRGAS / Origen Nacional), lista para pasarla a un plano o a QGIS.'],
-      ['Fotos', 'Las fotos tomadas en cada punto, como evidencia de lo que había el día de la visita.']
-    ]],
-    ['Usos por área', [
-      ['Agrícola y pecuaria', 'Medir lotes y potreros, llevar las áreas de cultivo, de rotación o de riego dentro del predio, y saber el piso térmico y los meses secos antes de escoger qué sembrar.'],
-      ['Forestal', 'Delimitar rodales y áreas de reforestación o conservación, con su zona de vida, su pendiente y un croquis para el plan de manejo.'],
-      ['Ambiental', 'Caracterizar un predio para un estudio o una visita técnica: ubicación, área, zona de vida, clima y relieve en un solo documento con fuentes citadas.'],
-      ['Estudio y docencia', 'Prácticas de campo: tomar puntos, ubicar el sitio en el diagrama de Holdridge y comparar varias clasificaciones del clima con los mismos datos.'],
-      ['Predios y trámites', 'Un croquis con coordenadas geográficas y planas (MAGNA-SIRGAS, Origen Nacional) y archivos para Google Earth, QGIS o ArcGIS. No reemplaza un plano hecho por un topógrafo.']
-    ]],
-    ['Hasta dónde llega', [
-      ['Precisión', 'El GPS de un teléfono tiene un error de varios metros: en un predio pequeño el área puede variar varios por ciento. El clima viene de datos en cuadros de varios kilómetros, ajustados con la altitud.'],
-      ['Es orientativo', 'El resultado sirve para orientar decisiones y preparar visitas; para decisiones legales o inversiones grandes, confírmalo con mediciones y con un profesional.']
-    ]]
-  ];
-  function openUses() {
-    openSheet('Para qué sirve la app', guideHtml(USES_GUIDE) + '<div class="btns"><button class="btn btn-primary" data-act="closeSheet">Entendido</button></div>');
-  }
-  function openLicenses() {
-    var rows = [
-      ['Mapa de calles', '© colaboradores de OpenStreetMap, licencia ODbL. openstreetmap.org/copyright'],
-      ['Imágenes de satélite y nombres', 'Esri World Imagery y capas de referencia. Fuente: Esri, Maxar, Earthstar Geographics y la comunidad de usuarios SIG.'],
-      ['Mapa topográfico', '© OpenTopoMap (CC-BY-SA), con datos de OpenStreetMap y SRTM.'],
-      ['Clima de la zona', 'NASA POWER (NASA Langley Research Center) y Open-Meteo (CC BY 4.0).'],
-      ['Clima actual', 'Open-Meteo (CC BY 4.0).'],
-      ['Mapa en pantalla', 'Leaflet (licencia BSD de 2 cláusulas).'],
-      ['Zonas de vida', 'Sistema de clasificación de L. R. Holdridge (1967). El resultado es orientativo.'],
-      ['Caldas-Lang', 'IDEAM, Nota técnica NT_IDEAM-2025-003, «Actualización de la clasificación climática de Caldas-Lang».'],
-      ['Köppen-Geiger y De Martonne', 'Criterios de Peel, Finlayson y McMahon (2007) para Köppen-Geiger; índice de aridez de E. de Martonne (1926).'],
-      ['Diagrama de Walter-Lieth', 'Climodiagrama de H. Walter y H. Lieth: un mes es seco cuando la lluvia (mm) es menor que el doble de la temperatura (°C).'],
-      ['Clases de pendiente', 'Instituto Geográfico Agustín Codazzi (IGAC), clases de pendiente de sus levantamientos de suelos y geomorfología.'],
-      ['Coordenadas planas', 'MAGNA-SIRGAS / Origen Nacional (EPSG:9377), sistema único adoptado por el IGAC en 2020.']
-    ];
-    openSheet('Fuentes y licencias', '<dl class="guide">' + rows.map(function (r) { return '<div><dt>' + esc(r[0]) + '</dt><dd>' + esc(r[1]) + '</dd></div>'; }).join('') + '</dl>' +
-      '<p class="small muted">Los mapas y el clima se piden a esos servicios solo cuando hay internet; la app no envía tus puntos a ningún otro lugar.</p><div class="btns"><button class="btn btn-primary" data-act="closeSheet">Cerrar</button></div>');
-  }
+  /* ---------- Ayudas (en js/ayudas.js desde 2.24.0) ---------- */
+  var Ayudas = window.ZV.ayudas({ esc: esc, openSheet: openSheet, APP_VERSION: APP_VERSION });
+  var WHATS_NEW_ID = Ayudas.WHATS_NEW_ID, openMapGuide = Ayudas.openMapGuide,
+    openWhatsNew = Ayudas.openWhatsNew, openAppGuide = Ayudas.openAppGuide, openUses = Ayudas.openUses, openLicenses = Ayudas.openLicenses;
   // Exportar vive en Polígono › Croquis: desde el Reporte se salta hasta ahí
   function goExport() {
     ui.polyView = 'croquis'; setMapMode(''); leaveMap();
@@ -3274,8 +3055,8 @@
     lotAdd: function () { lotForm(''); }, predioAdd: function () { lotForm('', 'predio'); },
     lotMode: function (t) { var e = ui.edit; if (!e || e.kind !== 'lot') return; lotFormRead(); e.mode = t.getAttribute('data-m'); lotFormRefresh(); },
     lotFile: function () { lotFormRead(); $('#polyFile').click(); }, lotImport: lotImport, adjustMany: adjustMany,
-    expScope: function () { ui.expPick = false; renderTab(ui.tab); }, expPickOpen: openExpPick, expPickDone: expPickDone,
-    expPickAll: function (t) { var v = t.getAttribute('data-v') === '1'; [].forEach.call(document.querySelectorAll('#expList input'), function (i) { i.checked = v; }); }, lotEdit: function (t) { lotForm(t.getAttribute('data-id')); }, lotSave: lotSave,
+    expScope: Exportar.expScope, expPickOpen: openExpPick, expPickDone: expPickDone,
+    expPickAll: Exportar.expPickAll, lotEdit: function (t) { lotForm(t.getAttribute('data-id')); }, lotSave: lotSave,
     lotNewMap: function () { closeSheet(); lotForm('', 'map'); },
     mapUnlock: function () { setLock(lot(), false); },
     layerToFinca: function (t) { layerToLot(t.getAttribute('data-id'), 'finca'); }, layerToArea: function (t) { layerToLot(t.getAttribute('data-id'), 'area'); },
@@ -3342,12 +3123,6 @@
     if (navigator.onLine === false) { e.preventDefault(); toast('Necesitas internet para abrir ' + a.textContent.trim() + '.', { err: true }); return; }
     // En el teléfono, ir a la dirección hace que Android la abra con la app de la red o con el navegador (no dentro de Zonas de Vida)
     if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) { e.preventDefault(); window.location.href = a.href; }
-  });
-  // «Qué polígonos exportar»: marcar o desmarcar un predio hace lo mismo con sus lotes (después se pueden cambiar uno por uno)
-  document.addEventListener('change', function (e) {
-    var t = e.target;
-    if (!t.matches || !t.matches('#expList input[data-finca]')) return;
-    [].forEach.call(document.querySelectorAll('#expList input[data-parent="' + t.getAttribute('data-id') + '"]'), function (i) { i.checked = t.checked; });
   });
   $('#polyFile').addEventListener('change', function (e) {
     var f = e.target.files && e.target.files[0];

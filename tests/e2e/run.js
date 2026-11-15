@@ -66,7 +66,7 @@ const arg = (n) => { const a = process.argv.find((x) => x.startsWith('--' + n + 
   const tab = async (name) => { await page.click('#nav-' + name); await page.waitForSelector('#tab-' + name, { state: 'visible' }); };
   const text = (sel) => page.evaluate((s) => { const e = document.querySelector(s); return e ? e.textContent : null; }, sel);
   // «Qué hay de nuevo» (2.23.5) sale a quien actualiza: en los recorridos se marca como ya visto, salvo donde se prueba
-  const WN_ID = /var WHATS_NEW_ID = '([^']+)'/.exec(require('fs').readFileSync(require('path').join(__dirname, '../../www/js/app.js'), 'utf8'))[1];
+  const WN_ID = /var WHATS_NEW_ID = '([^']+)'/.exec(require('fs').readFileSync(require('path').join(__dirname, '../../www/js/ayudas.js'), 'utf8'))[1];
   const fresh = async () => {
     await page.evaluate((wn) => { localStorage.clear(); localStorage.setItem('zvg.v1.flags', JSON.stringify({ mapGuide: true, appGuide: true, reportOpen: true, whatsNew: wn })); }, WN_ID);   // la ayuda de primera vez del mapa se prueba aparte
     await page.goto(url);
