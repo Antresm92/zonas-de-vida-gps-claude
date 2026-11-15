@@ -99,6 +99,11 @@ Sube la carpeta `www/` a cualquier alojamiento web con HTTPS (por ejemplo GitHub
 - **Exportar**: KML, GeoJSON y GPX llevan todos los lotes (el elegido como polígono principal, los demás como capas con su nombre); el CSV añade la columna `Lote` y el Shapefile la columna `LOTE`, con una figura por lote.
 - **Guardado**: los proyectos de versiones anteriores pasan solos a tener un «Lote 1» con todo lo que tenían. La copia de seguridad lleva los lotes, y una copia hecha con una versión anterior se sigue pudiendo restaurar. Una copia hecha con la 2.15.0 (formato 2) no se puede restaurar en una versión anterior de la app: esta avisa que hay que actualizar.
 
+**2.25.1: «Limpiar información ▾» con lista de polígonos.**
+- Ya no depende del polígono elegido arriba: la hoja tiene dos partes, **«1 · De qué polígonos»** (la misma lista de «Elegir polígonos», sin nada marcado; marcar un predio marca sus lotes; «Marcar todos» y «Ninguno») y **«2 · Qué borrar»** (las mismas casillas, sin marcar), que suman lo de los marcados («Altitud de los puntos (internet): 5 puntos en 2 polígonos»). Lo que ninguno de los marcados tiene sale en gris y no se puede marcar.
+- «Limpiar y completar con internet» borra en todos los marcados y los completa uno por uno, con el avance en el botón y el mismo resumen ✓/✗; el resumen trae **«Deshacer la limpieza»**, que devuelve todos como estaban (además del aviso con «Deshacer»).
+- En las listas, la fecha de descarga se acorta y va en negrita: «descargado **15 nov 2026**».
+
 **2.25.0: encontrar, completar y limpiar. Lo escrito a mano manda.**
 - **«Exportar polígono»** en la hoja «Editar» de cada predio o lote (con puntos): lleva a Polígono › Croquis › Exportar con ese polígono ya marcado en «Elegir polígonos»; solo falta el formato. La ayuda del mapa lo explica en «Predios y lotes».
 - **La fila de polígonos** de arriba se desliza sola hasta el elegido al cambiar de polígono, de pestaña o de vista. Si se desliza a mano, se respeta mientras se siga en el mismo polígono y la misma pantalla.
@@ -372,7 +377,7 @@ www/                 la app (HTML, CSS y JavaScript; el mapa usa Leaflet, inclui
   js/ayudas.js       textos y hojas de ayuda, «Qué hay de nuevo» y «Fuentes y licencias» (2.24.0)
   js/ui-exportar.js  bloque «Exportar», lista «Elegir polígonos» y archivos que salen (2.24.0)
   js/datos.js        qué información tiene cada polígono, limpiarla y copiar el clima sin pisar lo escrito a mano (2.25.0)
-  js/ui-completar.js «Completar con internet» (uno o varios), «Usar este clima en todos los polígonos» y «Limpiar información» (2.25.0)
+  js/ui-completar.js «Completar con internet» (uno o varios), «Usar este clima en todos los polígonos» y «Limpiar información ▾» (2.25.0)
   js/app.js          interfaz (el resto; se sigue dividiendo por temas)
 tests/               pruebas unitarias (npm test) y en navegador (tests/e2e)
 tools/cobertura.js   mide qué código ejecutan las pruebas

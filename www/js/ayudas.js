@@ -64,7 +64,7 @@
       ['Lo demás', [
         ['Polígono', 'El croquis con las medidas y para exportar (KML, GeoJSON, GPX, CSV y Shapefile; todo el proyecto o los polígonos que elijas en una lista). En «Mapa», el terreno sobre calles, satélite o topográfico: ahí se crean, mueven y ordenan los puntos, y se mide.'],
         ['Predios y lotes', 'Todo proyecto empieza con su predio (el terreno completo); dentro de él van los lotes (potrero, cafetal, cultivo…), y puede haber varios predios. Cada polígono tiene sus puntos, su clima y su zona de vida. Se eligen en la fila de arriba; «＋ Predio» y «＋ Lote» crean otro, dibujándolo en el mapa o importándolo de un archivo. Si uno se sale de su predio o se monta sobre otro, un aviso en el mapa ofrece «Ajustar» sus linderos.'],
-        ['Varios polígonos a la vez', 'En Información, «Elegir polígonos ▾» completa con internet los que marques, uno por uno, y al final dice cuáles quedaron listos. «Limpiar información del polígono» borra lo que elijas (clima o altitudes según su origen) para volver a completarlo; se puede deshacer.'],
+        ['Varios polígonos a la vez', 'En Información, «Elegir polígonos ▾» completa con internet los que marques, uno por uno, y al final dice cuáles quedaron listos. «Limpiar información ▾» borra, en los polígonos que marques, lo que elijas (clima o altitudes según su origen) para volver a completarlos; se puede deshacer.'],
         ['Qué va en el reporte', 'En «Reporte», la casilla a la izquierda de cada sección decide si esa parte sale en el reporte que compartes. Con varios polígonos, al compartir eliges: «Completo» (el resumen y cada polígono, cada predio seguido de sus lotes), «Global» (solo los predios que marques) o «Específico» (un solo polígono). El croquis de cada polígono se enfoca en él y resalta solo sus puntos; los demás se ven tenues de fondo.'],
         ['Proyectos y copia de seguridad', 'Cada proyecto guarda en el teléfono sus predios, lotes, puntos y fotos; en Herramientas › Proyectos creas otro o cambias de proyecto. Haz con frecuencia una copia de seguridad (.zip) y guárdala fuera del teléfono: si la app se desinstala o el teléfono se pierde, es la única forma de recuperar tu trabajo.'],
         ['Herramientas', 'Conversor de unidades, clima y GPS en vivo, proyectos y copia de seguridad, el encabezado del reporte (tu nombre y tu logo), preferencias y estas ayudas.'],
@@ -81,7 +81,7 @@
       ['Siempre a la vista', 'la fila de arriba se desliza sola hasta el polígono elegido, en todas las pantallas.'],
       ['Completar varios', 'en Información, «Elegir polígonos ▾» completa con internet los que marques, uno por uno, y al final muestra cuáles quedaron listos y cuáles no.'],
       ['Lo escrito a mano manda', 'internet solo llena lo que falta, y «Usar este clima en todos los polígonos» ya no reemplaza los datos que escribiste a mano en los demás.'],
-      ['Limpiar información', 'en Información, borra lo que elijas de un polígono (clima de internet o a mano, altitudes según su origen) y, si quieres, lo vuelve a completar con internet. Se puede deshacer.']
+      ['Limpiar información', 'en Información, «Limpiar información ▾»: marca los polígonos y lo que quieres borrar (clima de internet o a mano, altitudes según su origen); «Limpiar y completar con internet» lo vuelve a traer. Se puede deshacer.']
     ];
     function openWhatsNew() {
       openSheet('Qué hay de nuevo', '<p class="lead">Versión ' + esc(APP_VERSION) + '</p><dl class="guide" id="whatsNew">' +

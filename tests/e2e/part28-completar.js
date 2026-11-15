@@ -145,21 +145,41 @@ module.exports = async function (c) {
     await act('climateToAll');
   });
 
-  await step('«Limpiar información del polígono»: casillas sin marcar; la del GPS con su advertencia; «Solo limpiar» y «Deshacer»', async () => {
+  await step('«Limpiar información ▾»: arriba los polígonos y abajo qué borrar, todo sin marcar; suma lo de los marcados; la del GPS con su advertencia', async () => {
     await pick('l1');      // Lote B
     await page.evaluate(() => { const l = window.__app.S.projects[0].lots.find((x) => x.id === 'l1'); l.points[0].altSrc = 'gps'; });
     await page.evaluate(() => window.__app.showTab('clima'));
-    assert.equal(await text('#cleanBtn'), 'Limpiar información del polígono');
+    assert.equal(await text('#cleanBtn'), 'Limpiar información ▾');
     await page.click('#cleanBtn');
     assert.equal(await sheetTitle(), 'Limpiar información');
-    const rows = await page.$$eval('#cleanList label b', (l) => l.map((x) => x.textContent));
-    assert.deepEqual(rows, ['Clima traído de internet', 'Clima escrito a mano', 'Altitud de los puntos (internet): 2 puntos', 'Altitud de los puntos (GPS): 1 punto']);
-    assert.equal(await page.locator('#cleanList input:checked').count(), 0, 'nada viene marcado');
+    assert.equal(await page.locator('#cleanPolys input').count(), 8);
+    assert.equal(await page.locator('#cleanPolys input:checked').count(), 0, 'ningún polígono viene marcado');
+    assert.equal(await page.locator('#cleanList input:not([disabled])').count(), 0, 'sin polígonos, nada se puede marcar abajo');
+    assert.equal(await text('#cleanHint'), 'Primero marca los polígonos arriba.');
+    assert.match(await text('#cleanPolys label:nth-child(3)'), /^Lote B · descargado \d{1,2} [a-z]{3} \d{4}$/, 'la fecha corta');
+    assert.equal(await page.locator('#cleanPolys label:nth-child(3) small b').count(), 1, 'la fecha va en negrita');
+    const labels = () => page.$$eval('#cleanList label b', (l) => l.map((x) => x.textContent));
+    const usable = () => page.$$eval('#cleanList input:not([disabled])', (l) => l.map((x) => x.getAttribute('data-part')));
+    await page.click('#cleanPolys input[data-id="l1"]');
+    assert.deepEqual(await labels(), ['Clima traído de internet', 'Clima escrito a mano', 'Altitud corregida a mano', 'Altitud de los puntos (internet): 2 puntos', 'Altitud de los puntos (a mano)', 'Altitud de los puntos (GPS): 1 punto']);
+    assert.deepEqual(await usable(), ['online', 'manual', 'altInternet', 'altGps'], 'lo que el Lote B no tiene queda gris');
+    assert.equal(await page.locator('#cleanList label.off').count(), 2);
+    await page.click('#cleanPolys input[data-id="l2"]');
+    assert.deepEqual(await labels(), ['Clima traído de internet: 2 polígonos', 'Clima escrito a mano: 2 polígonos', 'Altitud corregida a mano', 'Altitud de los puntos (internet): 5 puntos en 2 polígonos', 'Altitud de los puntos (a mano)', 'Altitud de los puntos (GPS): 1 punto en 1 polígono']);
+    assert.equal(await text('#cleanHint'), 'Lo que suman los 2 polígonos marcados. Lo que ninguno tiene sale en gris.');
+    assert.equal(await page.locator('#cleanList input:checked').count(), 0, 'abajo tampoco viene nada marcado');
     assert.equal(await page.locator('#cleanList .warnrow input[data-part="altGps"]').count(), 1);
     assert.match(await text('#cleanList .warnrow'), /Es tu medida en campo/);
     await shot('v225-limpiar');
+    await page.click('#cleanPolys input[data-id="l2"]');
     await page.click('#sheet [data-act="cleanDo"]:not([data-then])');
     assert.match(await toastText(), /^No marcaste nada para borrar\./);
+    await page.click('#cleanList input[data-part="online"]'); await page.click('#cleanList input[data-part="altInternet"]');
+    await page.click('#sheet [data-act="fetchPickAll"][data-list="cleanPolys"][data-v="0"]');
+    assert.equal(await page.locator('#cleanList input:checked').count(), 0, 'sin polígonos se desmarca lo de abajo');
+    await page.click('#sheet [data-act="cleanDo"]:not([data-then])');
+    assert.match(await toastText(), /^Primero marca de qué polígonos\./);
+    await page.click('#cleanPolys input[data-id="l1"]');
     await page.click('#cleanList input[data-part="online"]'); await page.click('#cleanList input[data-part="altInternet"]');
     await page.click('#sheet [data-act="cleanDo"]:not([data-then])'); await waitSheetClosed();
     assert.match(await toastText(), /^Información borrada de «Lote B»\. Puedes completarla con internet o escribirla a mano\.Deshacer$/);
@@ -173,17 +193,22 @@ module.exports = async function (c) {
     assert.equal(b.points[1].altSrc, 'internet');
   });
 
-  await step('«Limpiar y completar con internet»: borra lo marcado y lo trae de nuevo; un solo «Deshacer» lo devuelve todo', async () => {
+  await step('«Limpiar y completar con internet» en dos polígonos: borra, completa uno por uno con resumen y «Deshacer la limpieza» lo devuelve todo', async () => {
     await page.click('#cleanBtn');
+    await page.click('#cleanPolys input[data-id="l1"]'); await page.click('#cleanPolys input[data-id="l2"]');
     await page.click('#cleanList input[data-part="manual"]'); await page.click('#cleanList input[data-part="altGps"]');
-    await page.click('#sheet [data-act="cleanDo"][data-then="fetch"]'); await waitSheetClosed();
-    await waitToast(/^Listo: altitud de 1 punto y clima de la zona\..*Deshacer$/);
-    let b = await byName('Lote B');
-    assert.equal(b.climate.tManual, undefined, 'el clima escrito a mano se borró');
+    await page.click('#sheet [data-act="cleanDo"][data-then="fetch"]');
+    await page.waitForFunction(() => { const h = document.querySelector('#sheet h2'); return h && h.textContent === 'Resultado'; }, null, { timeout: 30000 });
+    assert.equal(await text('#fetchSum'), 'Los 2 polígonos quedaron completados.');
+    assert.deepEqual(await page.$$eval('#fetchRes dd', (d) => d.map((x) => x.textContent)), ['altitud de 1 punto y clima de la zona.', 'clima de la zona.']);
+    let b = await byName('Lote B'), cc = await byName('Lote C');
+    assert.equal(b.climate.tManual, undefined, 'el clima escrito a mano se borró'); assert.equal(cc.climate.tManual, undefined);
     assert.equal(b.points[0].altSrc, 'internet'); assert.equal(typeof b.points[0].altGps, 'number', 'la medida del GPS queda guardada para restaurarla');
-    await page.click('#toast button');
-    b = await byName('Lote B');
-    assert.equal(b.climate.tManual, 20); assert.equal(b.points[0].altSrc, 'gps');
+    await shot('v225-limpiar-resultado');
+    await page.click('#sheet [data-act="cleanUndo"]'); await waitSheetClosed();
+    assert.match(await toastText(), /^Listo: todo quedó como estaba antes de limpiar\./);
+    b = await byName('Lote B'); cc = await byName('Lote C');
+    assert.equal(b.climate.tManual, 20); assert.equal(b.points[0].altSrc, 'gps'); assert.equal(cc.climate.tManual, 20);
   });
 
   await step('«Exportar polígono» en la hoja Editar: lleva a Exportar con ese polígono ya marcado', async () => {
@@ -210,7 +235,7 @@ module.exports = async function (c) {
     await page.click('#sheet .btn-primary'); await waitSheetClosed();
   });
 
-  await step('Versión 2.25.0: sin errores de JavaScript en la consola', async () => {
+  await step('Versión 2.25: sin errores de JavaScript en la consola', async () => {
     await page.unrouteAll({ behavior: 'ignoreErrors' });
     // las consultas que fallan a propósito dejan «Failed to load resource» en la consola: no son errores de la app
     assert.deepEqual(errors.filter((e) => !/Failed to load resource/.test(e)), []);
