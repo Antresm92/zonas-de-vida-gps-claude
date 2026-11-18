@@ -10,7 +10,7 @@
   'use strict';
   window.ZV = window.ZV || {};
   window.ZV.mapa = function (ctx) {
-    var S = ctx.S, ui = ctx.ui, $ = ctx['$'], addPoint = ctx.addPoint, analysis = ctx.analysis, closeSheet = ctx.closeSheet, esc = ctx.esc, gpsStart = ctx.gpsStart, hugeInfo = ctx.hugeInfo, isNum = ctx.isNum, lockStop = ctx.lockStop, lot = ctx.lot, lotLayers = ctx.lotLayers, multi = ctx.multi, openEdit = ctx.openEdit, openMapGuide = ctx.openMapGuide, openSheet = ctx.openSheet, pickLot = ctx.pickLot, pointById = ctx.pointById, proj = ctx.proj, relocate = ctx.relocate, renderTab = ctx.renderTab, save = ctx.save, toast = ctx.toast, view = ctx.view, viewLayers = ctx.viewLayers;
+    var S = ctx.S, ui = ctx.ui, $ = ctx['$'], addPoint = ctx.addPoint, analysis = ctx.analysis, closeSheet = ctx.closeSheet, esc = ctx.esc, gpsStart = ctx.gpsStart, hugeInfo = ctx.hugeInfo, isNum = ctx.isNum, lockStop = ctx.lockStop, lot = ctx.lot, lotLayers = ctx.lotLayers, multi = ctx.multi, openEdit = ctx.openEdit, openMapGuide = ctx.openMapGuide, igacLayerHtml = ctx.igacLayerHtml, igacSync = ctx.igacSync, openSheet = ctx.openSheet, pickLot = ctx.pickLot, pointById = ctx.pointById, proj = ctx.proj, relocate = ctx.relocate, renderTab = ctx.renderTab, save = ctx.save, toast = ctx.toast, view = ctx.view, viewLayers = ctx.viewLayers;
     var Fmt = window.Fmt, Geo = window.Geo, MapView = window.MapView, Mapa = window.Mapa, Store = window.Store;
 
     /* ---------- Polígono: vista Mapa ---------- */
@@ -53,6 +53,7 @@
         h += '<button data-act="mapBase" data-b="' + id + '" aria-pressed="' + (ui.mapBase === id) + '">' + esc(Mapa.BASES[id].label) + '</button>';
       });
       if (ui.mapBase === 'satelite') h += '<button class="chipbtn" data-act="mapRef" aria-pressed="' + ui.mapRef + '">Calles y nombres sobre el satélite</button>';
+      h += igacLayerHtml();                       // «Capacidad de uso (IGAC)» encima de la base (2.31.0)
       h += '</div>';
       h += '<div class="mapcross" aria-hidden="true"></div>';
       h += '<div id="mapCard" class="mapcard" hidden></div>';
@@ -218,6 +219,7 @@
       ui.map.attach(host);
       ui.map.setMode(ui.mapMode);
       ui.map.setBase(ui.mapBase, ui.mapRef);
+      igacSync();
       ui.map.draw(Mapa.shapes(view(p), { polyActive: ui.polyActive, bad: !!a.selfIntersects, fmt: function (n) { return Fmt.num(n, 0); }, dist: Geo.distance, fmtDist: Fmt.dist }));
       ui.map.setMeasure(ui.mapTool === 'medir' ? ui.measure : [], ui.measureClosed);
       var key = mapKey();

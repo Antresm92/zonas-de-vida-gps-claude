@@ -24,6 +24,10 @@
     map.attributionControl.setPrefix('Leaflet');   // sin enlace: tocarlo dentro de la app no debe sacar al usuario de ella
 
     var baseLayer = null, refLayers = [];
+    // Capa encima de la base (2.31.0, «Capacidad de uso (IGAC)»): en su propio panel, entre las baldosas y los polígonos de la app
+    map.createPane('capaPane').style.zIndex = 350;
+    map.getPane('capaPane').style.pointerEvents = 'none';
+    var capa = null, capaKey = '', capaInfo = { kind: '', loaded: 0, errors: 0, shapes: 0 };
     var state = { base: 'calles', reference: false, errors: 0, loaded: 0 };
     var drawn = L.layerGroup().addTo(map);
     var fixGroup = L.layerGroup().addTo(map);
@@ -68,6 +72,33 @@
       var opts = { maxZoom: def.maxZoom, attribution: def.attribution || '', crossOrigin: false };
       if (def.maxNativeZoom) opts.maxNativeZoom = def.maxNativeZoom;
       return watchTiles(L.tileLayer(def.url, opts));
+    }
+
+    // def: null (sin capa) · { key, tileUrl(x, y, z), opacity, attribution, onError(n) } (baldosas en línea)
+    //  · { key, shapes: [{ rings: [[[lat, lon]…]…], color }], attribution } (lo guardado, dibujado en el teléfono)
+    function setOverlay(def) {
+      var key = def ? def.key || '' : '';
+      if (key && key === capaKey) return;
+      if (capa) map.removeLayer(capa);
+      capa = null; capaKey = key; capaInfo = { kind: '', loaded: 0, errors: 0, shapes: 0 };
+      if (!def) return;
+      if (def.tileUrl) {
+        var Fn = L.TileLayer.extend({ getTileUrl: function (c) { return def.tileUrl(c.x, c.y, this._getZoomForUrl()); } });
+        capa = new Fn('', { pane: 'capaPane', opacity: def.opacity || 0.55, maxZoom: 20, maxNativeZoom: 18, minZoom: 5, attribution: def.attribution || '', crossOrigin: false });
+        capaInfo.kind = 'tiles';
+        capa.on('tileload', function () { capaInfo.loaded++; });
+        capa.on('tileerror', function () { capaInfo.errors++; if (typeof def.onError === 'function') def.onError(capaInfo.errors); });
+      } else {
+        var rend = L.canvas({ pane: 'capaPane' });
+        capa = L.layerGroup([], { attribution: def.attribution || '' });
+        capa.getAttribution = function () { return def.attribution || ''; };
+        (def.shapes || []).forEach(function (sh) {
+          L.polygon(sh.rings.map(function (r) { return r.map(function (q) { return [q[0], q[1]]; }); }),
+            { renderer: rend, pane: 'capaPane', color: '#3a3a3a', weight: 0.8, opacity: 0.7, fillColor: sh.color, fillOpacity: 0.5, interactive: false }).addTo(capa);
+        });
+        capaInfo.kind = 'shapes'; capaInfo.shapes = (def.shapes || []).length;
+      }
+      capa.addTo(map);
     }
 
     function setBase(id, reference) {
@@ -361,7 +392,7 @@
     return {
       el: el,
       attach: function (host) { if (el.parentNode !== host) host.appendChild(el); map.invalidateSize(); syncLabels(); },
-      setBase: setBase, draw: draw, fit: fit, showFix: showFix, flyTo: flyTo, setMode: setMode, select: select, setMeasure: setMeasure,
+      setBase: setBase, setOverlay: setOverlay, draw: draw, fit: fit, showFix: showFix, flyTo: flyTo, setMode: setMode, select: select, setMeasure: setMeasure,
       center: function () { var c = map.getCenter().wrap(); return { lat: c.lat, lon: c.lng }; },
       zoom: function () { return map.getZoom(); },
       refresh: function () { map.invalidateSize(); },
@@ -371,7 +402,8 @@
                  markers: model.markers.slice(), polygon: model.polygon, layers: model.layers.slice(), fix: model.fix,
                  selected: selId, link: !!linkLine, measure: measurePts.length, measureClosed: measureClosed, scale: (el.querySelector('.leaflet-control-scale-line') || {}).textContent || '',
                  sides: sideRefs.map(function (r) { return { text: r.text, label: r.label, plus: r.plus, alt: !!r.alt }; }),
-                 labelsOn: !el.classList.contains('labels-off'), attribution: (el.querySelector('.leaflet-control-attribution') || {}).textContent || '' };
+                 labelsOn: !el.classList.contains('labels-off'), attribution: (el.querySelector('.leaflet-control-attribution') || {}).textContent || '',
+                 overlay: { key: capaKey, kind: capaInfo.kind, loaded: capaInfo.loaded, errors: capaInfo.errors, shapes: capaInfo.shapes } };
       }
     };
   }

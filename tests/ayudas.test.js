@@ -36,3 +36,14 @@ test('la ayuda explica «Usos recomendados» donde corresponde', () => {
   assert.match(sheets[0][1], /Cultivos a evaluar y conclusión/); assert.match(sheets[1][1], /Conclusión y recomendaciones/);
   assert.match(sheets[1][1], /no una orden de siembra/); assert.match(sheets[2][1], /ECOCROP/);
 });
+
+test('la ayuda explica el mapa del IGAC (2.31.0) en las cinco hojas', () => {
+  const { A, sheets } = load();
+  A.openMapGuide(); A.openAppGuide(); A.openUses(); A.openWhatsNew(); A.openLicenses();
+  assert.match(sheets[0][1], /Capacidad de uso \(IGAC\).*Guardar la zona del predio para usar sin conexión.*Es un mapa regional/s);
+  assert.match(sheets[1][1], /Según el mapa del IGAC.*Consultar el mapa del IGAC/s);
+  assert.match(sheets[2][1], /Según el mapa del IGAC/); assert.match(sheets[2][1], /algunos polígonos de estudios antiguos marcados «IV» salen con el color de la clase 6/);
+  assert.match(sheets[3][1], /Según el mapa del IGAC.*Capa «Capacidad de uso \(IGAC\)»/s);
+  assert.match(sheets[4][1], /mapa multiescalar.*CC BY 4\.0 \(Resolución 616 de 2020\)/s);
+  assert.equal(A.WHATS_NEW_ID, '2.31');
+});

@@ -181,7 +181,7 @@ module.exports = async function (c) {
     await act('mapLayers');
     assert.equal(await visible('#mapLayersPanel'), true);
     assert.equal(await page.getAttribute('[data-act="mapLayers"]', 'aria-expanded'), 'true');
-    assert.deepEqual(await page.$$eval('#mapLayersPanel button', (b) => b.map((x) => x.textContent + '|' + x.getAttribute('aria-pressed'))), ['Calles|true', 'Satélite|false', 'Topográfico|false']);
+    assert.deepEqual(await page.$$eval('#mapLayersPanel button', (b) => b.map((x) => x.textContent + '|' + x.getAttribute('aria-pressed'))), ['Calles|true', 'Satélite|false', 'Topográfico|false', 'Capacidad de uso (IGAC)|false']);   // 2.31.0: la capa del IGAC, encima
     await shot('153-capas');
     await page.click('[data-act="mapBase"][data-b="satelite"]');
     await waitInfo((x) => x.base === 'satelite', 'satélite');
@@ -684,7 +684,7 @@ module.exports = async function (c) {
     await openMap();
     await page.waitForSelector('#sheet:not([hidden])');
     assert.equal(await sheetTitle(), 'Cómo usar el mapa');
-    assert.deepEqual(await page.$$eval('.guide dt', (d) => d.map((x) => x.textContent)), ['Toca un punto', 'Arriba', 'Botones de la izquierda', 'Mi posición', 'Marcar punto', 'Menú ⋮', 'Insertar entre dos', 'Cambiar el orden', 'Más opciones', '＋ Polígono', 'Elegir otro', 'Cómo se ven', 'Candado 🔒', 'Linderos compartidos', '＋ Lote y ＋ Predio', 'Ajustar a los linderos', 'Exportar un polígono', 'Medir distancia']);
+    assert.deepEqual(await page.$$eval('.guide dt', (d) => d.map((x) => x.textContent)), ['Toca un punto', 'Arriba', 'Botones de la izquierda', 'Mi posición', 'Marcar punto', 'Menú ⋮', 'Insertar entre dos', 'Cambiar el orden', 'Más opciones', '＋ Polígono', 'Elegir otro', 'Cómo se ven', 'Candado 🔒', 'Linderos compartidos', '＋ Lote y ＋ Predio', 'Ajustar a los linderos', 'Exportar un polígono', 'Medir distancia', 'Capacidad de uso (IGAC)', 'Sin conexión', 'Es un mapa regional']);
     await shot('158-ayuda-del-mapa');
     await page.click('#sheet .btn-primary'); await waitSheetClosed();
     assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('zvg.v1.flags')).mapGuide), true);

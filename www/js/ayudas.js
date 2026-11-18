@@ -18,7 +18,7 @@
       ['Lo básico', [
         ['Toca un punto', 'para ver sus datos, abrir su ficha, moverlo, eliminarlo o ir hasta él (con el GPS encendido te guía con una flecha y los metros que faltan). El número dentro de cada punto es su orden en el recorrido.'],
         ['Arriba', 'el área, el perímetro y el número de puntos del polígono elegido se actualizan solos. Si dice «Los lados se cruzan», tócalo para ordenar los puntos.'],
-        ['Botones de la izquierda', 'bajo el menú ⋮: cambiar la capa (calles, satélite o topográfico), ver todo el terreno, pantalla completa y deshacer el último cambio, paso a paso. A la derecha, acercar y alejar.'],
+        ['Botones de la izquierda', 'bajo el menú ⋮: cambiar la capa (calles, satélite o topográfico, y encima la capacidad de uso del IGAC), ver todo el terreno, pantalla completa y deshacer el último cambio, paso a paso. A la derecha, acercar y alejar.'],
         ['Mi posición', 'el botón redondo de abajo centra el mapa donde estás y te sigue hasta que muevas el mapa.']
       ]],
       ['Crear y cambiar puntos', [
@@ -40,6 +40,11 @@
       ]],
       ['Medir', [
         ['Medir distancia', 'toca el mapa para ir sumando tramos; al cerrar la figura da también el área. No cambia tus puntos.']
+      ]],
+      ['Mapa del IGAC', [
+        ['Capacidad de uso (IGAC)', 'en el botón de capas, bajo «Encima»: pone sobre el mapa la clase de capacidad de uso de las tierras del mapa oficial del IGAC, con su leyenda de colores. Con internet se ve en línea.'],
+        ['Sin conexión', '«Guardar la zona del predio para usar sin conexión» descarga los polígonos del IGAC alrededor de los puntos del proyecto. Sin internet, la app los dibuja con esos colores. «Actualizar» los vuelve a bajar y «Borrar lo guardado» los quita.'],
+        ['Es un mapa regional', 'sale de estudios a escala 1:100.000, 1:25.000 o 1:10.000: sirve de referencia, pero lo que evalúas en el predio es más detallado.']
       ]]
     ];
     function openMapGuide() {
@@ -66,19 +71,22 @@
         ['Predios y lotes', 'Todo proyecto empieza con su predio (el terreno completo); dentro de él van los lotes (potrero, cafetal, cultivo…), y puede haber varios predios. Cada polígono tiene sus puntos, su clima y su zona de vida. Se eligen en la fila de arriba; «＋ Predio» y «＋ Lote» crean otro, dibujándolo en el mapa o importándolo de un archivo. Si uno se sale de su predio o se monta sobre otro, un aviso en el mapa ofrece «Ajustar» sus linderos.'],
         ['Varios polígonos a la vez', 'En Información, «Elegir polígonos ▾» completa con internet los que marques, uno por uno, y al final dice cuáles quedaron listos. «Limpiar información ▾» borra, en los polígonos que marques, lo que elijas (clima o altitudes según su origen) para volver a completarlos; se puede deshacer.'],
         ['Usos recomendados y evaluar el terreno', 'Al final de Información, «Usos recomendados» 🌱 da la clase de capacidad de uso del IGAC (1 a 8) del polígono elegido, qué la limita y para qué sirve esa tierra. La pendiente, el piso térmico y la humedad los pone la app; lo demás lo respondes en «Evaluar el terreno ▾»: lo que ves en campo (erosión, drenaje, inundaciones, piedras, profundidad, heladas, lluvias) y, si tienes análisis de suelos, lo del laboratorio. Si no sabes algo, deja «No sé»: la clase queda «provisional» porque lo que falta puede bajarla. Para las lluvias por semestre la app propone una estimación con la lluvia mes por mes; lo que observes en campo manda. El [1] y el [2] muestran las fuentes.'],
+        ['Según el mapa del IGAC', 'En «Usos recomendados», «Consultar el mapa del IGAC» pregunta al mapa oficial de capacidad de uso del IGAC por el centro del polígono: su clase, subclase, limitantes, usos recomendados y prácticas de manejo, con el estudio, la escala y el año. Queda guardado en el polígono y sale en el reporte. Al lado dice si coincide con tu evaluación. Sin internet usa la zona guardada desde el mapa (botón de capas › Capacidad de uso (IGAC)).'],
         ['Cultivos a evaluar y conclusión', 'En «Usos recomendados», «Cultivos a evaluar ▾» compara la temperatura y la lluvia del polígono con las de 127 cultivos sembrados en Colombia (base ECOCROP de la FAO) y con la clase de tierra del IGAC: los separa en óptimos, posibles con limitaciones (y qué los limita), marginales y no recomendados. Al final de cada polígono, el reporte trae «Conclusión y recomendaciones» con un resumen, recomendaciones con su fuente y esos cultivos. Es una estimación: valídala con un profesional.'],
         ['Qué va en el reporte', 'En «Reporte», la casilla a la izquierda de cada sección decide si esa parte sale en el reporte que compartes. Con varios polígonos, al compartir eliges: «Completo» (el resumen y cada polígono, cada predio seguido de sus lotes), «Global» (solo los predios que marques) o «Específico» (un solo polígono). El croquis de cada polígono se enfoca en él y resalta solo sus puntos; los demás se ven tenues de fondo.'],
         ['Proyectos y copia de seguridad', 'Cada proyecto guarda en el teléfono sus predios, lotes, puntos y fotos; en Herramientas › Proyectos creas otro o cambias de proyecto. Haz con frecuencia una copia de seguridad (.zip) y guárdala fuera del teléfono: si la app se desinstala o el teléfono se pierde, es la única forma de recuperar tu trabajo.'],
         ['Herramientas', 'Conversor de unidades, clima y GPS en vivo, proyectos y copia de seguridad, el encabezado del reporte (tu nombre y tu logo), preferencias y estas ayudas.'],
         ['Arriba', 'La franja de tres pasos dice qué está listo y qué falta. Tócala para ir a ese paso.'],
-        ['Sin internet', 'La app abre y guarda puntos sin conexión. Los mapas, «Completar con internet» y el clima actual sí la necesitan.']
+        ['Sin internet', 'La app abre y guarda puntos sin conexión. Los mapas, «Completar con internet», el clima actual y la consulta del mapa del IGAC sí la necesitan (el mapa del IGAC se puede guardar antes para verlo sin conexión).']
       ]]
     ];
     /* ---------- Qué hay de nuevo (2.23.5) ----------
      * Quien ya usaba la app y la actualiza ve, una sola vez, un resumen corto de lo nuevo; quien la instala por primera vez ve la ayuda
      * completa y no esto. Para una actualización grande futura basta con cambiar WHATS_NEW_ID y la lista. */
-    var WHATS_NEW_ID = '2.30';
+    var WHATS_NEW_ID = '2.31';
     var WHATS_NEW = [
+      ['Según el mapa del IGAC', 'en Información › Usos recomendados, «Consultar el mapa del IGAC» trae la clase de capacidad de uso del mapa oficial para el centro del polígono, con sus limitantes, usos y prácticas, y la compara con tu evaluación. Queda guardada y sale en el reporte.'],
+      ['Capa «Capacidad de uso (IGAC)»', 'en el botón de capas del mapa. Con «Guardar la zona del predio» también se ve sin conexión.'],
       ['Cultivos a evaluar', 'en Información › Usos recomendados, «Cultivos a evaluar ▾» compara el clima de cada polígono y su clase de tierra con 127 cultivos sembrados en Colombia: óptimos, posibles con limitaciones (y qué los limita), marginales y no recomendados.'],
       ['Conclusión y recomendaciones', 'al final de cada polígono del reporte: un resumen del predio, recomendaciones con su fuente y los cultivos a evaluar. Es una estimación y no reemplaza a un profesional.'],
       ['Usos recomendados 🌱', 'la clase de capacidad de uso del IGAC (1 a 8) de cada polígono, con «Evaluar el terreno» para lo de campo y laboratorio, todo con «No sé».']
@@ -107,6 +115,7 @@
         ['Caldas-Lang (IDEAM)', 'El piso térmico y la humedad en el lenguaje que usa la asistencia técnica en Colombia: «templado húmedo», «frío semihúmedo».'],
         ['De Martonne y Köppen', 'Dos clasificaciones del clima usadas en todo el mundo: De Martonne dice qué tan seco o húmedo es el sitio; Köppen lo ubica entre los grandes tipos de clima y sirve para compararlo con otras regiones.'],
         ['Resumen de predios y lotes', 'Cuánto mide cada predio y qué parte ocupa cada lote (en hectáreas y en % del predio); avisa si algún polígono se sale de su predio o se monta sobre otro.'],
+        ['Según el mapa del IGAC', 'Lo que dice el mapa oficial de capacidad de uso de las tierras del IGAC para ese sitio (clase, limitantes, usos y prácticas de manejo), al lado de tu evaluación. Sirve para contrastar y para citar una fuente oficial en un informe.'],
         ['Usos recomendados', 'Qué tan intensamente se puede usar esa tierra sin dañarla y para qué: cultivos, ganadería, bosque o conservación, según la clase de capacidad de uso del IGAC (1 a 8), y qué la limita (pendiente, erosión, agua, suelo o clima). Sirve como base técnica para planear un cultivo o un proyecto.'],
         ['Conclusión y recomendaciones', 'Un resumen del polígono (zona de vida, clima, meses secos y clase de tierra), recomendaciones con su fuente (pendiente, riego, drenaje, análisis de suelos) y los cultivos a evaluar según el clima y la tierra. Sirve como punto de partida para proyectar un cultivo o un proyecto.'],
         ['Coordenadas', 'La ubicación de cada punto en grados y en coordenadas planas (MAGNA-SIRGAS / Origen Nacional), lista para pasarla a un plano o a QGIS.'],
@@ -123,6 +132,7 @@
         ['Precisión', 'El GPS de un teléfono tiene un error de varios metros: en un predio pequeño el área puede variar varios por ciento. El clima viene de datos en cuadros de varios kilómetros, ajustados con la altitud.'],
         ['Es orientativo', 'El resultado sirve para orientar decisiones y preparar visitas; para decisiones legales o inversiones grandes, confírmalo con mediciones y con un profesional.'],
         ['Cultivos a evaluar', 'Salen de rangos generales de temperatura y lluvia (FAO) y de la clase de tierra: no tienen en cuenta la variedad, el suelo que no evaluaste, el riego disponible, las plagas ni el mercado. Son cultivos para evaluar, no una orden de siembra.'],
+        ['El mapa del IGAC', 'Es regional (escalas 1:100.000 a 1:10.000): un predio pequeño puede caer en un solo polígono del mapa aunque tenga suelos distintos. En la imagen en línea del IGAC, algunos polígonos de estudios antiguos marcados «IV» salen con el color de la clase 6 (así está su leyenda); la consulta y lo guardado los muestran como clase 4.'],
         ['La clase de uso', 'Sale solo de los datos que evaluaste: el suelo, las heladas o las inundaciones que no hayas revisado pueden bajarla. No reemplaza un estudio de suelos ni la visita de un profesional.']
       ]]
     ];
@@ -143,11 +153,12 @@
         ['Diagrama de Walter-Lieth', 'Climodiagrama de H. Walter y H. Lieth: un mes es seco cuando la lluvia (mm) es menor que el doble de la temperatura (°C).'],
         ['Usos recomendados', 'Instituto Geográfico Agustín Codazzi (IGAC), «Clasificación de las tierras por su capacidad de uso», instructivo IN-GAG-PC05-02, versión 1 (2021). La estimación de las lluvias por semestre es una regla de la app basada en el criterio de mes seco de Walter-Lieth.'],
         ['Cultivos a evaluar', 'FAO, base de datos ECOCROP (requerimientos de temperatura y lluvia), en la versión del paquete Recocrop de R. J. Hijmans y R. Manners (2025, licencia GPL-3); método de aptitud de Hackett (1991). El nombre en Colombia, el tipo de cultivo y la lectura de la clase del IGAC son de la app.'],
+        ['Mapa del IGAC', 'Instituto Geográfico Agustín Codazzi (IGAC), «Capacidad de uso de las tierras», mapa multiescalar (escalas 1:100.000, 1:25.000 y 1:10.000), servicio mapas2.igac.gov.co. Datos abiertos del IGAC, licencia CC BY 4.0 (Resolución 616 de 2020). Fuente: IGAC.'],
         ['Clases de pendiente', 'Instituto Geográfico Agustín Codazzi (IGAC), clases de pendiente de sus levantamientos de suelos y geomorfología.'],
         ['Coordenadas planas', 'MAGNA-SIRGAS / Origen Nacional (EPSG:9377), sistema único adoptado por el IGAC en 2020.']
       ];
       openSheet('Fuentes y licencias', '<dl class="guide">' + rows.map(function (r) { return '<div><dt>' + esc(r[0]) + '</dt><dd>' + esc(r[1]) + '</dd></div>'; }).join('') + '</dl>' +
-        '<p class="small muted">Los mapas y el clima se piden a esos servicios solo cuando hay internet; la app no envía tus puntos a ningún otro lugar.</p><div class="btns"><button class="btn btn-primary" data-act="closeSheet">Cerrar</button></div>');
+        '<p class="small muted">Los mapas, el clima y el mapa del IGAC se piden a esos servicios solo cuando hay internet (al IGAC, el centro del polígono o la zona del predio); la app no envía tus puntos a ningún otro lugar.</p><div class="btns"><button class="btn btn-primary" data-act="closeSheet">Cerrar</button></div>');
     }
 
     return { WHATS_NEW_ID: WHATS_NEW_ID, guideHtml: guideHtml, openMapGuide: openMapGuide, openWhatsNew: openWhatsNew,

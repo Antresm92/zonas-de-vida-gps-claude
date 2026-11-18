@@ -82,8 +82,11 @@ const arg = (n) => { const a = process.argv.find((x) => x.startsWith('--' + n + 
     await page.waitForFunction(() => { const h = document.querySelector('#sheet h2'); return h && h.textContent === 'Linderos'; });
     // si el toque llega mientras la hoja todavía se está abriendo, se repite (pasa a veces en el recorrido completo, con la máquina cargada)
     for (let k = 0; k < 4; k++) {
-      await page.click('#sheet [data-act="adjustKeep"]').catch(() => {});
+      const err = await page.click('#sheet [data-act="adjustKeep"]', { timeout: 5000 }).then(() => null, (e) => String(e && e.message || e).split('\n')[0]);
       if (await page.waitForSelector('#sheet', { state: 'hidden', timeout: 3000 }).then(() => true, () => false)) return;
+      console.log('      (dejarSobrepuesto: intento ' + (k + 1) + ' sin cerrar' + (err ? ': ' + err : '') + ')');
+      // con la máquina muy cargada el toque puede no llegar: se pulsa el mismo botón desde la página
+      if (k >= 1) await page.evaluate(() => { const b = document.querySelector('#sheet [data-act="adjustKeep"]'); if (b) b.click(); });
     }
     await waitSheetClosed();
   };
@@ -115,7 +118,7 @@ const arg = (n) => { const a = process.argv.find((x) => x.startsWith('--' + n + 
   await page.goto(url);
   await page.waitForSelector('#tab-puntos');
   const only = (arg('parts') || '').split(',').filter(Boolean);
-  for (const part of ['part1-puntos', 'part2-area-importar', 'part3-clima', 'part4-informe-proyectos', 'part5-offline', 'part7-mapa', 'part8-perfil-satelital', 'part9-menu-mapa', 'part10-posicion-manual', 'part11-v25', 'part12-fotos', 'part13-pdf', 'part14-herramientas', 'part15-mapa-intuitivo', 'part16-guiada', 'part17-v214', 'part18-lotes', 'part19-v216', 'part20-fincas', 'part21-clasif', 'part22-v220', 'part23-linderos', 'part24-v223', 'part25-dibujar', 'part26-linderos-mapa', 'part27-borrar-tamano', 'part28-completar', 'part29-usos', 'part30-cultivos']) {
+  for (const part of ['part1-puntos', 'part2-area-importar', 'part3-clima', 'part4-informe-proyectos', 'part5-offline', 'part7-mapa', 'part8-perfil-satelital', 'part9-menu-mapa', 'part10-posicion-manual', 'part11-v25', 'part12-fotos', 'part13-pdf', 'part14-herramientas', 'part15-mapa-intuitivo', 'part16-guiada', 'part17-v214', 'part18-lotes', 'part19-v216', 'part20-fincas', 'part21-clasif', 'part22-v220', 'part23-linderos', 'part24-v223', 'part25-dibujar', 'part26-linderos-mapa', 'part27-borrar-tamano', 'part28-completar', 'part29-usos', 'part30-cultivos', 'part31-igac']) {
     if (only.length && !only.some((o) => part.startsWith(o))) continue;
     const f = path.join(__dirname, part + '.js');
     if (fs.existsSync(f)) { console.log('\n' + part); await require(f)(ctx); }

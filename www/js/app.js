@@ -5,7 +5,7 @@
   var Geo = window.Geo, H = window.Holdridge, Climate = window.Climate, A = window.Analysis, Fmt = window.Fmt,
       Gps = window.Gps, Store = window.Store, Diagram = window.Diagram, Report = window.Report,
       Gis = window.Gis, Backup = window.Backup, IO = window.IO, WL = window.WalterLieth, Mapa = window.Mapa, MapView = window.MapView, Satelite = window.Satelite, Perfil = window.Perfil, Fotos = window.Fotos, Zip = window.Zip, Units = window.Units;
-  var APP_VERSION = '2.30.0';
+  var APP_VERSION = '2.31.0';
 
   var S = Store.loadState();
   // 2.22.0: la primera vez, los lotes de antes que están dentro de un predio pasan a pertenecerle
@@ -15,7 +15,7 @@
   MEM.add(Store.loadMemory());
   var ui = { tab: 'puntos', gpsOn: false, fix: null, stopWatch: null, sampling: null, fetching: false, diagram: null, sheetOpen: false, undo: null, wasOn: false, gpsAsked: false, gpsAsking: false,
              imp: null, restore: null, edit: null,
-             polyView: 'croquis', polyActive: true, mapBase: Mapa.baseId(Store.loadFlag('mapBase')), mapRef: Store.loadFlag('mapRef') === true,
+             polyView: 'croquis', polyActive: true, mapBase: Mapa.baseId(Store.loadFlag('mapBase')), mapRef: Store.loadFlag('mapRef') === true, mapIgac: Store.loadFlag('mapIgac') === true,
              map: null, mapFollow: false, mapFitKey: null, tileErrors: 0, mapMode: '', mapMenu: false, mapModeFor: null,
              unfolded: {}, mapSel: null, navId: null, mapLayers: false, mapFull: false, follow: false, mapTool: '', measure: [], measureClosed: false, mapUndo: Mapa.undoStack(20), track: null, wake: null,
              croq: { satelite: { img: null, busy: false, error: null }, topo: { img: null, busy: false, error: null } }, sharing: false, nowBusy: false, nowError: '', photoBusy: false, restoring: false,
@@ -835,7 +835,7 @@
   }
 
   /* ---------- Polígono: vista Mapa (en js/ui-mapa.js desde 2.28.0) ---------- */
-  var MapaUI = window.ZV.mapa({ S: S, ui: ui, '$': $, addPoint: addPoint, analysis: analysis, closeSheet: closeSheet, esc: esc, gpsStart: gpsStart, hugeInfo: hugeInfo, isNum: isNum, lockStop: lockStop, lot: lot, lotLayers: lotLayers, multi: multi, openEdit: openEdit, openMapGuide: function () { return openMapGuide.apply(null, arguments); }, openSheet: openSheet, pickLot: pickLot, pointById: pointById, proj: proj, relocate: relocate, renderTab: renderTab, save: save, toast: toast, view: view, viewLayers: viewLayers });
+  var MapaUI = window.ZV.mapa({ S: S, ui: ui, '$': $, addPoint: addPoint, analysis: analysis, closeSheet: closeSheet, esc: esc, gpsStart: gpsStart, hugeInfo: hugeInfo, isNum: isNum, lockStop: lockStop, lot: lot, lotLayers: lotLayers, multi: multi, openEdit: openEdit, openMapGuide: function () { return openMapGuide.apply(null, arguments); }, igacLayerHtml: function () { return IgacUI.layerHtml(); }, igacSync: function () { return IgacUI.sync(); }, openSheet: openSheet, pickLot: pickLot, pointById: pointById, proj: proj, relocate: relocate, renderTab: renderTab, save: save, toast: toast, view: view, viewLayers: viewLayers });
   var addManualAt = MapaUI.addManualAt, adjustCheck = MapaUI.adjustCheck, adjustDo = MapaUI.adjustDo, adjustMany = MapaUI.adjustMany, adjustManyAsk = MapaUI.adjustManyAsk, adjustSheet = MapaUI.adjustSheet, applyMapFull = MapaUI.applyMapFull, drawMeasure = MapaUI.drawMeasure, finishTrack = MapaUI.finishTrack, fitAll = MapaUI.fitAll, goLastPoint = MapaUI.goLastPoint, goMyPosition = MapaUI.goMyPosition, goToPoint = MapaUI.goToPoint, mapKey = MapaUI.mapKey, mapUndo = MapaUI.mapUndo, mapaHtml = MapaUI.mapaHtml, mountMap = MapaUI.mountMap, navFit = MapaUI.navFit, onMapFix = MapaUI.onMapFix, openMapMore = MapaUI.openMapMore, setMapMode = MapaUI.setMapMode, setMapTool = MapaUI.setMapTool, startTrack = MapaUI.startTrack, syncMapCard = MapaUI.syncMapCard, syncMapChrome = MapaUI.syncMapChrome, syncMapMenu = MapaUI.syncMapMenu, toggleMapFull = MapaUI.toggleMapFull, toolsInset = MapaUI.toolsInset, toolsTop = MapaUI.toolsTop, trackFix = MapaUI.trackFix, undoMark = MapaUI.undoMark, updateMapNotice = MapaUI.updateMapNotice;
 
   /* ---------- Clima ---------- */
@@ -1000,7 +1000,9 @@
   }
 
   /* ---------- Usos recomendados (en js/ui-usos.js desde 2.29.0) ---------- */
-  var UsosUI = window.ZV.usos({ ui: ui, lot: lot, analysis: analysis, lotArea: lotArea, esc: esc, toast: toast, openSheet: openSheet, closeSheet: closeSheet, save: save, renderTab: renderTab });
+  var IgacUI = window.ZV.igac({ ui: ui, proj: proj, lot: lot, analysis: analysis, esc: esc, toast: toast, save: save, renderTab: renderTab, '$': $ });
+  var UsosUI = window.ZV.usos({ ui: ui, lot: lot, analysis: analysis, lotArea: lotArea, esc: esc, toast: toast, openSheet: openSheet, closeSheet: closeSheet, save: save, renderTab: renderTab,
+    igacBlock: IgacUI.blockHtml, igacRows: IgacUI.reportRows });
 
   /* ---------- Reporte (en js/ui-reporte.js desde 2.26.0) ---------- */
   var Reporte = window.ZV.reporte({ S: S, ui: ui, busy: busy, '$': $, analysis: analysis, busyHide: busyHide, busyMin: busyMin, busyPaint: busyPaint, busyRun: busyRun, busyStep: busyStep, closeSheet: closeSheet, esc: esc, foldReport: foldReport, isNum: isNum, multi: multi, openSheet: openSheet, photosOf: photosOf, proj: proj, reportPhotos: reportPhotos, save: save, sizeText: sizeText, toast: toast, view: view, walterModel: walterModel, usosReport: UsosUI.reportModel, conclusionReport: UsosUI.conclusionModel });
@@ -1312,6 +1314,7 @@
     clearField: function (t) { delete proj().climate[t.getAttribute('data-field')]; save(); renderTab('clima'); },
     fetchOnline: Completar.fetchOnline, fetchPick: Completar.openFetchPick, fetchPickAll: Completar.fetchPickAll, fetchPickGo: Completar.fetchPickGo,
     usosEdit: UsosUI.openEdit, usosSave: UsosUI.saveEdit, usosClear: UsosUI.clearEdit, usosEstUse: UsosUI.estUse, usosFuente: UsosUI.openFuente, cultivosOpen: UsosUI.openCultivos,
+    igacConsult: function () { IgacUI.consult(); }, igacQuitar: function () { IgacUI.quitar(); }, mapIgac: function () { IgacUI.toggle(); }, igacDownload: function () { IgacUI.download(); }, igacBorrar: function () { IgacUI.borrar(); },
     cleanAsk: Completar.openClean, cleanDo: Completar.cleanDo, cleanUndo: Completar.cleanUndo,
     importCsv: function () { $('#csvFile').click(); },
     askClearMem: function () { openSheet('¿Borrar los datos guardados?', '<p>Se borran los ' + MEM.count + ' registros de clima de este equipo. Tus puntos y proyectos no cambian.</p><div class="btns"><button class="btn btn-danger" data-act="doClearMem">Borrar</button><button class="btn" data-act="closeSheet">Conservar</button></div>'); },

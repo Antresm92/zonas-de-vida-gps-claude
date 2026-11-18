@@ -2,6 +2,7 @@
  * Muestra la clase de capacidad de uso del polígono elegido según el IGAC, qué la limita y los usos de esa clase, con lo
  * que la app calcula (pendiente, piso térmico, humedad) y lo que la persona evalúa en campo y en laboratorio (hoja
  * «Evaluar el terreno», con «No sé» en todo). Cada dato lleva su número de fuente, que abre la cita con su enlace.
+ * Desde 2.31.0, «Según el mapa del IGAC» (ui-igac.js) dentro del bloque y en el reporte.
  * Desde 2.30.0 también «Cultivos a evaluar ▾» (cultivos.js, con los requerimientos de ECOCROP de la FAO) y el modelo de la
  * sección final del reporte «Conclusión y recomendaciones».
  * La lógica está en usos.js, capacidad.js y cultivos.js; aquí solo se dibuja y se guarda lot.terreno.
@@ -11,7 +12,8 @@
   window.ZV = window.ZV || {};
   window.ZV.usos = function (ctx) {
     var ui = ctx.ui, lot = ctx.lot, analysis = ctx.analysis, esc = ctx.esc, toast = ctx.toast,
-      openSheet = ctx.openSheet, closeSheet = ctx.closeSheet, save = ctx.save, renderTab = ctx.renderTab, lotArea = ctx.lotArea;
+      openSheet = ctx.openSheet, closeSheet = ctx.closeSheet, save = ctx.save, renderTab = ctx.renderTab, lotArea = ctx.lotArea,
+      igacBlock = ctx.igacBlock, igacRows = ctx.igacRows;
     var Usos = window.Usos, Capacidad = window.Capacidad, Cultivos = window.Cultivos, Fmt = window.Fmt;
 
     function monthlyOf(a) { var cl = a && a.climate; return cl && cl.chartT && cl.chartP ? { T: cl.chartT, P: cl.chartP } : null; }
@@ -48,6 +50,7 @@
         '<div><dt>Humedad del clima</dt><dd>' + (au.humedad ? esc(Usos.catName('humedad', au.humedad.cat) + ' (ETP/P ' + Fmt.num(au.humedad.ratio, 2) + ')') : 'falta la precipitación') + '</dd></div></dl>';
       var nT = Object.keys(m.terreno).filter(function (k) { return k !== 'lluviasEst'; }).length;
       h += '<button class="btn btn-block" data-act="usosEdit" id="usosEditBtn" style="margin-top:8px">' + (nT ? 'Evaluación del terreno (' + nT + ' respuestas) ▾' : 'Evaluar el terreno ▾') + '</button>';
+      h += igacBlock(l, e.clase, ref);                      // «Según el mapa del IGAC» (2.31.0)
       var cu = cultivosOf(l, a, m);
       if (cu) h += '<button class="btn btn-block" data-act="cultivosOpen" id="cultivosBtn" style="margin-top:10px" aria-haspopup="true">Cultivos a evaluar (' + cu.grupos.optimo.length + ' óptimos, ' + cu.grupos.posible.length + ' posibles) ▾</button>';
       h += '<p class="small muted" style="margin-top:10px">' + esc(Usos.NOTE) + ' ' + ref(1) + '</p>';
@@ -113,6 +116,7 @@
         '<div><dt>[1] IGAC</dt><dd>' + esc(F.cita) + ' Clases 1 a 8: Tablas 1–8 (pp. 3–14); el limitante más severo decide la clase (pp. 33–34). <a href="' + F.url + '" target="_blank" rel="noopener noreferrer" data-ext="1">Abrir el instructivo (PDF)</a></dd></div>' +
         '<div><dt>[2] Estimación de las lluvias</dt><dd>Regla de la app, no del IGAC: un mes es seco cuando la lluvia (mm) es menor que el doble de la temperatura (°C), criterio del climodiagrama de H. Walter y H. Lieth; un semestre con al menos un mes seco tiene «deficiencias». El exceso de agua no se estima. Lo que observes en campo manda.</dd></div>' +
         '<div><dt>[3] Cultivos a evaluar</dt><dd>' + esc(Cultivos.FUENTES[3]) + ' Rangos de temperatura y lluvia de ' + Cultivos.total + ' cultivos sembrados en Colombia, copiados sin cambios; el nombre en Colombia y el tipo los puso la app. La correspondencia entre la clase del IGAC y el tipo de cultivo es una lectura de la app de la frase de usos de cada clase. <a href="https://www.fao.org/geospatial/data-and-tools/data-portals/ecocrop/en" target="_blank" rel="noopener noreferrer" data-ext="1">ECOCROP (FAO)</a> · <a href="https://github.com/cropmodels/Recocrop" target="_blank" rel="noopener noreferrer" data-ext="1">Recocrop</a></dd></div>' +
+        '<div><dt>[4] Mapa del IGAC</dt><dd>' + esc(window.Igac.FUENTE.cita) + ' Es un mapa regional: cada polígono dice de qué estudio, escala y año sale; lo que se evalúa en el predio es más detallado. <a href="' + window.Igac.FUENTE.portal + '" target="_blank" rel="noopener noreferrer" data-ext="1">Datos abiertos del IGAC</a> · <a href="' + window.Igac.FUENTE.licencia + '" target="_blank" rel="noopener noreferrer" data-ext="1">Resolución 616 de 2020</a></dd></div>' +
         '</dl><div class="btns"><button class="btn btn-primary" data-act="closeSheet">Entendido</button></div>');
     }
     // La hoja «Cultivos a evaluar»: grupos plegables, cada cultivo con su tipo, su aptitud por clima y qué lo limita
@@ -152,8 +156,9 @@
     }
     // Para el reporte: filas y nota del polígono elegido
     function reportModel(a) {
-      var m = modelFor(lot(), a), rows = Usos.reportRows(m);
-      return rows.length ? { rows: rows, note: Usos.NOTE, fuente: m.fuente.cita + ' ' + m.fuente.url } : null;
+      var l = lot(), m = modelFor(l, a), ig = igacRows(l), rows = Usos.reportRows(m).concat(ig);
+      var fuente = m.fuente.cita + ' ' + m.fuente.url + (ig.length ? ' Mapa: ' + window.Igac.FUENTE.cita + ' ' + window.Igac.FUENTE.url : '');
+      return rows.length ? { rows: rows, note: Usos.NOTE, fuente: fuente } : null;
     }
 
     return { block: block, openEdit: openEdit, estUse: estUse, saveEdit: saveEdit, clearEdit: clearEdit, openFuente: openFuente, reportModel: reportModel,

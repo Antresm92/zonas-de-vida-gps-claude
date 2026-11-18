@@ -7,9 +7,9 @@
  * conocidos y valores dentro de rango, así un archivo dañado o manipulado no puede romper la app.
  * Modos al restaurar: 'replace' (reemplaza todo) y 'merge' (suma los proyectos a los que ya hay). */
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory(require('./fotos.js'), require('./zip.js'));
-  else root.Backup = factory(root.Fotos, root.Zip);
-})(typeof self !== 'undefined' ? self : this, function (Fotos, Zip) {
+  if (typeof module === 'object' && module.exports) module.exports = factory(require('./fotos.js'), require('./zip.js'), require('./igac.js'));
+  else root.Backup = factory(root.Fotos, root.Zip, root.Igac);
+})(typeof self !== 'undefined' ? self : this, function (Fotos, Zip, Igac) {
   'use strict';
 
   var APP = 'zonas-de-vida-gps', FORMAT = 2;      // 2 desde la 2.15.0 (lotes): una app anterior no la restaura y pide actualizar; las copias de formato 1 se siguen leyendo
@@ -192,6 +192,8 @@
     if (out.kind === 'finca' && p.locked === true) out.locked = true;
     var tr = cleanTerreno(p.terreno);
     if (tr) out.terreno = tr;                                                       // evaluación del terreno (2.29.0)
+    var ig = Igac.clean(p.igac);
+    if (ig) out.igac = ig;                                                          // lo que dice el mapa del IGAC (2.31.0)
     return out;
   };
 

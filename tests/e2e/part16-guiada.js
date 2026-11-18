@@ -169,7 +169,7 @@ module.exports = async function (c) {
     await page.click('#sheet .btn-primary'); await waitSheetClosed();
     await act('appGuide'); await page.waitForSelector('#sheet:not([hidden])');
     assert.equal(await sheetTitle(), 'Cómo usar la app');
-    assert.deepEqual(await page.$$eval('#sheet .guide dt', (d) => d.map((x) => x.textContent)), ['1 · Puntos', '2 · Información', '3 · Reporte', '1 · Marca el predio', '2 · Agrega los lotes', '3 · Completa el clima', '4 · Revisa el reporte', '5 · Comparte', 'Polígono', 'Predios y lotes', 'Varios polígonos a la vez', 'Usos recomendados y evaluar el terreno', 'Cultivos a evaluar y conclusión', 'Qué va en el reporte', 'Proyectos y copia de seguridad', 'Herramientas', 'Arriba', 'Sin internet']);
+    assert.deepEqual(await page.$$eval('#sheet .guide dt', (d) => d.map((x) => x.textContent)), ['1 · Puntos', '2 · Información', '3 · Reporte', '1 · Marca el predio', '2 · Agrega los lotes', '3 · Completa el clima', '4 · Revisa el reporte', '5 · Comparte', 'Polígono', 'Predios y lotes', 'Varios polígonos a la vez', 'Usos recomendados y evaluar el terreno', 'Según el mapa del IGAC', 'Cultivos a evaluar y conclusión', 'Qué va en el reporte', 'Proyectos y copia de seguridad', 'Herramientas', 'Arriba', 'Sin internet']);
     assert.deepEqual(await page.$$eval('#sheet .guide-h', (d) => d.map((x) => x.textContent)), ['Los tres pasos', 'Ejemplo: tu primer predio en 5 pasos', 'Lo demás']);
     // la ayuda nombra lo que la app hace hoy (2.19.0)
     const ayuda = await text('#sheet');
@@ -177,7 +177,7 @@ module.exports = async function (c) {
     await page.click('#sheet .btn-primary'); await waitSheetClosed();
     // la ayuda del mapa, por grupos, con lo nuevo
     await act('mapGuide'); await page.waitForSelector('#sheet:not([hidden])');
-    assert.deepEqual(await page.$$eval('#sheet .guide-h', (d) => d.map((x) => x.textContent)), ['Lo básico', 'Crear y cambiar puntos', 'Predios y lotes', 'Medir']);
+    assert.deepEqual(await page.$$eval('#sheet .guide-h', (d) => d.map((x) => x.textContent)), ['Lo básico', 'Crear y cambiar puntos', 'Predios y lotes', 'Medir', 'Mapa del IGAC']);
     const mapa = await text('#sheet');
     for (const w of ['＋ Polígono', 'relleno de puntos', 'Candado', 'se pega a ella', 'Dejar sobrepuesto', 'casilla «Orden»', 'suben un número', 'Caminar el lindero', 'Agregar con mira', 'deshacer', 'da también el área']) assert.ok(mapa.includes(w), 'la ayuda del mapa no menciona: ' + w);
     await page.click('#sheet .btn-primary'); await waitSheetClosed();
@@ -215,7 +215,7 @@ module.exports = async function (c) {
     await page.reload(); await page.waitForSelector('#sheet:not([hidden])');
     assert.equal(await sheetTitle(), 'Qué hay de nuevo');
     const dts = await page.$$eval('#whatsNew dt', (d) => d.map((x) => x.textContent));
-    assert.deepEqual(dts.slice(0, 3), ['Cultivos a evaluar', 'Conclusión y recomendaciones', 'Usos recomendados 🌱']);
+    assert.deepEqual(dts.slice(0, 2), ['Según el mapa del IGAC', 'Capa «Capacidad de uso (IGAC)»']);
     assert.deepEqual(await page.$$eval('#sheet .btns button', (b) => b.map((x) => x.textContent)), ['Entendido', 'Ver la ayuda completa']);
     await shot('177-que-hay-de-nuevo');
     await page.click('#sheet [data-act="appGuide"]');
