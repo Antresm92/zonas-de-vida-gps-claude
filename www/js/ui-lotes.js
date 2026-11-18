@@ -10,7 +10,7 @@
   'use strict';
   window.ZV = window.ZV || {};
   window.ZV.lotes = function (ctx) {
-    var S = ctx.S, ui = ctx.ui, $ = ctx['$'], adjustManyAsk = ctx.adjustManyAsk, closeSheet = ctx.closeSheet, colorPalette = ctx.colorPalette, esc = ctx.esc, finishTrack = ctx.finishTrack, hideSheet = ctx.hideSheet, isNum = ctx.isNum, layerById = ctx.layerById, layerSub = ctx.layerSub, lot = ctx.lot, lotArea = ctx.lotArea, mapKey = ctx.mapKey, openSheet = ctx.openSheet, proj = ctx.proj, renderTab = ctx.renderTab, save = ctx.save, setMapMode = ctx.setMapMode, setMapTool = ctx.setMapTool, showTab = ctx.showTab, syncMapCard = ctx.syncMapCard, toast = ctx.toast, toolsInset = ctx.toolsInset, toolsTop = ctx.toolsTop;
+    var fromImport = ctx.fromImport, S = ctx.S, ui = ctx.ui, $ = ctx['$'], adjustManyAsk = ctx.adjustManyAsk, closeSheet = ctx.closeSheet, colorPalette = ctx.colorPalette, esc = ctx.esc, finishTrack = ctx.finishTrack, hideSheet = ctx.hideSheet, isNum = ctx.isNum, layerById = ctx.layerById, layerSub = ctx.layerSub, lot = ctx.lot, lotArea = ctx.lotArea, mapKey = ctx.mapKey, openSheet = ctx.openSheet, proj = ctx.proj, renderTab = ctx.renderTab, save = ctx.save, setMapMode = ctx.setMapMode, setMapTool = ctx.setMapTool, showTab = ctx.showTab, syncMapCard = ctx.syncMapCard, toast = ctx.toast, toolsInset = ctx.toolsInset, toolsTop = ctx.toolsTop;
     var Fmt = window.Fmt, Geo = window.Geo, Gis = window.Gis, IO = window.IO, Mapa = window.Mapa, Store = window.Store;
 
     /* ---------- Lotes (2.15.0): la fila de lotes, la lista y sus acciones ---------- */
@@ -208,7 +208,7 @@
         if (!polys.length) throw new Error('el archivo no trae polígonos (solo líneas o puntos). Para verlo como capa, impórtalo desde «Puntos».');
         if (ui.edit !== e) return;
         lotFormRead();
-        e.imp = { file: file.name || 'archivo', polys: polys.map(function (l, i) { return { name: l.name, points: l.points, on: !e.id || i === 0 }; }) };      // para un polígono que ya existe se elige uno: el primero, de entrada
+        e.imp = { file: file.name || 'archivo', polys: polys.map(function (l, i) { return { name: l.name, points: l.points, predial: l.predial, on: !e.id || i === 0 }; }) };      // para un polígono que ya existe se elige uno: el primero, de entrada
         lotFormRefresh();
       }).catch(function (err) { toast('No se pudo importar: ' + (err && err.message || err), { err: true }); });
     }
@@ -234,6 +234,7 @@
       sel.forEach(function (s) {
         var nl = Store.newLot(Store.lotName(s.name, p.lots.length), finca ? freeColor(Predio.FINCA_COLOR) : e.cat ? Predio.catColor(e.cat) : freeColor());
         nl.kind = e.k; nl.points = Gis.pointsFromLayer({ points: s.points, ts: Date.now() }, Store.uid); nl.nextPoint = nl.points.length + 1;
+        if (s.predial) fromImport(nl, s.predial);          // número predial del archivo de Colombia en Mapas (2.32.0)
         if (finca) nl.locked = true;                       // viene de un archivo: su lindero queda protegido desde el principio
         else {
           if (e.cat) nl.cat = e.cat;
@@ -275,12 +276,13 @@
       if (!l) return;
       if (!s) { toast('Elige un polígono del archivo.', { err: true }); return; }
       if (l.points.length) { toast('«' + l.name + '» ya tiene puntos: para traer otro polígono usa «＋ Lote» o «＋ Predio».', { err: true }); return; }
-      var before = { name: l.name, color: l.mainColor, kind: l.kind, cat: l.cat, parent: l.parent, locked: l.locked, next: l.nextPoint };
+      var before = { name: l.name, color: l.mainColor, kind: l.kind, cat: l.cat, parent: l.parent, locked: l.locked, next: l.nextPoint, predial: l.predial };
       // el nombre del archivo reemplaza solo a un nombre de los que pone la app («Predio», «Lote 2»…), nunca a uno escrito a mano
       var auto = /^(Predio|Lote)( \d+)?$/.test(l.name);
       l.mainColor = e.color; lotApplyMeta(l, e);
       if (auto) l.name = Store.lotName(s.name, p.lots.length);
       l.points = Gis.pointsFromLayer({ points: s.points, ts: Date.now() }, Store.uid); l.nextPoint = l.points.length + 1;
+      if (s.predial) fromImport(l, s.predial);
       if (Predio.isFinca(l)) l.locked = true;
       else if (!l.parent) {
         var c = Predio.centroid(l.points), hit = Predio.fincas(p.lots).filter(function (f) { return f !== l && f.points.length >= 3 && Predio.contains(f, c); })[0];
@@ -291,7 +293,7 @@
       save(); closeSheet(); renderTab(ui.tab);
       toast('«' + l.name + '» tomó los ' + l.points.length + ' puntos de «' + s.name + '»' + (Predio.isFinca(l) ? ', con el lindero bloqueado.' : '.'), { action: 'Deshacer', fn: function () {
         l.points = []; l.nextPoint = before.next; l.name = before.name; l.mainColor = before.color;
-        ['kind', 'cat', 'parent', 'locked'].forEach(function (k) { if (before[k] === undefined) delete l[k]; else l[k] = before[k]; });
+        ['kind', 'cat', 'parent', 'locked', 'predial'].forEach(function (k) { if (before[k] === undefined) delete l[k]; else l[k] = before[k]; });
         ui.mapFitKey = null; save(); renderTab(ui.tab);
       } });
       if (Predio.isArea(l)) adjustManyAsk([l]);
@@ -505,6 +507,7 @@
       var pts = Gis.pointsFromLayer(l, Store.uid), prev = p.lotId, wasVisible = l.visible !== false;
       var nl = Store.newLot(Store.lotName(l.name, p.lots.length), kind === 'finca' ? Predio.FINCA_COLOR : (/^#[0-9a-fA-F]{6}$/.test(l.color || '') ? l.color : Predio.catColor('')));
       nl.kind = kind; nl.points = pts; nl.nextPoint = pts.length + 1;
+      if (l.predial) fromImport(nl, l.predial);
       if (kind === 'area') { var f = Predio.guessParent(p.lots, Predio.centroid(pts), Predio.isFinca(lot()) ? lot().id : lot().parent); if (f) nl.parent = f.id; }
       var lotsBefore = p.lots.slice(), ph = kind === 'finca' ? p.lots.filter(function (x) { return isPlaceholder(x, p); })[0] : null;
       l.visible = false;

@@ -9,7 +9,7 @@
   'use strict';
   window.ZV = window.ZV || {};
   window.ZV.reporte = function (ctx) {
-    var usosReport = ctx.usosReport, conclusionReport = ctx.conclusionReport, S = ctx.S, ui = ctx.ui, busy = ctx.busy, $ = ctx['$'], analysis = ctx.analysis, busyHide = ctx.busyHide, busyMin = ctx.busyMin, busyPaint = ctx.busyPaint, busyRun = ctx.busyRun, busyStep = ctx.busyStep, closeSheet = ctx.closeSheet, esc = ctx.esc, foldReport = ctx.foldReport, isNum = ctx.isNum, multi = ctx.multi, openSheet = ctx.openSheet, photosOf = ctx.photosOf, proj = ctx.proj, reportPhotos = ctx.reportPhotos, save = ctx.save, sizeText = ctx.sizeText, toast = ctx.toast, view = ctx.view, walterModel = ctx.walterModel;
+    var catastroReport = ctx.catastroReport, usosReport = ctx.usosReport, conclusionReport = ctx.conclusionReport, S = ctx.S, ui = ctx.ui, busy = ctx.busy, $ = ctx['$'], analysis = ctx.analysis, busyHide = ctx.busyHide, busyMin = ctx.busyMin, busyPaint = ctx.busyPaint, busyRun = ctx.busyRun, busyStep = ctx.busyStep, closeSheet = ctx.closeSheet, esc = ctx.esc, foldReport = ctx.foldReport, isNum = ctx.isNum, multi = ctx.multi, openSheet = ctx.openSheet, photosOf = ctx.photosOf, proj = ctx.proj, reportPhotos = ctx.reportPhotos, save = ctx.save, sizeText = ctx.sizeText, toast = ctx.toast, view = ctx.view, walterModel = ctx.walterModel;
     var Climate = window.Climate, Diagram = window.Diagram, Fmt = window.Fmt, Fotos = window.Fotos, Geo = window.Geo, IO = window.IO,
       Perfil = window.Perfil, Report = window.Report, Satelite = window.Satelite, Store = window.Store;
 
@@ -216,7 +216,7 @@
     function reportOpts(a) {
       var w = walterModel(a);
       var sk = repSkip();
-      return { walter: w ? { svg: w.svg, lines: w.lines, source: w.source } : null, author: Store.loadAuthor(), skip: sk, usos: sk.usos ? null : usosReport(a), conclusion: sk.conclusion ? null : conclusionReport(a) };
+      return { walter: w ? { svg: w.svg, lines: w.lines, source: w.source } : null, author: Store.loadAuthor(), skip: sk, usos: sk.usos ? null : usosReport(a), conclusion: sk.conclusion ? null : conclusionReport(a), catastro: catastroReport() };
     }
     /* ---------- Qué polígonos van en el reporte (2.20.0) ----------
      *   all    «Completo»: el resumen y luego cada polígono, en orden de jerarquía (cada finca seguida de sus áreas)
