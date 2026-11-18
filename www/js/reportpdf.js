@@ -144,6 +144,7 @@
       if (a.area) land.push(['Área', Fmt.area(a.area, 'ha') + ' · ' + Fmt.area(a.area, 'm2') + ' · ' + Fmt.area(a.area, 'fanegadas')]);
       if (a.n >= 2) land.push(['Perímetro', Fmt.dist(a.perimeter)]);
       land.push(['Centro', Fmt.latlon(a.center.lat, a.center.lon) + Report.withPlana(a.center)]);
+      (o.catastro || []).forEach(function (x) { land.push([x[0], x[1]]); });      // número predial (2.32.0)
       B.push({ t: 'h2', text: 'Terreno' }); B.push({ t: 'table', rows: land });
       var us = skip('usos') ? null : o.usos;
       if (us && us.rows && us.rows.length) {

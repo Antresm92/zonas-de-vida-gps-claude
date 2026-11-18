@@ -86,3 +86,10 @@ test('.gitignore: las llaves de publicación no se suben, pero la clave de prueb
   assert.match(gitignore, /^\*\.keystore$/m);
   assert.match(gitignore, /^!scripts\/debug\.keystore$/m);
 });
+
+test('la app se identifica ante los servidores de mapas (política de OpenStreetMap, 2.32.0)', () => {
+  // OpenStreetMap bloquea el tráfico con identificación genérica: el WebView añade el nombre de la app y una dirección de contacto
+  const cfg = JSON.parse(require('fs').readFileSync(require('path').join(__dirname, '..', 'capacitor.config.json'), 'utf8'));
+  assert.equal(cfg.appendUserAgent, 'ZonasDeVida (+https://github.com/Antresm92/zonas-de-vida-gps-claude)');
+  assert.equal(cfg.overrideUserAgent, undefined, 'no reemplazar la identificación del WebView, solo añadir');
+});

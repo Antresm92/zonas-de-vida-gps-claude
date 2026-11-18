@@ -107,7 +107,7 @@ module.exports = async function (c) {
     assert.ok(net.tiles > 0);
     assert.match(i.attribution, /Capacidad de uso: IGAC \(CC BY 4\.0\)/);
     assert.match(await text('#igacVer'), /^Viendo el mapa del IGAC en línea\.$/);
-    assert.match(await text('#igacPanel'), /Clase 1.*Clase 8.*Agua.*Urbana.*Fuente: IGAC \(CC BY 4\.0\)\. Mapa regional/);
+    assert.match(await text('#igacPanel'), /Clase 1.*Clase 8.*Agua.*Urbana.*Fuente: IGAC \(CC BY 4\.0\)\. Mapa regional.*No es una app oficial del IGAC\.$/);
     assert.equal(await page.evaluate(() => window.__app.ui.mapIgac), true);
     await shot('v231-igac-capa');
   });

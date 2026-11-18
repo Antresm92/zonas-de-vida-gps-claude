@@ -2,6 +2,7 @@
   "appId": "co.zonasdevida.app",
   "appName": "Zonas de Vida",
   "webDir": "www",
+  "appendUserAgent": "ZonasDeVida (+https://github.com/Antresm92/zonas-de-vida-gps-claude)",
   "server": { "androidScheme": "https" },
   "android": { "backgroundColor": "#EEF2EC" }
 }

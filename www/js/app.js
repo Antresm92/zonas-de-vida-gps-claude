@@ -5,7 +5,7 @@
   var Geo = window.Geo, H = window.Holdridge, Climate = window.Climate, A = window.Analysis, Fmt = window.Fmt,
       Gps = window.Gps, Store = window.Store, Diagram = window.Diagram, Report = window.Report,
       Gis = window.Gis, Backup = window.Backup, IO = window.IO, WL = window.WalterLieth, Mapa = window.Mapa, MapView = window.MapView, Satelite = window.Satelite, Perfil = window.Perfil, Fotos = window.Fotos, Zip = window.Zip, Units = window.Units;
-  var APP_VERSION = '2.31.0';
+  var APP_VERSION = '2.32.0';
 
   var S = Store.loadState();
   // 2.22.0: la primera vez, los lotes de antes que están dentro de un predio pasan a pertenecerle
@@ -518,7 +518,7 @@
     }).join('') + '</div>';
   }
   /* ---------- Predios y lotes: fila, lista, ficha, importar directo y borrar (en js/ui-lotes.js desde 2.28.0) ---------- */
-  var Lotes = window.ZV.lotes({ S: S, ui: ui, '$': $, adjustManyAsk: function () { return adjustManyAsk.apply(null, arguments); }, closeSheet: closeSheet, colorPalette: colorPalette, esc: esc, finishTrack: function () { return finishTrack.apply(null, arguments); }, hideSheet: hideSheet, isNum: isNum, layerById: layerById, layerSub: layerSub, lot: lot, lotArea: lotArea, mapKey: function () { return mapKey.apply(null, arguments); }, openSheet: openSheet, proj: proj, renderTab: renderTab, save: save, setMapMode: function () { return setMapMode.apply(null, arguments); }, setMapTool: function () { return setMapTool.apply(null, arguments); }, showTab: showTab, syncMapCard: function () { return syncMapCard.apply(null, arguments); }, toast: toast, toolsInset: function () { return toolsInset.apply(null, arguments); }, toolsTop: function () { return toolsTop.apply(null, arguments); } });
+  var Lotes = window.ZV.lotes({ fromImport: function () { return CatastroUI.fromImport.apply(null, arguments); }, S: S, ui: ui, '$': $, adjustManyAsk: function () { return adjustManyAsk.apply(null, arguments); }, closeSheet: closeSheet, colorPalette: colorPalette, esc: esc, finishTrack: function () { return finishTrack.apply(null, arguments); }, hideSheet: hideSheet, isNum: isNum, layerById: layerById, layerSub: layerSub, lot: lot, lotArea: lotArea, mapKey: function () { return mapKey.apply(null, arguments); }, openSheet: openSheet, proj: proj, renderTab: renderTab, save: save, setMapMode: function () { return setMapMode.apply(null, arguments); }, setMapTool: function () { return setMapTool.apply(null, arguments); }, showTab: showTab, syncMapCard: function () { return syncMapCard.apply(null, arguments); }, toast: toast, toolsInset: function () { return toolsInset.apply(null, arguments); }, toolsTop: function () { return toolsTop.apply(null, arguments); } });
   var LOCKED_ACTS = Lotes.LOCKED_ACTS, LOT_COLORS = Lotes.LOT_COLORS, deleteLayer = Lotes.deleteLayer, editLayer = Lotes.editLayer, editMain = Lotes.editMain, fincaLines = Lotes.fincaLines, hasLots = Lotes.hasLots, hugeInfo = Lotes.hugeInfo, hugePoint = Lotes.hugePoint, hugeTip = Lotes.hugeTip, layerToLot = Lotes.layerToLot, layerToMain = Lotes.layerToMain, lockStop = Lotes.lockStop, lotDelete = Lotes.lotDelete, lotDeleteAsk = Lotes.lotDeleteAsk, lotDeleteBox = Lotes.lotDeleteBox, lotFileRead = Lotes.lotFileRead, lotForm = Lotes.lotForm, lotFormRead = Lotes.lotFormRead, lotFormRefresh = Lotes.lotFormRefresh, lotImport = Lotes.lotImport, lotReset = Lotes.lotReset, lotSave = Lotes.lotSave, lotSetCat = Lotes.lotSetCat, lotSetKind = Lotes.lotSetKind, lotsBar = Lotes.lotsBar, openLots = Lotes.openLots, pickColor = Lotes.pickColor, pickLot = Lotes.pickLot, pointColorDefault = Lotes.pointColorDefault, restoreSnapshot = Lotes.restoreSnapshot, saveEdit2 = Lotes.saveEdit2, setLock = Lotes.setLock, snapshot = Lotes.snapshot, toggleLayer = Lotes.toggleLayer;
 
   /* ---------- Importar archivos SIG (KML, KMZ, GeoJSON, GPX) ---------- */
@@ -581,6 +581,8 @@
   }
   function applyMain(p, nl) {
     var main = pickMainLayer(nl);
+    if (main && main.predial) ui.impUndoPredial = CatastroUI.fromImport(Store.activeLot(p), main.predial);      // número predial del archivo (2.32.0)
+    else ui.impUndoPredial = null;
     p.points = Gis.pointsFromLayer(main, Store.uid);
     p.nextPoint = p.points.length + 1;
     p.layers = p.layers.concat(nl.filter(function (l) { return l !== main; }));
@@ -590,8 +592,9 @@
     if (!ui.imp) return;
     var p = proj(), s = snapshot(p), nl;
     try { nl = newLayersFromImport(p); } catch (e) { toast(e.message, { err: true }); return; }
-    var main = applyMain(p, nl);
-    finishImport('«' + main.name + '» es ahora el polígono del proyecto' + (s.points.length ? '; tus puntos anteriores se reemplazaron.' : '.'), s.points.length ? function () { restoreSnapshot(p, s); } : null);
+    var main = applyMain(p, nl), undoPr = ui.impUndoPredial;
+    finishImport('«' + main.name + '» es ahora el polígono del proyecto' + (s.points.length ? '; tus puntos anteriores se reemplazaron.' : '.') + (main.predial ? ' Número predial guardado.' : ''),
+      s.points.length ? function () { if (undoPr) undoPr(); restoreSnapshot(p, s); } : null);
   }
   function importNew() {
     if (!ui.imp) return;
@@ -771,13 +774,13 @@
     var p = proj(), a = analysis(), h = '';
     var VL = viewLayers(p), shown = VL.filter(function (l) { return l.visible !== false && l.points.length; });
     if (a.empty) {
-      if (!shown.length) return '<div class="empty"><b>Sin puntos todavía</b>Agrega al menos 3 puntos en la pestaña Puntos para calcular un área.</div>';
+      if (!shown.length) return '<div class="empty"><b>Sin puntos todavía</b>Agrega al menos 3 puntos en la pestaña Puntos para calcular un área.</div>' + CatastroUI.blockHtml();
       // 2.23.3: con otros polígonos ya marcados, lo que falta son los puntos de este (no es un proyecto «solo de capas»)
       h += p.lots.some(function (x) { return x.points.length; }) ?
         '<div class="tip" id="lotEmptyTip">«' + esc(lot().name) + '» todavía no tiene puntos. Márcalos en el mapa, con el GPS o escribiendo coordenadas.</div>' :
         '<div class="tip">Tu proyecto no tiene puntos propios, solo capas importadas. Para calcular el área y la zona de vida, abre una capa en la pestaña Puntos y elige «Usar como polígono del proyecto».</div>';
       h += '<div class="plot">' + Diagram.polygonSVG([], { layers: VL, color: p.mainColor }) + '</div>' + Diagram.legendHTML(VL, p.mainColor, ownLabel(), false);
-      return h + exportBlock();
+      return h + CatastroUI.blockHtml() + exportBlock();
     }
     var unit = S.settings.areaUnit || 'ha';
     var plotOpts = { center: a.center, layers: VL, color: p.mainColor, dots: Predio.isArea(lot()) };
@@ -786,7 +789,7 @@
       h += '<div class="tip">Hay ' + a.n + ' punto' + (a.n > 1 ? 's' : '') + '. Con 3 o más se calcula el área.</div>';
       h += '<div class="plot">' + Diagram.polygonSVG(p.points, plotOpts) + '</div>' + legend;
       if (a.n === 2) h += '<dl class="kv" style="margin-top:12px"><div><dt>Distancia entre los dos puntos</dt><dd>' + Fmt.dist(a.perimeter) + '</dd></div></dl>';
-      return h + exportBlock();
+      return h + CatastroUI.blockHtml() + exportBlock();
     }
     h += '<div class="block"><span class="big">' + Fmt.area(a.area, unit).replace(/ (\S+)$/, ' <small>$1</small>') + '</span>';
     h += '<div class="seg" role="group" aria-label="Unidad del área" style="margin-top:12px">';
@@ -821,7 +824,7 @@
       h += '<div><dt>' + esc(b.name) + ' → ' + esc(c.name) + '</dt><dd>' + Fmt.dist(Geo.distance(b.lat, b.lon, c.lat, c.lon)) + ' · rumbo ' + Math.round(Geo.bearing(b.lat, b.lon, c.lat, c.lon)) + '°</dd></div>';
     }
     h += '</dl></div>';
-    return h + exportBlock();
+    return h + CatastroUI.blockHtml() + exportBlock();
   }
   function reorder() {
     var p = proj();
@@ -1000,12 +1003,13 @@
   }
 
   /* ---------- Usos recomendados (en js/ui-usos.js desde 2.29.0) ---------- */
+  var CatastroUI = window.ZV.catastro({ ui: ui, lot: lot, esc: esc, toast: toast, openSheet: openSheet, closeSheet: closeSheet, save: save, renderTab: renderTab, '$': $ });
   var IgacUI = window.ZV.igac({ ui: ui, proj: proj, lot: lot, analysis: analysis, esc: esc, toast: toast, save: save, renderTab: renderTab, '$': $ });
   var UsosUI = window.ZV.usos({ ui: ui, lot: lot, analysis: analysis, lotArea: lotArea, esc: esc, toast: toast, openSheet: openSheet, closeSheet: closeSheet, save: save, renderTab: renderTab,
     igacBlock: IgacUI.blockHtml, igacRows: IgacUI.reportRows });
 
   /* ---------- Reporte (en js/ui-reporte.js desde 2.26.0) ---------- */
-  var Reporte = window.ZV.reporte({ S: S, ui: ui, busy: busy, '$': $, analysis: analysis, busyHide: busyHide, busyMin: busyMin, busyPaint: busyPaint, busyRun: busyRun, busyStep: busyStep, closeSheet: closeSheet, esc: esc, foldReport: foldReport, isNum: isNum, multi: multi, openSheet: openSheet, photosOf: photosOf, proj: proj, reportPhotos: reportPhotos, save: save, sizeText: sizeText, toast: toast, view: view, walterModel: walterModel, usosReport: UsosUI.reportModel, conclusionReport: UsosUI.conclusionModel });
+  var Reporte = window.ZV.reporte({ S: S, ui: ui, busy: busy, '$': $, analysis: analysis, busyHide: busyHide, busyMin: busyMin, busyPaint: busyPaint, busyRun: busyRun, busyStep: busyStep, closeSheet: closeSheet, esc: esc, foldReport: foldReport, isNum: isNum, multi: multi, openSheet: openSheet, photosOf: photosOf, proj: proj, reportPhotos: reportPhotos, save: save, sizeText: sizeText, toast: toast, view: view, walterModel: walterModel, usosReport: UsosUI.reportModel, conclusionReport: UsosUI.conclusionModel, catastroReport: function () { return CatastroUI.reportRows(); } });
   var tabInforme = Reporte.tabInforme, mountDiagram = Reporte.mountDiagram, shareReport = Reporte.shareReport, shareReportPdf = Reporte.shareReportPdf, shareReportHtml = Reporte.shareReportHtml, copySummary = Reporte.copySummary, copyText = Reporte.copyText, fetchNow = Reporte.fetchNow, croqPrepareClick = Reporte.croqPrepareClick, repRead = Reporte.repRead, repWhatHtml = Reporte.repWhatHtml;
 
   /* ---------- Proyectos ---------- */
@@ -1314,6 +1318,7 @@
     clearField: function (t) { delete proj().climate[t.getAttribute('data-field')]; save(); renderTab('clima'); },
     fetchOnline: Completar.fetchOnline, fetchPick: Completar.openFetchPick, fetchPickAll: Completar.fetchPickAll, fetchPickGo: Completar.fetchPickGo,
     usosEdit: UsosUI.openEdit, usosSave: UsosUI.saveEdit, usosClear: UsosUI.clearEdit, usosEstUse: UsosUI.estUse, usosFuente: UsosUI.openFuente, cultivosOpen: UsosUI.openCultivos,
+    catOpen: function () { CatastroUI.open(); }, catQuitar: function () { CatastroUI.quitar(); }, catGuardarManual: function () { CatastroUI.guardarManual(); },
     igacConsult: function () { IgacUI.consult(); }, igacQuitar: function () { IgacUI.quitar(); }, mapIgac: function () { IgacUI.toggle(); }, igacDownload: function () { IgacUI.download(); }, igacBorrar: function () { IgacUI.borrar(); },
     cleanAsk: Completar.openClean, cleanDo: Completar.cleanDo, cleanUndo: Completar.cleanUndo,
     importCsv: function () { $('#csvFile').click(); },

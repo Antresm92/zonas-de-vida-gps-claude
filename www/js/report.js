@@ -340,7 +340,9 @@
       h += '<h2>Terreno</h2><table>';
       if (a.area) h += '<tr><th>Área</th><td>' + esc(Fmt.area(a.area, 'ha')) + ' · ' + esc(Fmt.area(a.area, 'm2')) + ' · ' + esc(Fmt.area(a.area, 'fanegadas')) + '</td></tr>';
       if (a.n >= 2) h += '<tr><th>Perímetro</th><td>' + esc(Fmt.dist(a.perimeter)) + '</td></tr>';
-      h += '<tr><th>Centro</th><td>' + esc(Fmt.latlon(a.center.lat, a.center.lon)) + planaHtml(a.center) + '</td></tr></table>';
+      h += '<tr><th>Centro</th><td>' + esc(Fmt.latlon(a.center.lat, a.center.lon)) + planaHtml(a.center) + '</td></tr>';
+      (o.catastro || []).forEach(function (x) { h += '<tr><th>' + esc(x[0]) + '</th><td>' + esc(x[1]) + '</td></tr>'; });      // número predial (2.32.0)
+      h += '</table>';
       h += usosHtml(o);
       h += '<h2>Puntos</h2><table>';
       project.points.forEach(function (p, i) {

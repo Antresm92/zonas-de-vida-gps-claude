@@ -184,7 +184,7 @@
       } else h += '<button class="chipbtn" data-act="igacDownload" id="igacDownloadBtn">Guardar la zona del predio para usar sin conexión</button>';
       h += '<div class="igacley" aria-label="Leyenda: clases de capacidad de uso">' + LEYENDA.map(function (x) {
         return '<span><i style="background:' + Igac.COLORS[x[0]] + '"></i>' + x[1] + '</span>';
-      }).join('') + '</div><p class="small muted" style="margin:4px 0 0">Fuente: IGAC (CC BY 4.0). Mapa regional: no reemplaza el estudio del predio.</p>';
+      }).join('') + '</div><p class="small muted" style="margin:4px 0 0">Fuente: IGAC (CC BY 4.0). Mapa regional: no reemplaza el estudio del predio. No es una app oficial del IGAC.</p>';
       return h;
     }
     function syncPanel() { var el = $('#igacPanel'); if (el) el.innerHTML = panelHtml(); }

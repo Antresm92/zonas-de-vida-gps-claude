@@ -9,9 +9,9 @@
  * Las altitudes solo se aceptan si parecen reales: si todas valen 0 (así guarda Google Earth los polígonos
  * pegados al suelo) o son "relativas al suelo", se ignoran y se avisa. */
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory(require('./geo.js'), require('./xml.js'), require('./zip.js'));
-  else root.Gis = factory(root.Geo, root.Xml, root.Zip);
-})(typeof self !== 'undefined' ? self : this, function (Geo, Xml, Zip) {
+  if (typeof module === 'object' && module.exports) module.exports = factory(require('./geo.js'), require('./xml.js'), require('./zip.js'), require('./catastro.js'));
+  else root.Gis = factory(root.Geo, root.Xml, root.Zip, root.Catastro);
+})(typeof self !== 'undefined' ? self : this, function (Geo, Xml, Zip, Catastro) {
   'use strict';
 
   var LIMITS = { bytes: 40 * 1024 * 1024, layers: 200, vertices: 150000 };
@@ -200,7 +200,10 @@
     }
     function feature(f) {
       if (!f || typeof f !== 'object') return;
-      geometry(f.geometry, nameFromProps(f.properties));
+      // 2.32.0: el predio descargado de Colombia en Mapas trae «Numero predial» y «Municipio»: el número le da nombre al polígono
+      var pr = Catastro ? Catastro.fromProps(f.properties) : null, n0 = ctx.features.length;
+      geometry(f.geometry, nameFromProps(f.properties) || (pr ? pr.numero : ''));
+      if (pr) for (var i = n0; i < ctx.features.length; i++) if (ctx.features[i].type === 'polygon') ctx.features[i].predial = pr;
     }
     if (obj.type === 'FeatureCollection') (obj.features || []).forEach(feature);
     else if (obj.type === 'Feature') feature(obj);
@@ -325,6 +328,7 @@
       var coords = f.coords.map(function (c) { return { lat: c.lat, lon: c.lon, alt: isNum(c.alt) ? c.alt : null }; });
       var layer = { id: uid(), name: f.name || base || (f.type === 'polygon' ? 'Polígono importado' : 'Línea importada'), kind: f.type, color: color(),
                     visible: true, points: coords, file: opts.file || '', ts: ts };
+      if (f.predial) layer.predial = f.predial;                   // número predial leído del archivo (2.32.0)
       if (f.holes && f.holes.length) layer.holes = f.holes.map(function (h) { return h.map(function (c) { return { lat: c.lat, lon: c.lon, alt: isNum(c.alt) ? c.alt : null }; }); });
       layers.push(layer);
     });
