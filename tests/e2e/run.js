@@ -67,14 +67,20 @@ const arg = (n) => { const a = process.argv.find((x) => x.startsWith('--' + n + 
   const text = (sel) => page.evaluate((s) => { const e = document.querySelector(s); return e ? e.textContent : null; }, sel);
   // «Qué hay de nuevo» (2.23.5) sale a quien actualiza: en los recorridos se marca como ya visto, salvo donde se prueba
   const WN_ID = /var WHATS_NEW_ID = '([^']+)'/.exec(require('fs').readFileSync(require('path').join(__dirname, '../../www/js/ayudas.js'), 'utf8'))[1];
-  const fresh = async () => {
-    await page.evaluate((wn) => { localStorage.clear(); localStorage.setItem('zvg.v1.flags', JSON.stringify({ mapGuide: true, appGuide: true, reportOpen: true, whatsNew: wn })); }, WN_ID);   // la ayuda de primera vez del mapa se prueba aparte
+  // 2.32.1: los nombres de los puntos en el mapa vienen apagados; los recorridos anteriores los encienden (mapNames) porque los
+  // revisan, y el recorrido 33 prueba cómo viene la app (fresh({ mapNames: undefined })).
+  const fresh = async (extra) => {
+    const flags = Object.assign({ mapGuide: true, appGuide: true, reportOpen: true, mapNames: true }, extra || {});
+    await page.evaluate((a) => { localStorage.clear(); localStorage.setItem('zvg.v1.flags', JSON.stringify(Object.assign(a.flags, { whatsNew: a.wn }))); }, { flags, wn: WN_ID });   // la ayuda de primera vez del mapa se prueba aparte
+    errors.length = 0;
     await page.goto(url);
     // Justo después de un paso sin conexión, Chromium a veces deja sin cargar uno de los archivos de la app (la página queda en blanco
     // con un error de «no definido»). No es un fallo de la app: se vuelve a cargar una vez y se anota en la consola del recorrido.
     const up = await page.waitForFunction(() => !!window.__app, null, { timeout: 5000 }).then(() => true, () => false);
     if (!up) { console.log('      (recarga: la página no terminó de cargar al primer intento)'); await page.goto(url); }
     await page.waitForSelector('#tab-puntos');
+    // A veces carga app.js pero falta otro archivo (por ejemplo clasif.js): la página abre con errores. Se recarga una vez y se anota.
+    if (up && errors.length) { console.log('      (recarga: la página abrió con errores al primer intento: ' + errors[0].slice(0, 80) + ')'); errors.length = 0; await page.goto(url); await page.waitForSelector('#tab-puntos'); }
     errors.length = 0;
   };
   // 2.21.0: cuando un polígono choca con otro o se sale de su finca la app pregunta; los recorridos anteriores lo dejan sobrepuesto
@@ -118,7 +124,7 @@ const arg = (n) => { const a = process.argv.find((x) => x.startsWith('--' + n + 
   await page.goto(url);
   await page.waitForSelector('#tab-puntos');
   const only = (arg('parts') || '').split(',').filter(Boolean);
-  for (const part of ['part1-puntos', 'part2-area-importar', 'part3-clima', 'part4-informe-proyectos', 'part5-offline', 'part7-mapa', 'part8-perfil-satelital', 'part9-menu-mapa', 'part10-posicion-manual', 'part11-v25', 'part12-fotos', 'part13-pdf', 'part14-herramientas', 'part15-mapa-intuitivo', 'part16-guiada', 'part17-v214', 'part18-lotes', 'part19-v216', 'part20-fincas', 'part21-clasif', 'part22-v220', 'part23-linderos', 'part24-v223', 'part25-dibujar', 'part26-linderos-mapa', 'part27-borrar-tamano', 'part28-completar', 'part29-usos', 'part30-cultivos', 'part31-igac', 'part32-catastro']) {
+  for (const part of ['part1-puntos', 'part2-area-importar', 'part3-clima', 'part4-informe-proyectos', 'part5-offline', 'part7-mapa', 'part8-perfil-satelital', 'part9-menu-mapa', 'part10-posicion-manual', 'part11-v25', 'part12-fotos', 'part13-pdf', 'part14-herramientas', 'part15-mapa-intuitivo', 'part16-guiada', 'part17-v214', 'part18-lotes', 'part19-v216', 'part20-fincas', 'part21-clasif', 'part22-v220', 'part23-linderos', 'part24-v223', 'part25-dibujar', 'part26-linderos-mapa', 'part27-borrar-tamano', 'part28-completar', 'part29-usos', 'part30-cultivos', 'part31-igac', 'part32-catastro', 'part33-nombres-vaciar']) {
     if (only.length && !only.some((o) => part.startsWith(o))) continue;
     const f = path.join(__dirname, part + '.js');
     if (fs.existsSync(f)) { console.log('\n' + part); await require(f)(ctx); }

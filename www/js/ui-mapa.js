@@ -53,6 +53,7 @@
         h += '<button data-act="mapBase" data-b="' + id + '" aria-pressed="' + (ui.mapBase === id) + '">' + esc(Mapa.BASES[id].label) + '</button>';
       });
       if (ui.mapBase === 'satelite') h += '<button class="chipbtn" data-act="mapRef" aria-pressed="' + ui.mapRef + '">Calles y nombres sobre el satélite</button>';
+      h += '<b>Ver</b><button class="chipbtn" data-act="mapNames" aria-pressed="' + !!ui.mapNames + '">Nombres de los puntos</button>';   // 2.32.1: apagados por defecto
       h += igacLayerHtml();                       // «Capacidad de uso (IGAC)» encima de la base (2.31.0)
       h += '</div>';
       h += '<div class="mapcross" aria-hidden="true"></div>';
@@ -219,6 +220,7 @@
       ui.map.attach(host);
       ui.map.setMode(ui.mapMode);
       ui.map.setBase(ui.mapBase, ui.mapRef);
+      ui.map.setNames(ui.mapNames);
       igacSync();
       ui.map.draw(Mapa.shapes(view(p), { polyActive: ui.polyActive, bad: !!a.selfIntersects, fmt: function (n) { return Fmt.num(n, 0); }, dist: Geo.distance, fmtDist: Fmt.dist }));
       ui.map.setMeasure(ui.mapTool === 'medir' ? ui.measure : [], ui.measureClosed);

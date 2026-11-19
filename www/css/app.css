@@ -234,7 +234,7 @@ main { padding: calc(var(--top-h) + 14px) 14px calc(var(--nav-h) + 24px); paddin
 /* El punto lleva dentro su puesto en el recorrido (1, 2, 3…) */
 .mk-dot { position: absolute; left: -11px; top: -11px; width: 22px; height: 22px; box-sizing: border-box; border-radius: 50%; border: 2px solid #FFFFFF; box-shadow: 0 0 0 1px rgba(0, 0, 0, .4); color: #FFFFFF; font-weight: 800; font-size: 11px; line-height: 18px; text-align: center; text-shadow: 0 0 2px rgba(0, 0, 0, .9), 0 0 2px rgba(0, 0, 0, .9); }
 .mk-lab { position: absolute; left: 12px; top: -32px; padding: 2px 7px; border-radius: 6px; background: rgba(255, 255, 255, .96); color: #14301F; font-weight: 650; font-size: 13px; white-space: nowrap; box-shadow: 0 1px 4px rgba(0, 0, 0, .35); }
-.labels-off .mk-lab { display: none; }
+.labels-off .mk-lab, .names-off .mk-lab { display: none; }
 /* Con «Posición manual» cada punto tiene una zona de toque de 44 px; el dedo no se confunde con un arrastre del mapa ni abre el menú del sistema */
 .mk-dot, .mk-lab { pointer-events: none; }
 /* Sin ningún modo, un toque sobre el punto lo selecciona: misma zona de 44 px */

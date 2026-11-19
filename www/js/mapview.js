@@ -325,6 +325,9 @@
       if (lastShapes) draw(lastShapes);                      // los puntos pasan a poderse tocar (o dejan de poder)
     }
 
+    // 2.32.1: los nombres de los puntos se pueden apagar (los círculos con su número siguen a la vista)
+    var namesOn = true;
+    function setNames(on) { namesOn = !!on; el.classList.toggle('names-off', !namesOn); }
     function syncLabels() { el.classList.toggle('labels-off', !Mapa.labelsVisible(map.getZoom())); }
     map.on('zoomend', syncLabels);
     map.on('moveend', syncSides);          // después de cada zoom o arrastre: qué lados caben y están a la vista
@@ -392,7 +395,7 @@
     return {
       el: el,
       attach: function (host) { if (el.parentNode !== host) host.appendChild(el); map.invalidateSize(); syncLabels(); },
-      setBase: setBase, setOverlay: setOverlay, draw: draw, fit: fit, showFix: showFix, flyTo: flyTo, setMode: setMode, select: select, setMeasure: setMeasure,
+      setBase: setBase, setOverlay: setOverlay, setNames: setNames, draw: draw, fit: fit, showFix: showFix, flyTo: flyTo, setMode: setMode, select: select, setMeasure: setMeasure,
       center: function () { var c = map.getCenter().wrap(); return { lat: c.lat, lon: c.lng }; },
       zoom: function () { return map.getZoom(); },
       refresh: function () { map.invalidateSize(); },
@@ -402,7 +405,7 @@
                  markers: model.markers.slice(), polygon: model.polygon, layers: model.layers.slice(), fix: model.fix,
                  selected: selId, link: !!linkLine, measure: measurePts.length, measureClosed: measureClosed, scale: (el.querySelector('.leaflet-control-scale-line') || {}).textContent || '',
                  sides: sideRefs.map(function (r) { return { text: r.text, label: r.label, plus: r.plus, alt: !!r.alt }; }),
-                 labelsOn: !el.classList.contains('labels-off'), attribution: (el.querySelector('.leaflet-control-attribution') || {}).textContent || '',
+                 labelsOn: !el.classList.contains('labels-off'), namesOn: namesOn, attribution: (el.querySelector('.leaflet-control-attribution') || {}).textContent || '',
                  overlay: { key: capaKey, kind: capaInfo.kind, loaded: capaInfo.loaded, errors: capaInfo.errors, shapes: capaInfo.shapes } };
       }
     };

@@ -215,7 +215,7 @@ module.exports = async function (c) {
     await page.reload(); await page.waitForSelector('#sheet:not([hidden])');
     assert.equal(await sheetTitle(), 'Qué hay de nuevo');
     const dts = await page.$$eval('#whatsNew dt', (d) => d.map((x) => x.textContent));
-    assert.deepEqual(dts.slice(0, 2), ['Número predial y lindero catastral', 'Para qué sirve la capa del IGAC']);
+    assert.deepEqual(dts.slice(0, 2), ['Nombres de los puntos', 'Vaciar y empezar de nuevo']);
     assert.deepEqual(await page.$$eval('#sheet .btns button', (b) => b.map((x) => x.textContent)), ['Entendido', 'Ver la ayuda completa']);
     await shot('177-que-hay-de-nuevo');
     await page.click('#sheet [data-act="appGuide"]');

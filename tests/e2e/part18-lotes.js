@@ -215,7 +215,7 @@ module.exports = async function (c) {
     await page.click('section.tab:not([hidden]) .lots .lotchip[aria-pressed="true"]');
     await page.click('#sheet .lotrow .lotmore');
     assert.equal(await page.locator('#sheet [data-act="lotDelete"]').count(), 0, 'con un solo lote no hay «Eliminar»');
-    assert.equal(await text('#lotDelBox'), 'Borrar sus puntos y empezar de nuevo', '2.23.7: en su lugar, vaciarlo');
+    assert.equal(await text('#lotDelBox'), 'Vaciar y empezar de nuevo', '2.23.7: en su lugar, vaciarlo');
     await page.click('#sheet [aria-label="Cerrar"]'); await waitSheetClosed();
   });
 

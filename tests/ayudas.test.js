@@ -24,7 +24,7 @@ test('cada hoja de ayuda se arma y no deja filas vacías ni «undefined»', () =
     const dts = (h.match(/<dt>/g) || []).length, dds = (h.match(/<dd>/g) || []).length;
     assert.ok(dts > 2 && dts === dds, t + ': ' + dts + ' títulos y ' + dds + ' textos');
   }
-  assert.match(A.WHATS_NEW_ID, /^\d+\.\d+$/);
+  assert.match(A.WHATS_NEW_ID, /^\d+\.\d+(\.\d+)?$/);
 });
 
 test('la ayuda explica «Usos recomendados» donde corresponde', () => {
@@ -45,7 +45,7 @@ test('la ayuda explica el mapa del IGAC (2.31.0) en las cinco hojas', () => {
   assert.match(sheets[2][1], /Según el mapa del IGAC/); assert.match(sheets[2][1], /algunos polígonos de estudios antiguos marcados «IV» salen con el color de la clase 6/);
   assert.match(sheets[3][1], /Según el mapa del IGAC.*Capa «Capacidad de uso \(IGAC\)»/s);
   assert.match(sheets[4][1], /mapa multiescalar.*CC BY 4\.0 \(Resolución 616 de 2020\)/s);
-  assert.match(A.WHATS_NEW_ID, /^2\.3[12]$/);
+  assert.match(A.WHATS_NEW_ID, /^2\.3[12](\.\d)?$/);
 });
 
 test('la ayuda explica el catastro y para qué sirve la capa del IGAC (2.32.0)', () => {
@@ -58,5 +58,14 @@ test('la ayuda explica el catastro y para qué sirve la capa del IGAC (2.32.0)',
   assert.match(sheets[3][1], /Número predial y lindero catastral/);
   assert.match(sheets[4][1], /Catastro.*colombiaenmapas\.gov\.co/s);
   assert.match(sheets[4][1], /no es una aplicación oficial del IGAC/); assert.match(sheets[2][1], /No es una app oficial/);
-  assert.equal(A.WHATS_NEW_ID, '2.32');
+  assert.match(A.WHATS_NEW_ID, /^2\.32(\.1)?$/);
+});
+
+test('la ayuda explica los nombres de los puntos y cómo vaciar el único polígono (2.32.1)', () => {
+  const { A, sheets } = load();
+  A.openMapGuide(); A.openWhatsNew();
+  assert.match(sheets[0][1], /Nombres de los puntos.*vienen apagados.*Ver › «Nombres de los puntos»/s);
+  assert.match(sheets[0][1], /Eliminar o vaciar.*«Vaciar y empezar de nuevo» lo deja como un predio nuevo/s);
+  assert.match(sheets[1][1], /Nombres de los puntos.*Vaciar y empezar de nuevo/s);
+  assert.equal(A.WHATS_NEW_ID, '2.32.1');
 });

@@ -396,35 +396,48 @@
       ui.follow = false; ui.map.flyTo(hg.point.lat, hg.point.lon, 12);
       ui.mapSel = hg.point.id; syncMapCard();
     }
+    // 2.32.1: el único polígono, ¿ya está como uno nuevo? (vacío, «Predio», sin datos guardados)
+    function isFresh(l) {
+      var f = Object.assign(Store.newLot('Predio'), { kind: 'finca' });
+      return !l.points.length && Object.keys(l).every(function (k) {
+        if (k === 'id' || k === 'points') return true;
+        if (k === 'climate') return !Object.keys(l.climate || {}).length;
+        return l[k] === f[k];
+      });
+    }
     function lotDeleteBox(l, p) {
-      if (!l || (p.lots.length < 2 && !l.points.length)) return '';
+      if (!l || (p.lots.length < 2 && isFresh(l))) return '';
       var only = p.lots.length < 2, what = Predio.isFinca(l) ? 'predio' : 'lote';
       return '<div class="btns" id="lotDelBox"><button class="btn btn-danger" data-act="lotDeleteAsk" data-id="' + esc(l.id) + '">' +
-        (only ? 'Borrar sus puntos y empezar de nuevo' : 'Eliminar ' + what) + '</button></div>';
+        (only ? 'Vaciar y empezar de nuevo' : 'Eliminar ' + what) + '</button></div>';
     }
     function lotDeleteAsk(id) {
       var p = proj(), l = p.lots.filter(function (x) { return x.id === id; })[0], box = $('#lotDelBox');
       if (!l || !box) return;
       var only = p.lots.length < 2, kids = Predio.isFinca(l) ? Predio.children(l, p.lots).length : 0, n = l.points.length;
       box.innerHTML = '<p class="note" id="lotDelAsk" style="width:100%;margin:0 0 8px">' + (only ?
-        '¿Borrar los ' + n + ' puntos de «' + esc(l.name) + '» (con sus fotos) y su clima? El predio queda vacío, listo para dibujarlo o importarlo de nuevo.' :
+        '¿Vaciar «' + esc(l.name) + '»? Se borran ' + (n ? 'sus ' + n + ' puntos (con sus fotos), ' : '') + 'su clima, la evaluación del terreno, la consulta del IGAC y el número predial. Queda como un predio nuevo, «Predio», listo para dibujarlo o importarlo.' :
         '¿Eliminar «' + esc(l.name) + '»' + (n ? ' con sus ' + n + ' puntos y sus fotos' : '') + '?' + (kids ? (kids === 1 ? ' Su lote queda suelto' : ' Sus ' + kids + ' lotes quedan sueltos') + ', sin predio.' : '')) + ' Después puedes deshacerlo.</p>' +
-        '<button class="btn btn-danger" data-act="' + (only ? 'lotReset' : 'lotDelete') + '" data-id="' + esc(l.id) + '">' + (only ? 'Sí, borrar los puntos' : 'Sí, eliminar') + '</button>' +
+        '<button class="btn btn-danger" data-act="' + (only ? 'lotReset' : 'lotDelete') + '" data-id="' + esc(l.id) + '">' + (only ? 'Sí, vaciar' : 'Sí, eliminar') + '</button>' +
         '<button class="btn" data-act="lotDeleteNo">Cancelar</button>';
       if (box.scrollIntoView) box.scrollIntoView({ block: 'end' });
     }
     function lotReset(id) {
       var p = proj(), l = p.lots.filter(function (x) { return x.id === id; })[0];
-      if (!l || !l.points.length) return;
+      if (!l || isFresh(l)) return;
       if (ui.track) finishTrack();
-      var before = { points: l.points, next: l.nextPoint, climate: l.climate, weatherNow: l.weatherNow, locked: l.locked };
-      l.points = []; l.nextPoint = 1; l.climate = {}; delete l.weatherNow; delete l.locked;
+      // 2.32.1: queda como un predio nuevo (nombre, color, tipo y datos), conservando solo su identificador; «Deshacer» lo devuelve todo
+      var before = {}, n = l.points.length, name = l.name;
+      Object.keys(l).forEach(function (k) { before[k] = l[k]; });
+      var fresh = Object.assign(Store.newLot('Predio'), { kind: 'finca' });
+      fresh.id = l.id;
+      Object.keys(l).forEach(function (k) { delete l[k]; });
+      Object.assign(l, fresh);
       ui.mapSel = null; ui.navId = null; ui.mapFitKey = null;
       save(); closeSheet(); renderTab(ui.tab);
-      toast('«' + l.name + '» quedó vacío: ' + before.points.length + ' puntos borrados. Ya puedes dibujarlo o importarlo de nuevo.', { action: 'Deshacer', fn: function () {
-        l.points = before.points; l.nextPoint = before.next; l.climate = before.climate;
-        if (before.weatherNow) l.weatherNow = before.weatherNow;
-        if (before.locked) l.locked = true;
+      toast('«' + name + '» quedó vacío, como un predio nuevo' + (n ? ': ' + n + (n === 1 ? ' punto borrado' : ' puntos borrados') : '') + '. Ya puedes dibujarlo o importarlo de nuevo.', { action: 'Deshacer', fn: function () {
+        Object.keys(l).forEach(function (k) { delete l[k]; });
+        Object.assign(l, before);
         ui.mapFitKey = null; save(); renderTab(ui.tab);
       } });
     }

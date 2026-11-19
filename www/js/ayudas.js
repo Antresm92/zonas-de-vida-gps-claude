@@ -18,7 +18,8 @@
       ['Lo básico', [
         ['Toca un punto', 'para ver sus datos, abrir su ficha, moverlo, eliminarlo o ir hasta él (con el GPS encendido te guía con una flecha y los metros que faltan). El número dentro de cada punto es su orden en el recorrido.'],
         ['Arriba', 'el área, el perímetro y el número de puntos del polígono elegido se actualizan solos. Si dice «Los lados se cruzan», tócalo para ordenar los puntos.'],
-        ['Botones de la izquierda', 'bajo el menú ⋮: cambiar la capa (calles, satélite o topográfico, y encima la capacidad de uso del IGAC), ver todo el terreno, pantalla completa y deshacer el último cambio, paso a paso. A la derecha, acercar y alejar.'],
+        ['Botones de la izquierda', 'bajo el menú ⋮: cambiar la capa (calles, satélite o topográfico; los nombres de los puntos; y encima la capacidad de uso del IGAC), ver todo el terreno, pantalla completa y deshacer el último cambio, paso a paso. A la derecha, acercar y alejar.'],
+        ['Nombres de los puntos', 'vienen apagados para que el mapa no se sature: los puntos se ven con su número. Para ver los nombres, botón de capas › Ver › «Nombres de los puntos» (salen al acercar el mapa). La app recuerda tu elección; el croquis y el reporte siempre los muestran.'],
         ['Mi posición', 'el botón redondo de abajo centra el mapa donde estás y te sigue hasta que muevas el mapa.']
       ]],
       ['Crear y cambiar puntos', [
@@ -36,6 +37,7 @@
         ['Linderos compartidos', 'si marcas o sueltas un punto muy cerca de la esquina de otro polígono, se pega a ella y los dos comparten el lindero exacto. Se apaga en Herramientas › Preferencias.'],
         ['＋ Lote y ＋ Predio', 'en la fila de arriba. «＋ Predio» crea otro predio y «＋ Lote», un lote dentro del predio elegido. Los dos dejan dibujarlo (con «Crear y dibujar en el mapa» se abre el mapa con su predio a la vista, listo para marcar los puntos tocándolo) o traerlo de un archivo (KML, KMZ, GeoJSON o GPX): si el archivo trae varios polígonos, eliges cuáles entran, y si alguno choca con los linderos, cuáles se ajustan.'],
         ['Ajustar a los linderos', 'si el polígono que marcas se sale de su predio o se monta sobre otro, la app pregunta: «Ajustar a los linderos» lo recorta para que su borde siga el del predio y el de los vecinos (aparecen puntos nuevos en el lindero y se numeran de nuevo; se puede deshacer); «Dejar sobrepuesto» lo deja como está. Mientras siga encimado, dentro del mapa queda un aviso ámbar con el botón «Ajustar», y al tocar «Salir» la app vuelve a preguntar.'],
+          ['Eliminar o vaciar', 'en la hoja «Editar» del predio o lote, «Eliminar» lo quita con sus puntos. Si es el único polígono del proyecto, «Vaciar y empezar de nuevo» lo deja como un predio nuevo: nombre «Predio», sin puntos, clima, evaluación del terreno, consulta del IGAC ni número predial. Las dos se pueden deshacer.'],
           ['Exportar un polígono', 'en la hoja «Editar» del predio o lote (su nombre en la fila de arriba › Editar), «Exportar polígono» te lleva a Exportar con él ya marcado: solo eliges el formato (KML, Shapefile…). También en Polígono › Croquis › Exportar › «Elegir polígonos».']
       ]],
       ['Medir', [
@@ -85,8 +87,10 @@
     /* ---------- Qué hay de nuevo (2.23.5) ----------
      * Quien ya usaba la app y la actualiza ve, una sola vez, un resumen corto de lo nuevo; quien la instala por primera vez ve la ayuda
      * completa y no esto. Para una actualización grande futura basta con cambiar WHATS_NEW_ID y la lista. */
-    var WHATS_NEW_ID = '2.32';
+    var WHATS_NEW_ID = '2.32.1';
     var WHATS_NEW = [
+      ['Nombres de los puntos', 'en el mapa vienen apagados para trabajar más cómodo; se encienden en el botón de capas › Ver › «Nombres de los puntos».'],
+      ['Vaciar y empezar de nuevo', 'al vaciar el único polígono queda como un predio nuevo, «Predio», sin el nombre ni los datos del que tenía.'],
       ['Número predial y lindero catastral', 'en Polígono › Croquis, bloque «Catastro»: importa el archivo del predio que se descarga en Colombia en Mapas y la app guarda su número predial, o escribe el número a mano. La hoja explica el paso a paso.'],
       ['Para qué sirve la capa del IGAC', 'explicado en «Cómo usar el mapa» y en «Para qué sirve la app».'],
       ['Según el mapa del IGAC', 'en Información › Usos recomendados, «Consultar el mapa del IGAC» trae la clase de capacidad de uso del mapa oficial para el centro del polígono, con sus limitantes, usos y prácticas, y la compara con tu evaluación. Queda guardada y sale en el reporte.'],

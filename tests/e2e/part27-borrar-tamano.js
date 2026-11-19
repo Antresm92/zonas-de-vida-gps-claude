@@ -19,19 +19,19 @@ module.exports = async function (c) {
     await shot('v2237-aviso-tamano');
   });
 
-  await step('Si es el único polígono: «Borrar sus puntos y empezar de nuevo», con confirmación; «Deshacer» lo devuelve', async () => {
+  await step('Si es el único polígono: «Vaciar y empezar de nuevo», con confirmación; «Deshacer» lo devuelve', async () => {
     await page.click('[data-act="polyView"][data-v="croquis"]');
     await openEdit();
     assert.equal(await sheetTitle(), 'Editar predio');
-    assert.equal(await text('#lotDelBox'), 'Borrar sus puntos y empezar de nuevo');
+    assert.equal(await text('#lotDelBox'), 'Vaciar y empezar de nuevo');
     await page.click('#lotDelBox [data-act="lotDeleteAsk"]');
-    assert.match(await text('#lotDelAsk'), /^¿Borrar los 4 puntos de «Predio» \(con sus fotos\) y su clima\? El predio queda vacío, listo para dibujarlo o importarlo de nuevo\. Después puedes deshacerlo\.$/);
+    assert.match(await text('#lotDelAsk'), /^¿Vaciar «Predio»\? Se borran sus 4 puntos \(con sus fotos\), su clima, la evaluación del terreno, la consulta del IGAC y el número predial\. Queda como un predio nuevo, «Predio», listo para dibujarlo o importarlo\. Después puedes deshacerlo\.$/);
     await shot('v2237-confirmar');
     await page.click('#lotDelBox [data-act="lotDeleteNo"]');                 // «Cancelar» vuelve al botón sin borrar nada
-    assert.equal(await text('#lotDelBox'), 'Borrar sus puntos y empezar de nuevo');
+    assert.equal(await text('#lotDelBox'), 'Vaciar y empezar de nuevo');
     assert.equal((await lots())[0].points.length, 4);
     await page.click('#lotDelBox [data-act="lotDeleteAsk"]'); await page.click('#lotDelBox [data-act="lotReset"]'); await waitSheetClosed();
-    assert.equal(await toastText(), '«Predio» quedó vacío: 4 puntos borrados. Ya puedes dibujarlo o importarlo de nuevo.Deshacer');
+    assert.equal(await toastText(), '«Predio» quedó vacío, como un predio nuevo: 4 puntos borrados. Ya puedes dibujarlo o importarlo de nuevo.Deshacer');
     let ls = await lots();
     assert.deepEqual([ls.length, ls[0].name, ls[0].points.length, ls[0].nextPoint], [1, 'Predio', 0, 1]);
     assert.equal(await page.locator('#areaHuge').count(), 0);

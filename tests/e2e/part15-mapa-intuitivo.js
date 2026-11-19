@@ -181,13 +181,13 @@ module.exports = async function (c) {
     await act('mapLayers');
     assert.equal(await visible('#mapLayersPanel'), true);
     assert.equal(await page.getAttribute('[data-act="mapLayers"]', 'aria-expanded'), 'true');
-    assert.deepEqual(await page.$$eval('#mapLayersPanel button', (b) => b.map((x) => x.textContent + '|' + x.getAttribute('aria-pressed'))), ['Calles|true', 'Satélite|false', 'Topográfico|false', 'Capacidad de uso (IGAC)|false']);   // 2.31.0: la capa del IGAC, encima
+    assert.deepEqual(await page.$$eval('#mapLayersPanel button', (b) => b.map((x) => x.textContent + '|' + x.getAttribute('aria-pressed'))), ['Calles|true', 'Satélite|false', 'Topográfico|false', 'Nombres de los puntos|true', 'Capacidad de uso (IGAC)|false']);   // 2.31.0: la capa del IGAC, encima
     await shot('153-capas');
     await page.click('[data-act="mapBase"][data-b="satelite"]');
     await waitInfo((x) => x.base === 'satelite', 'satélite');
     assert.equal(await visible('#mapLayersPanel'), true, 'sigue abierto para poder activar los nombres');
     assert.equal(await page.locator('#mapLayersPanel [data-act="mapRef"]').count(), 1);
-    await tapMap(0, 130);
+    await tapMap(150, -20);                                               // 2.32.1: el panel es más alto (Ver › Nombres); se toca a su derecha
     assert.equal(await visible('#mapLayersPanel'), false);
     await act('mapLayers');                                                // el menú ⋮ y las capas no se abren a la vez
     await page.click('.mapkebab');
@@ -195,7 +195,7 @@ module.exports = async function (c) {
     assert.equal(await visible('#mapMenuPanel'), true);
     await page.click('#mapMenuPanel input[data-mode="add"]');
     await act('mapLayers');
-    await tapMap(0, 130);
+    await tapMap(150, -20);                                               // 2.32.1: el panel es más alto (Ver › Nombres); se toca a su derecha
     assert.equal(await visible('#mapLayersPanel'), false);
     assert.equal((await pts()).length, 3, 'el toque solo cerró el panel');
     await act('mapLayers'); await page.click('[data-act="mapBase"][data-b="calles"]'); await act('mapLayers');
@@ -684,7 +684,7 @@ module.exports = async function (c) {
     await openMap();
     await page.waitForSelector('#sheet:not([hidden])');
     assert.equal(await sheetTitle(), 'Cómo usar el mapa');
-    assert.deepEqual(await page.$$eval('.guide dt', (d) => d.map((x) => x.textContent)), ['Toca un punto', 'Arriba', 'Botones de la izquierda', 'Mi posición', 'Marcar punto', 'Menú ⋮', 'Insertar entre dos', 'Cambiar el orden', 'Más opciones', '＋ Polígono', 'Elegir otro', 'Cómo se ven', 'Candado 🔒', 'Linderos compartidos', '＋ Lote y ＋ Predio', 'Ajustar a los linderos', 'Exportar un polígono', 'Medir distancia', 'Capacidad de uso (IGAC)', 'Sin conexión', 'Para qué te sirve', 'Es un mapa regional']);
+    assert.deepEqual(await page.$$eval('.guide dt', (d) => d.map((x) => x.textContent)), ['Toca un punto', 'Arriba', 'Botones de la izquierda', 'Nombres de los puntos', 'Mi posición', 'Marcar punto', 'Menú ⋮', 'Insertar entre dos', 'Cambiar el orden', 'Más opciones', '＋ Polígono', 'Elegir otro', 'Cómo se ven', 'Candado 🔒', 'Linderos compartidos', '＋ Lote y ＋ Predio', 'Ajustar a los linderos', 'Eliminar o vaciar', 'Exportar un polígono', 'Medir distancia', 'Capacidad de uso (IGAC)', 'Sin conexión', 'Para qué te sirve', 'Es un mapa regional']);
     await shot('158-ayuda-del-mapa');
     await page.click('#sheet .btn-primary'); await waitSheetClosed();
     assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('zvg.v1.flags')).mapGuide), true);

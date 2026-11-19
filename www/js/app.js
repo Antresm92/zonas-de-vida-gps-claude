@@ -5,7 +5,7 @@
   var Geo = window.Geo, H = window.Holdridge, Climate = window.Climate, A = window.Analysis, Fmt = window.Fmt,
       Gps = window.Gps, Store = window.Store, Diagram = window.Diagram, Report = window.Report,
       Gis = window.Gis, Backup = window.Backup, IO = window.IO, WL = window.WalterLieth, Mapa = window.Mapa, MapView = window.MapView, Satelite = window.Satelite, Perfil = window.Perfil, Fotos = window.Fotos, Zip = window.Zip, Units = window.Units;
-  var APP_VERSION = '2.32.0';
+  var APP_VERSION = '2.32.1';
 
   var S = Store.loadState();
   // 2.22.0: la primera vez, los lotes de antes que están dentro de un predio pasan a pertenecerle
@@ -15,7 +15,7 @@
   MEM.add(Store.loadMemory());
   var ui = { tab: 'puntos', gpsOn: false, fix: null, stopWatch: null, sampling: null, fetching: false, diagram: null, sheetOpen: false, undo: null, wasOn: false, gpsAsked: false, gpsAsking: false,
              imp: null, restore: null, edit: null,
-             polyView: 'croquis', polyActive: true, mapBase: Mapa.baseId(Store.loadFlag('mapBase')), mapRef: Store.loadFlag('mapRef') === true, mapIgac: Store.loadFlag('mapIgac') === true,
+             polyView: 'croquis', polyActive: true, mapBase: Mapa.baseId(Store.loadFlag('mapBase')), mapRef: Store.loadFlag('mapRef') === true, mapIgac: Store.loadFlag('mapIgac') === true, mapNames: Store.loadFlag('mapNames') === true,
              map: null, mapFollow: false, mapFitKey: null, tileErrors: 0, mapMode: '', mapMenu: false, mapModeFor: null,
              unfolded: {}, mapSel: null, navId: null, mapLayers: false, mapFull: false, follow: false, mapTool: '', measure: [], measureClosed: false, mapUndo: Mapa.undoStack(20), track: null, wake: null,
              croq: { satelite: { img: null, busy: false, error: null }, topo: { img: null, busy: false, error: null } }, sharing: false, nowBusy: false, nowError: '', photoBusy: false, restoring: false,
@@ -1265,6 +1265,11 @@
     projects: openProjects,
     polyView: function (t) { ui.polyView = t.getAttribute('data-v') === 'mapa' ? 'mapa' : 'croquis'; if (ui.polyView !== 'mapa') { setMapMode(''); leaveMap(); } renderTab('area'); },
     mapBase: function (t) { ui.mapBase = Mapa.baseId(t.getAttribute('data-b')); Store.saveFlag('mapBase', ui.mapBase); renderTab('area'); },
+    mapNames: function (t) {
+      ui.mapNames = !ui.mapNames; Store.saveFlag('mapNames', ui.mapNames);
+      if (ui.map) ui.map.setNames(ui.mapNames);
+      t.setAttribute('aria-pressed', String(ui.mapNames));
+    },
     mapRef: function () { ui.mapRef = !ui.mapRef; Store.saveFlag('mapRef', ui.mapRef); renderTab('area'); },
     mapPoly: function () { ui.polyActive = !ui.polyActive; renderTab('area'); },
     mapLast: goLastPoint,
