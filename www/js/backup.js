@@ -12,7 +12,10 @@
 })(typeof self !== 'undefined' ? self : this, function (Fotos, Zip, Igac, Catastro) {
   'use strict';
 
-  var APP = 'zonas-de-vida-gps', FORMAT = 2;      // 2 desde la 2.15.0 (lotes): una app anterior no la restaura y pide actualizar; las copias de formato 1 se siguen leyendo
+  var APP = 'don-florentino-sig', FORMAT = 2;      // 2 desde la 2.15.0 (lotes): una app anterior no la restaura y pide actualizar; las copias de formato 1 se siguen leyendo
+  // 2.33.0: la app se llamaba «Zonas de Vida»; sus copias (con ese código) se siguen aceptando, para pasar los proyectos a la app nueva
+  var OLD_APPS = ['zonas-de-vida-gps'];
+  function knownApp(a) { return a === APP || OLD_APPS.indexOf(a) >= 0; }
   var LIM = { projects: 500, lots: 30, points: 20000, layers: 500, layerPoints: 150000, memory: 100000, note: 300, photos: 20000, photoBytes: 600 * 1024 * 1024, jsonPhotoBytes: 40 * 1024 * 1024 };   // jsonPhotoBytes: tope de fotos dentro de un .json (el texto pesa un tercio más y se arma entero en memoria)
   var ALT_SRC = ['gps', 'manual', 'internet', 'archivo'];
   var PT_SRC = ['gps', 'manual', 'archivo'];
@@ -274,7 +277,7 @@
   // ext: 'json' (por defecto) o 'zip'; tag 'fotos' marca el .json pesado (el que lleva las fotos dentro)
   function fileName(now, ext, tag) {
     var d = new Date(now || Date.now()), p = function (n) { return (n < 10 ? '0' : '') + n; };
-    return 'zonas-de-vida-copia-' + (tag === 'fotos' ? 'fotos-' : '') + d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + '.' + (ext === 'zip' ? 'zip' : 'json');
+    return 'don-florentino-sig-copia-' + (tag === 'fotos' ? 'fotos-' : '') + d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + '.' + (ext === 'zip' ? 'zip' : 'json');
   }
 
   /* ---------- Copia .json pesada: las fotos dentro del propio JSON ---------- */
@@ -315,7 +318,7 @@
     try { list = Zip.entries(bytes); } catch (e) { throw new Error('No se pudo leer el ZIP: ' + (e && e.message || e)); }
     var main = null;
     list.forEach(function (e) { if (e.name === 'copia.json' && !e.dir) main = e; });
-    if (!main) throw new Error('Este ZIP no es una copia de seguridad de Zonas de Vida (falta copia.json).');
+    if (!main) throw new Error('Este ZIP no es una copia de seguridad de Don Florentino SIG (falta copia.json).');
     var raw;
     try { raw = JSON.parse(Zip.utf8(Zip.extract(bytes, main))); } catch (e) { throw new Error('No se pudo leer copia.json dentro del ZIP: ' + (e && e.message || e)); }
     var photos = {}, skipped = 0, count = 0, total = 0;
@@ -339,7 +342,7 @@
     var uid = opts.uid || uidDefault, now = opts.now || Date.now();
     var res = { ok: false, errors: [], warnings: [], data: null, summary: null, created: null };
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { res.errors.push('El archivo no tiene el formato de una copia de seguridad.'); return res; }
-    if (raw.app !== APP) { res.errors.push('Este archivo no es una copia de seguridad de Zonas de Vida.'); return res; }
+    if (!knownApp(raw.app)) { res.errors.push('Este archivo no es una copia de seguridad de Don Florentino SIG ni de Zonas de Vida.'); return res; }
     if (typeof raw.format !== 'number' || !(raw.format >= 1)) { res.errors.push('La copia no indica su versión de formato.'); return res; }
     if (raw.format > FORMAT) { res.errors.push('La copia se hizo con una versión más nueva de la app (formato ' + raw.format + '). Actualiza la app para restaurarla.'); return res; }
     var st = obj(raw.state);
@@ -409,5 +412,5 @@
     };
   }
 
-  return { APP: APP, FORMAT: FORMAT, LIMITS: LIM, create: create, stringify: stringify, fileName: fileName, attachPhotos: attachPhotos, photosFromJson: photosFromJson, toZip: toZip, readZip: readZip, validate: validate, apply: apply, cleanSettings: cleanSettings, cleanClimate: cleanClimate };
+  return { APP: APP, OLD_APPS: OLD_APPS, FORMAT: FORMAT, LIMITS: LIM, create: create, stringify: stringify, fileName: fileName, attachPhotos: attachPhotos, photosFromJson: photosFromJson, toZip: toZip, readZip: readZip, validate: validate, apply: apply, cleanSettings: cleanSettings, cleanClimate: cleanClimate };
 });

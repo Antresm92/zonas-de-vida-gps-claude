@@ -83,7 +83,7 @@ test('GeoJSON: coordenadas planas (MAGNA-SIRGAS) se explican; JSON inválido o a
   assert.throws(() => Gis.parseText('[1, 2, 3]'), /No reconozco este JSON/);
   assert.throws(() => Gis.parseText('{"hola": 1}'), /No reconozco este JSON/);
   assert.throws(() => Gis.parseText('{"type": "Otra"}'), /No reconozco este JSON/);
-  for (const raw of [{ projects: [] }, { state: { projects: [] } }, { app: 'zonas-de-vida-gps' }]) {
+  for (const raw of [{ projects: [] }, { state: { projects: [] } }, { app: 'zonas-de-vida-gps' }, { app: 'don-florentino-sig' }]) {
     try { Gis.parseText(gj(raw)); assert.fail('debía fallar'); } catch (e) { assert.equal(e.code, 'backup'); }
   }
 });

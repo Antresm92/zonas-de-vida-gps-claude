@@ -79,6 +79,7 @@
         ['Cultivos a evaluar y conclusión', 'En «Usos recomendados», «Cultivos a evaluar ▾» compara la temperatura y la lluvia del polígono con las de 127 cultivos sembrados en Colombia (base ECOCROP de la FAO) y con la clase de tierra del IGAC: los separa en óptimos, posibles con limitaciones (y qué los limita), marginales y no recomendados. Al final de cada polígono, el reporte trae «Conclusión y recomendaciones» con un resumen, recomendaciones con su fuente y esos cultivos. Es una estimación: valídala con un profesional.'],
         ['Qué va en el reporte', 'En «Reporte», la casilla a la izquierda de cada sección decide si esa parte sale en el reporte que compartes. Con varios polígonos, al compartir eliges: «Completo» (el resumen y cada polígono, cada predio seguido de sus lotes), «Global» (solo los predios que marques) o «Específico» (un solo polígono). El croquis de cada polígono se enfoca en él y resalta solo sus puntos; los demás se ven tenues de fondo.'],
         ['Proyectos y copia de seguridad', 'Cada proyecto guarda en el teléfono sus predios, lotes, puntos y fotos; en Herramientas › Proyectos creas otro o cambias de proyecto. Haz con frecuencia una copia de seguridad (.zip) y guárdala fuera del teléfono: si la app se desinstala o el teléfono se pierde, es la única forma de recuperar tu trabajo.'],
+        ['Traer tus proyectos de «Zonas de Vida»', 'La app antes se llamaba Zonas de Vida y el teléfono la instala como una app aparte. Para traer tus proyectos: en Zonas de Vida, Herramientas › Proyectos › «Copia completa (.zip)» (lleva las fotos); en Don Florentino SIG, Herramientas › Proyectos › «Restaurar copia…» con ese archivo. Después puedes desinstalar Zonas de Vida.'],
         ['Herramientas', 'Conversor de unidades, clima y GPS en vivo, proyectos y copia de seguridad, el encabezado del reporte (tu nombre y tu logo), preferencias y estas ayudas.'],
         ['Arriba', 'La franja de tres pasos dice qué está listo y qué falta. Tócala para ir a ese paso.'],
         ['Sin internet', 'La app abre y guarda puntos sin conexión. Los mapas, «Completar con internet», el clima actual y la consulta del mapa del IGAC sí la necesitan (el mapa del IGAC se puede guardar antes para verlo sin conexión).']
@@ -87,8 +88,11 @@
     /* ---------- Qué hay de nuevo (2.23.5) ----------
      * Quien ya usaba la app y la actualiza ve, una sola vez, un resumen corto de lo nuevo; quien la instala por primera vez ve la ayuda
      * completa y no esto. Para una actualización grande futura basta con cambiar WHATS_NEW_ID y la lista. */
-    var WHATS_NEW_ID = '2.32.1';
+    var WHATS_NEW_ID = '2.33';
     var WHATS_NEW = [
+      ['Nuevo nombre: Don Florentino SIG', 'la app antes se llamaba Zonas de Vida. Se instala como una app nueva: trae tus proyectos con una copia de seguridad (está explicado en «Cómo usar la app»). Los reportes siguen siendo de zona de vida de Holdridge.'],
+      ['Fuentes y licencias con enlaces', 'en Herramientas › Fuentes y licencias, cada proveedor de mapas, clima y datos tiene el enlace a su licencia o a sus condiciones de uso. Se agregó la fuente de la altitud por internet (el modelo Copernicus DEM, vía Open-Meteo).'],
+      ['Más seguridad', 'si un archivo importado o un nombre trae «código», la app lo muestra como texto y no lo ejecuta; el reporte HTML que compartes no deja correr ningún programa.'],
       ['Nombres de los puntos', 'en el mapa vienen apagados para trabajar más cómodo; se encienden en el botón de capas › Ver › «Nombres de los puntos».'],
       ['Vaciar y empezar de nuevo', 'al vaciar el único polígono queda como un predio nuevo, «Predio», sin el nombre ni los datos del que tenía.'],
       ['Número predial y lindero catastral', 'en Polígono › Croquis, bloque «Catastro»: importa el archivo del predio que se descarga en Colombia en Mapas y la app guarda su número predial, o escribe el número a mano. La hoja explica el paso a paso.'],
@@ -144,37 +148,44 @@
         ['Cultivos a evaluar', 'Salen de rangos generales de temperatura y lluvia (FAO) y de la clase de tierra: no tienen en cuenta la variedad, el suelo que no evaluaste, el riego disponible, las plagas ni el mercado. Son cultivos para evaluar, no una orden de siembra.'],
         ['El mapa del IGAC', 'Es regional (escalas 1:100.000 a 1:10.000): un predio pequeño puede caer en un solo polígono del mapa aunque tenga suelos distintos. En la imagen en línea del IGAC, algunos polígonos de estudios antiguos marcados «IV» salen con el color de la clase 6 (así está su leyenda); la consulta y lo guardado los muestran como clase 4.'],
         ['Lindero catastral', 'Es una referencia: Colombia en Mapas advierte que sus datos no permiten calcular áreas oficiales ni definir límites. Donde el catastro lo lleva otro gestor (por ejemplo Bogotá, Antioquia, Medellín o Cali) puede no estar en Colombia en Mapas. La app no consulta el catastro por su cuenta ni guarda la dirección del archivo.'],
-        ['No es una app oficial', 'Zonas de Vida usa datos abiertos del IGAC y de otras entidades y los cita como fuente, pero no es una aplicación oficial del IGAC ni de ninguna entidad, ni las representa.'],
+        ['No es una app oficial', 'Don Florentino SIG usa datos abiertos del IGAC y de otras entidades y los cita como fuente, pero no es una aplicación oficial del IGAC ni de ninguna entidad, ni las representa.'],
         ['La clase de uso', 'Sale solo de los datos que evaluaste: el suelo, las heladas o las inundaciones que no hayas revisado pueden bajarla. No reemplaza un estudio de suelos ni la visita de un profesional.']
       ]]
     ];
     function openUses() {
       openSheet('Para qué sirve la app', guideHtml(USES_GUIDE) + '<div class="btns"><button class="btn btn-primary" data-act="closeSheet">Entendido</button></div>');
     }
+    // 2.33.0: cada proveedor lleva el enlace a su licencia o a sus condiciones de uso. Se abren fuera de la app (con internet).
+    var OM = ['Weather data by Open-Meteo.com', 'https://open-meteo.com/'], OM_LIC = ['Licencia y fuentes de Open-Meteo', 'https://open-meteo.com/en/licence'];
+    var LICENSES = [
+      ['Mapa de calles', '© colaboradores de OpenStreetMap, licencia ODbL.', [['Derechos de autor y licencia', 'https://www.openstreetmap.org/copyright'], ['Política de uso de los mapas', 'https://operations.osmfoundation.org/policies/tiles/']]],
+      ['Imágenes de satélite y nombres', 'Esri World Imagery y capas de referencia. Fuente: Esri, Maxar, Earthstar Geographics y la comunidad de usuarios SIG.', [['Ficha del mapa (Esri)', 'https://goto.arcgis.com/maps/World_Imagery'], ['Condiciones de uso de Esri', 'https://www.esri.com/content/dam/arcgisonline/docs/tou_summary.pdf']]],
+      ['Mapa topográfico', '© OpenTopoMap (CC-BY-SA), con datos de OpenStreetMap y SRTM.', [['Acerca de OpenTopoMap', 'https://opentopomap.org/about']]],
+      ['Clima de la zona', 'NASA POWER (NASA Langley Research Center) y Open-Meteo (CC BY 4.0), que usa el reanálisis del Servicio de Cambio Climático de Copernicus (C3S).', [['Cómo citar NASA POWER', 'https://power.larc.nasa.gov/docs/referencing/'], OM, OM_LIC]],
+      ['Clima actual', 'Open-Meteo (CC BY 4.0), que combina pronósticos de varios servicios meteorológicos (la lista está en su licencia).', [OM, OM_LIC]],
+      ['Altitud por internet', 'Open-Meteo, con el modelo digital de elevación Copernicus DEM GLO-90 (versión 2021, celdas de 90 m) del programa Copernicus. Es la altitud del terreno según el modelo, no la que mide el GPS.', [['Fuente de la altitud (Open-Meteo)', 'https://open-meteo.com/en/docs/elevation-api'], ['Copernicus DEM (DOI)', 'https://doi.org/10.5270/ESA-c5d3d65']]],
+      ['Mapa en pantalla', 'Leaflet (licencia BSD de 2 cláusulas).', [['leafletjs.com', 'https://leafletjs.com/']]],
+      ['Zonas de vida', 'Sistema de clasificación de L. R. Holdridge (1967). El resultado es orientativo.'],
+      ['Caldas-Lang', 'IDEAM, Nota técnica NT_IDEAM-2025-003, «Actualización de la clasificación climática de Caldas-Lang».'],
+      ['Köppen-Geiger y De Martonne', 'Criterios de Peel, Finlayson y McMahon (2007) para Köppen-Geiger; índice de aridez de E. de Martonne (1926).'],
+      ['Diagrama de Walter-Lieth', 'Climodiagrama de H. Walter y H. Lieth: un mes es seco cuando la lluvia (mm) es menor que el doble de la temperatura (°C).'],
+      ['Usos recomendados', 'Instituto Geográfico Agustín Codazzi (IGAC), «Clasificación de las tierras por su capacidad de uso», instructivo IN-GAG-PC05-02, versión 1 (2021). La estimación de las lluvias por semestre es una regla de la app basada en el criterio de mes seco de Walter-Lieth.', [['Instructivo del IGAC (PDF)', 'https://igac.gov.co/sites/default/files/listadomaestro/in-gag-pc05-02_clasificacion_de_las_tierras_por_su_capacidad_de_uso.pdf']]],
+      ['Cultivos a evaluar', 'FAO, base de datos ECOCROP (requerimientos de temperatura y lluvia), en la versión del paquete Recocrop de R. J. Hijmans y R. Manners (2025, licencia GPL-3); método de aptitud de Hackett (1991). El nombre en Colombia, el tipo de cultivo y la lectura de la clase del IGAC son de la app.', [['ECOCROP (FAO)', 'https://www.fao.org/geospatial/data-and-tools/data-portals/ecocrop/en'], ['Recocrop (CRAN)', 'https://cran.r-project.org/package=Recocrop']]],
+      ['Mapa del IGAC', 'Instituto Geográfico Agustín Codazzi (IGAC), «Capacidad de uso de las tierras», mapa multiescalar (escalas 1:100.000, 1:25.000 y 1:10.000), servicio mapas2.igac.gov.co. Datos abiertos del IGAC, licencia CC BY 4.0 (Resolución 616 de 2020). Fuente: IGAC.', [['Datos abiertos del IGAC', 'https://www.igac.gov.co/datos-abiertos/datos-abiertos-geoespaciales'], ['Resolución 616 de 2020', 'https://vlex.com.co/vid/resolucion-numero-616-2020-846199912']]],
+      ['Catastro', 'Instituto Geográfico Agustín Codazzi (IGAC), datos catastrales que la persona descarga de Colombia en Mapas (colombiaenmapas.gov.co) e importa. Cada dato de esa plataforma tiene su propia licencia de uso. Solo de referencia: no sirve para áreas oficiales ni para definir límites.', [['Colombia en Mapas', 'https://www.colombiaenmapas.gov.co/']]],
+      ['Clases de pendiente', 'Instituto Geográfico Agustín Codazzi (IGAC), clases de pendiente de sus levantamientos de suelos y geomorfología.'],
+      ['Coordenadas planas', 'MAGNA-SIRGAS / Origen Nacional (EPSG:9377), sistema único adoptado por el IGAC en 2020.']
+    ];
+    function extLink(l) { return '<a href="' + esc(l[1]) + '" target="_blank" rel="noopener noreferrer" data-ext="1">' + esc(l[0]) + '</a>'; }
     function openLicenses() {
-      var rows = [
-        ['Mapa de calles', '© colaboradores de OpenStreetMap, licencia ODbL. openstreetmap.org/copyright'],
-        ['Imágenes de satélite y nombres', 'Esri World Imagery y capas de referencia. Fuente: Esri, Maxar, Earthstar Geographics y la comunidad de usuarios SIG.'],
-        ['Mapa topográfico', '© OpenTopoMap (CC-BY-SA), con datos de OpenStreetMap y SRTM.'],
-        ['Clima de la zona', 'NASA POWER (NASA Langley Research Center) y Open-Meteo (CC BY 4.0).'],
-        ['Clima actual', 'Open-Meteo (CC BY 4.0).'],
-        ['Mapa en pantalla', 'Leaflet (licencia BSD de 2 cláusulas).'],
-        ['Zonas de vida', 'Sistema de clasificación de L. R. Holdridge (1967). El resultado es orientativo.'],
-        ['Caldas-Lang', 'IDEAM, Nota técnica NT_IDEAM-2025-003, «Actualización de la clasificación climática de Caldas-Lang».'],
-        ['Köppen-Geiger y De Martonne', 'Criterios de Peel, Finlayson y McMahon (2007) para Köppen-Geiger; índice de aridez de E. de Martonne (1926).'],
-        ['Diagrama de Walter-Lieth', 'Climodiagrama de H. Walter y H. Lieth: un mes es seco cuando la lluvia (mm) es menor que el doble de la temperatura (°C).'],
-        ['Usos recomendados', 'Instituto Geográfico Agustín Codazzi (IGAC), «Clasificación de las tierras por su capacidad de uso», instructivo IN-GAG-PC05-02, versión 1 (2021). La estimación de las lluvias por semestre es una regla de la app basada en el criterio de mes seco de Walter-Lieth.'],
-        ['Cultivos a evaluar', 'FAO, base de datos ECOCROP (requerimientos de temperatura y lluvia), en la versión del paquete Recocrop de R. J. Hijmans y R. Manners (2025, licencia GPL-3); método de aptitud de Hackett (1991). El nombre en Colombia, el tipo de cultivo y la lectura de la clase del IGAC son de la app.'],
-        ['Mapa del IGAC', 'Instituto Geográfico Agustín Codazzi (IGAC), «Capacidad de uso de las tierras», mapa multiescalar (escalas 1:100.000, 1:25.000 y 1:10.000), servicio mapas2.igac.gov.co. Datos abiertos del IGAC, licencia CC BY 4.0 (Resolución 616 de 2020). Fuente: IGAC.'],
-        ['Catastro', 'Instituto Geográfico Agustín Codazzi (IGAC), datos catastrales que la persona descarga de Colombia en Mapas (colombiaenmapas.gov.co) e importa. Cada dato de esa plataforma tiene su propia licencia de uso. Solo de referencia: no sirve para áreas oficiales ni para definir límites.'],
-        ['Clases de pendiente', 'Instituto Geográfico Agustín Codazzi (IGAC), clases de pendiente de sus levantamientos de suelos y geomorfología.'],
-        ['Coordenadas planas', 'MAGNA-SIRGAS / Origen Nacional (EPSG:9377), sistema único adoptado por el IGAC en 2020.']
-      ];
-      openSheet('Fuentes y licencias', '<dl class="guide">' + rows.map(function (r) { return '<div><dt>' + esc(r[0]) + '</dt><dd>' + esc(r[1]) + '</dd></div>'; }).join('') + '</dl>' +
-        '<p class="small muted">Zonas de Vida no es una aplicación oficial del IGAC ni de ninguna entidad: usa sus datos abiertos y los cita. Los mapas, el clima y el mapa del IGAC se piden a esos servicios solo cuando hay internet (al IGAC, el centro del polígono o la zona del predio); la app no envía tus puntos a ningún otro lugar.</p><div class="btns"><button class="btn btn-primary" data-act="closeSheet">Cerrar</button></div>');
+      openSheet('Fuentes y licencias', '<dl class="guide" id="licencias">' + LICENSES.map(function (r) {
+        return '<div><dt>' + esc(r[0]) + '</dt><dd>' + esc(r[1]) + (r[2] ? ' <span class="lic-links">' + r[2].map(extLink).join(' · ') + '</span>' : '') + '</dd></div>';
+      }).join('') + '</dl>' +
+        '<p class="small muted">Los enlaces abren la licencia o las condiciones de cada proveedor en el navegador (necesitan internet).</p>' +
+        '<p class="small muted">Don Florentino SIG no es una aplicación oficial del IGAC ni de ninguna entidad: usa sus datos abiertos y los cita. Los mapas, el clima y el mapa del IGAC se piden a esos servicios solo cuando hay internet (al IGAC, el centro del polígono o la zona del predio); la app no envía tus puntos a ningún otro lugar.</p><div class="btns"><button class="btn btn-primary" data-act="closeSheet">Cerrar</button></div>');
     }
 
-    return { WHATS_NEW_ID: WHATS_NEW_ID, guideHtml: guideHtml, openMapGuide: openMapGuide, openWhatsNew: openWhatsNew,
+    return { LICENSES: LICENSES, WHATS_NEW_ID: WHATS_NEW_ID, guideHtml: guideHtml, openMapGuide: openMapGuide, openWhatsNew: openWhatsNew,
       openAppGuide: openAppGuide, openUses: openUses, openLicenses: openLicenses };
   };
 })();

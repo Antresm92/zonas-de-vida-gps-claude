@@ -133,7 +133,7 @@ module.exports = async function (c) {
     assert.deepEqual(await projectNames(), ['Mi primer proyecto']);
     await act('projects');
     assert.equal(await page.locator('[data-act="askDeleteProject"]').count(), 0, 'no se puede eliminar el único proyecto');
-    assert.match(await text('#sheet'), /versión 2\.32\.1/);
+    assert.match(await text('#sheet'), /versión 2\.33\.0/);
     await act('closeSheet'); await waitSheetClosed();
     // nombre vacío al crear → nombre por defecto
     await act('projects'); await act('newProject'); await fill('#pName', '   '); await act('saveNewProject'); await waitSheetClosed();
@@ -147,10 +147,10 @@ module.exports = async function (c) {
   await step('Copia de seguridad (.json): exporta todo a un archivo JSON liviano que se puede validar', async () => {
     await act('projects');
     const f = await download(() => page.click('[data-act="backupJson"]'));
-    assert.match(f.name, /^zonas-de-vida-copia-\d{4}-\d{2}-\d{2}\.json$/);
+    assert.match(f.name, /^don-florentino-sig-copia-\d{4}-\d{2}-\d{2}\.json$/);
     backup = f.text;
     const raw = JSON.parse(backup);
-    assert.equal(raw.app, 'zonas-de-vida-gps');
+    assert.equal(raw.app, 'don-florentino-sig');
     assert.equal(raw.state.projects.length, 2);
     assert.equal(raw.summary.layers, 2);
     const v = Backup.validate(raw);
@@ -204,7 +204,7 @@ module.exports = async function (c) {
     await waitToast(/no se pudo leer el JSON/);
     await bad('x.json', JSON.stringify({ hola: 1 }));
     assert.equal(await sheetTitle(), 'No se puede restaurar');
-    assert.match(await text('#sheet'), /no es una copia de seguridad de Zonas de Vida/);
+    assert.match(await text('#sheet'), /no es una copia de seguridad de Don Florentino SIG ni de Zonas de Vida/);
     await act('closeSheet'); await waitSheetClosed();
     await bad('x.json', JSON.stringify({ app: 'zonas-de-vida-gps', format: 99, state: { projects: [] } }));
     assert.match(await text('#sheet'), /versión más nueva/);

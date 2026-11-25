@@ -31,7 +31,7 @@ const MEMORY = [{ lat: 4.6, lon: -74.08, T: 14.1, P: 1013, alt: 2640, src: 'paqu
 
 test('copia: crear → texto → leer → validar devuelve lo mismo', () => {
   const b = Backup.create(sampleState(), MEMORY, { now: NOW, appVersion: '2.0.0' });
-  assert.equal(b.app, 'zonas-de-vida-gps');
+  assert.equal(b.app, 'don-florentino-sig');
   assert.equal(b.format, 2);                    // 2 desde la 2.15.0 (los puntos van en los lotes)
   assert.deepEqual(b.summary, { projects: 2, points: 3, layers: 1, photos: 0 });
   assert.equal(b.created, '2026-10-22T15:00:00.000Z');
@@ -55,7 +55,7 @@ test('copia: no modifica el estado original al crearla', () => {
 });
 
 test('copia: nombre de archivo con la fecha', () => {
-  assert.equal(Backup.fileName(new Date(2026, 9, 3, 12).getTime()), 'zonas-de-vida-copia-2026-10-03.json');
+  assert.equal(Backup.fileName(new Date(2026, 9, 3, 12).getTime()), 'don-florentino-sig-copia-2026-10-03.json');
 });
 
 test('validar: rechaza lo que no es una copia de seguridad', () => {
@@ -63,7 +63,7 @@ test('validar: rechaza lo que no es una copia de seguridad', () => {
   bad(null, /formato de una copia/);
   bad([], /formato de una copia/);
   bad('texto', /formato de una copia/);
-  bad({ projects: [] }, /no es una copia de seguridad de Zonas de Vida/);
+  bad({ projects: [] }, /no es una copia de seguridad de Don Florentino SIG ni de Zonas de Vida/);
   bad({ app: 'otra-app', format: 1 }, /no es una copia/);
   bad({ app: 'zonas-de-vida-gps' }, /versión de formato/);
   bad({ app: 'zonas-de-vida-gps', format: 99, state: { projects: [] } }, /versión más nueva/);
@@ -204,4 +204,19 @@ test('una copia de seguridad de la 2.4.0 (con holdMs en los ajustes) se restaura
   const r = Backup.validate(b, { uid, now: NOW });
   assert.equal(r.ok, true);
   assert.deepEqual(r.data.settings, { areaUnit: 'fanegadas', minAcc: 5, csvStyle: 'std' });
+});
+
+test('2.33.0: la app se llama Don Florentino SIG; las copias de «Zonas de Vida» (su nombre anterior) se siguen restaurando', () => {
+  assert.equal(Backup.APP, 'don-florentino-sig');
+  assert.deepEqual(Backup.OLD_APPS, ['zonas-de-vida-gps']);
+  const estado = (app) => ({ app, format: 2, created: '2026-11-25T15:00:00.000Z', state: { currentId: 'p', settings: {}, projects: [{ id: 'p', name: 'Finca vieja', lots: [{ id: 'l', name: 'Predio', points: [] }] }] } });
+  let k = 0;
+  for (const app of ['don-florentino-sig', 'zonas-de-vida-gps']) {
+    const r = Backup.validate(estado(app), { uid: () => 'u' + (++k) });
+    assert.equal(r.ok, true, app + ': ' + r.errors.join('; '));
+    assert.equal(r.data.projects[0].name, 'Finca vieja');
+  }
+  const otra = Backup.validate(estado('otra-app'), { uid: () => 'u' + (++k) });
+  assert.equal(otra.ok, false);
+  assert.match(otra.errors[0], /no es una copia de seguridad de Don Florentino SIG ni de Zonas de Vida/);
 });

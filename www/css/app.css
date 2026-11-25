@@ -1,4 +1,4 @@
-/* Zonas de Vida — paleta tomada del propio diagrama de Holdridge:
+/* Don Florentino SIG — paleta tomada del propio diagrama de Holdridge:
    azul de las líneas de biotemperatura (acciones), verde de los hexágonos (confirmado),
    rojo de la rejilla (el punto marcado y los avisos). */
 :root {
@@ -226,6 +226,9 @@ main { padding: calc(var(--top-h) + 14px) 14px calc(var(--nav-h) + 24px); paddin
 .guide div { padding: 8px 0; border-bottom: 1px solid var(--line); }
 .guide dt { font-weight: 700; }
 .guide dd { margin: 2px 0 0; color: var(--ink-soft); font-size: 15px; }
+/* 2.33.0: enlaces de «Fuentes y licencias», en su propia línea y con espacio para tocarlos */
+.guide .lic-links { display: block; margin-top: 4px; line-height: 1.9; }
+.guide .lic-links a { padding: 2px 0; overflow-wrap: anywhere; }
 .mapprog { position: absolute; left: 10px; right: 10px; top: 10px; z-index: 6; padding: 8px 12px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); box-shadow: var(--shadow); }
 .mapprog .prog { margin: 4px 0; }
 .mapprog p { margin: 0 0 6px; }

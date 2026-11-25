@@ -96,12 +96,12 @@ test('create: solo van las fotos cuya imagen se pudo leer; el estado original no
 
 test('fileName: .json por defecto y .zip cuando se pide', () => {
   const d = new Date(2026, 10, 2, 12).getTime();
-  assert.equal(Backup.fileName(d), 'zonas-de-vida-copia-2026-11-02.json');
-  assert.equal(Backup.fileName(d, 'zip'), 'zonas-de-vida-copia-2026-11-02.zip');
-  assert.equal(Backup.fileName(d, 'json'), 'zonas-de-vida-copia-2026-11-02.json');
-  assert.equal(Backup.fileName(d, 'otra'), 'zonas-de-vida-copia-2026-11-02.json');
-  assert.equal(Backup.fileName(d, 'json', 'fotos'), 'zonas-de-vida-copia-fotos-2026-11-02.json', 'el .json pesado se distingue por el nombre');
-  assert.equal(Backup.fileName(d, 'json', 'otra cosa'), 'zonas-de-vida-copia-2026-11-02.json');
+  assert.equal(Backup.fileName(d), 'don-florentino-sig-copia-2026-11-02.json');
+  assert.equal(Backup.fileName(d, 'zip'), 'don-florentino-sig-copia-2026-11-02.zip');
+  assert.equal(Backup.fileName(d, 'json'), 'don-florentino-sig-copia-2026-11-02.json');
+  assert.equal(Backup.fileName(d, 'otra'), 'don-florentino-sig-copia-2026-11-02.json');
+  assert.equal(Backup.fileName(d, 'json', 'fotos'), 'don-florentino-sig-copia-fotos-2026-11-02.json', 'el .json pesado se distingue por el nombre');
+  assert.equal(Backup.fileName(d, 'json', 'otra cosa'), 'don-florentino-sig-copia-2026-11-02.json');
 });
 
 /* ---------- Copia completa (.zip): ida y vuelta ---------- */

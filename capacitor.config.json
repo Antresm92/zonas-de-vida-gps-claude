@@ -1,8 +1,8 @@
 {
-  "appId": "co.zonasdevida.app",
-  "appName": "Zonas de Vida",
+  "appId": "co.donflorentino.sig",
+  "appName": "Don Florentino SIG",
   "webDir": "www",
-  "appendUserAgent": "ZonasDeVida (+https://github.com/Antresm92/zonas-de-vida-gps-claude)",
+  "appendUserAgent": "DonFlorentinoSIG (+https://github.com/Antresm92/don-florentino-sig-claude)",
   "server": { "androidScheme": "https" },
   "android": { "backgroundColor": "#EEF2EC" }
 }

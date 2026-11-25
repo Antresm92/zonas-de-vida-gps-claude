@@ -274,7 +274,7 @@ test('exportar GeoJSON: anillo cerrado, exterior antihorario y huecos horarios (
 
 test('exportar GPX: waypoints y recorrido cerrado que se vuelve a leer como polígono', () => {
   const gpx = Gis.toGPX(MODEL);
-  assert.match(gpx, /<gpx version="1.1" creator="Zonas de Vida" xmlns="http:\/\/www.topografix.com\/GPX\/1\/1">/);
+  assert.match(gpx, /<gpx version="1.1" creator="Don Florentino SIG" xmlns="http:\/\/www.topografix.com\/GPX\/1\/1">/);
   assert.ok(gpx.includes('<name>P3 &lt;norte&gt; &amp; &quot;sur&quot;</name>'));
   assert.ok(gpx.indexOf('<wpt') < gpx.indexOf('<trk>'), 'primero wpt y después trk');
   assert.ok(gpx.includes('<ele>1000.4</ele><name>P1</name>'), 'ele va antes que name');

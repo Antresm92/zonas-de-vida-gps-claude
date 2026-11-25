@@ -293,8 +293,11 @@
     return h + '<p class="small">Altitud de cada punto contra la distancia acumulada entre ellos, en el orden de la lista y sin volver al primero. Se usaron las altitudes guardadas; no se consultó internet.</p>';
   }
 
+  // 2.33.0: el reporte que se comparte no ejecuta nada. La política de seguridad (CSP) prohíbe scripts y cualquier carga externa:
+  // solo admite sus propios estilos y las imágenes que lleva dentro (data:). Así, aunque un nombre importado trajera código, no correría.
+  var REPORT_CSP = "default-src 'none'; img-src data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'";
   function docOpen(title) {
-    return '<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Reporte de zona de vida · ' + esc(title) + '</title><style>' + CSS + '</style></head><body>';
+    return '<!doctype html><html lang="es"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="' + REPORT_CSP + '"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Reporte de zona de vida · ' + esc(title) + '</title><style>' + CSS + '</style></head><body>';
   }
   function headHtml(project, o) {
     var au = authorOf(o);
@@ -409,5 +412,5 @@
 
   }
 
-  return { conclusionText: conclusionText, conclusionOf: conclusionOf, CLASIF_NOTE: Clasif.NOTE, SECTIONS: SECTIONS, skips: skips, clasifRows: clasifRows, lotTitle: lotTitle, kindText: kindText, overview: overview, summary: summary, htmlAll: htmlAll, textAll: textAll, bodyHtml: bodyHtml, reid: reid, headLines: headLines, authorOf: authorOf, withPlana: withPlana, anyPlana: anyPlana, text: text, html: html, rows: rows, dot: dot, currentRows: currentRows, currentStamp: currentStamp, CURRENT_NOTE: CURRENT_NOTE, QUALITY: QUALITY, DISCLAIMER: DISCLAIMER, SRC_T: SRC_T, SRC_P: SRC_P };
+  return { REPORT_CSP: REPORT_CSP, conclusionText: conclusionText, conclusionOf: conclusionOf, CLASIF_NOTE: Clasif.NOTE, SECTIONS: SECTIONS, skips: skips, clasifRows: clasifRows, lotTitle: lotTitle, kindText: kindText, overview: overview, summary: summary, htmlAll: htmlAll, textAll: textAll, bodyHtml: bodyHtml, reid: reid, headLines: headLines, authorOf: authorOf, withPlana: withPlana, anyPlana: anyPlana, text: text, html: html, rows: rows, dot: dot, currentRows: currentRows, currentStamp: currentStamp, CURRENT_NOTE: CURRENT_NOTE, QUALITY: QUALITY, DISCLAIMER: DISCLAIMER, SRC_T: SRC_T, SRC_P: SRC_P };
 });

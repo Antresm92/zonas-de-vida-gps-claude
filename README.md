@@ -1,4 +1,4 @@
-# Zonas de Vida · GPS + Diagrama de Holdridge
+# Don Florentino SIG · GPS + Diagrama de Holdridge
 
 App para Android (y web instalable) que:
 
@@ -13,6 +13,14 @@ App para Android (y web instalable) que:
 - guarda **copias de seguridad** de todos los proyectos (con fotos en .zip, o en .json liviano o con fotos) y avisa cuando el GPS no alcanza la precisión que elegiste,
 - **funciona sin conexión**: los puntos se guardan en el equipo y, cuando hay internet, se pueden completar con altitud y clima de la zona.
 
+**Nombre (2.33.0).** La app se llamaba **Zonas de Vida**; desde la 2.33.0 se llama **Don Florentino SIG** y su identificador es
+`co.donflorentino.sig` (antes `co.zonasdevida.app`). Para Android es **otra app**: se instala aparte y no hereda los proyectos. Para
+traerlos: en Zonas de Vida, *Herramientas › Proyectos › Copia completa (.zip)*; en Don Florentino SIG, *Restaurar copia…* con ese
+archivo (las copias de Zonas de Vida se siguen aceptando). Los reportes conservan su título «Reporte de zona de vida» y el crédito
+«Un proyecto de Campesino Urbano» sigue igual. El repositorio pasó a llamarse `don-florentino-sig-claude`.
+
+Antes de publicar en Google Play, revisa **[PUBLICAR.md](PUBLICAR.md)** (cuenta, llave, privacidad, licencias y requisitos de Google).
+
 ---
 
 ## 1. Obtener el APK sin instalar nada en tu computador
@@ -20,12 +28,12 @@ App para Android (y web instalable) que:
 El APK se compila en la nube gratuita de GitHub. Hace falta una cuenta de GitHub (gratis) y unos 10 minutos.
 
 1. Descomprime este `.zip`.
-2. En <https://github.com/new> crea un repositorio (puede ser **privado**). Nómbralo, por ejemplo, `zonas-de-vida`.
+2. En <https://github.com/new> crea un repositorio (puede ser **privado**). Nómbralo, por ejemplo, `don-florentino-sig`.
 3. En el repositorio nuevo pulsa **Add file → Upload files** y arrastra **todo el contenido** de la carpeta descomprimida (incluida la carpeta oculta `.github`). Pulsa **Commit changes**.
    - Si tu sistema no sube la carpeta `.github`, créala a mano: **Add file → Create new file**, escribe como nombre `.github/workflows/android.yml`, pega el contenido del archivo `android.yml` de este proyecto y confirma.
 4. Abre la pestaña **Actions**. Si aparece un botón para habilitar los flujos de trabajo, púlsalo.
 5. Elige **Compilar APK de Android → Run workflow**. Tarda entre 5 y 15 minutos.
-6. Al terminar, entra a la ejecución (marca verde ✓) y baja hasta **Artifacts**: descarga `zonas-de-vida-apk`. Es un `.zip` con `zonas-de-vida.apk` dentro.
+6. Al terminar, entra a la ejecución (marca verde ✓) y baja hasta **Artifacts**: descarga `don-florentino-sig-prueba-apk`. Es un `.zip` con `don-florentino-sig-prueba.apk` dentro.
 7. Pasa el `.apk` al teléfono, ábrelo y acepta **instalar apps de origen desconocido** cuando Android lo pida.
 
 Si la compilación falla (✗ roja), abre el paso que falló y copia el mensaje de error: con él se puede corregir.
@@ -35,24 +43,35 @@ Con GitHub Desktop: copia los archivos nuevos sobre la carpeta de tu repositorio
 
 Cada APK nuevo usa **la misma clave de firma** (`scripts/debug.keystore`), así que se instala **encima** del anterior y conserva tus proyectos. Esa clave es la de depuración estándar de Android: sirve para uso personal, no para publicar en Google Play.
 
+### Dos paquetes que no se confunden (2.33.0)
+
+| Artefacto | Archivo | Firma | Para qué |
+|---|---|---|---|
+| `don-florentino-sig-prueba-apk` | `don-florentino-sig-prueba.apk` | llave de **prueba** (pública, en el repositorio) | instalar y probar en tu teléfono |
+| `don-florentino-sig-google-play-aab` | `don-florentino-sig-google-play.aab` | tu **llave de carga** (secretos) | subir a Google Play; solo aparece si están los secretos |
+
+El flujo **se detiene** si el `.aab` sale sin firma o firmado con la llave de prueba (`scripts/check-aab-key.js` compara la huella
+SHA-256 de su certificado con la de `scripts/debug.keystore`); así nunca llega a la tienda un paquete con una llave que cualquiera tiene.
+Los dos no se instalan uno encima del otro (firmas distintas): para pasar de la versión de prueba a la de la tienda, haz una copia de seguridad, desinstala la de prueba, instala la de la tienda y restaura.
+
 ### Publicar en Google Play (paquete .aab)
 Desde la **2.8.0** el flujo de GitHub puede armar además el **paquete de publicación** (`.aab`) firmado con *tu* llave. Solo lo hace si existen cuatro secretos en el repositorio; sin ellos se omite, avisa con una nota (`::notice::`) y el APK de prueba sale igual que siempre. El APK de prueba **no cambia de llave** (sigue con `scripts/debug.keystore`), así que se instala encima de los anteriores.
 
 1. **Crea la llave de carga** una sola vez, en tu computador (necesita el JDK):
-   `keytool -genkeypair -v -keystore zonas-de-vida-upload.jks -alias zonasdevida -keyalg RSA -keysize 2048 -validity 10000`
+   `keytool -genkeypair -v -keystore don-florentino-sig-upload.jks -alias donflorentino -keyalg RSA -keysize 2048 -validity 10000`
    Te pide una contraseña para el archivo y otra para la llave (pueden ser la misma) y unos datos de identificación.
 2. **Guarda el archivo `.jks` y las contraseñas en un lugar seguro y con copia** (un gestor de contraseñas, un disco aparte). **Nunca lo subas al repositorio**: `.gitignore` ya bloquea `*.jks` y `*.keystore`, pero esa red de seguridad no reemplaza tu cuidado.
-3. **Conviértela a texto** para poder guardarla como secreto: `base64 -w0 zonas-de-vida-upload.jks` en Linux, `base64 -i zonas-de-vida-upload.jks` en macOS, o `[Convert]::ToBase64String([IO.File]::ReadAllBytes("zonas-de-vida-upload.jks"))` en PowerShell.
+3. **Conviértela a texto** para poder guardarla como secreto: `base64 -w0 don-florentino-sig-upload.jks` en Linux, `base64 -i don-florentino-sig-upload.jks` en macOS, o `[Convert]::ToBase64String([IO.File]::ReadAllBytes("don-florentino-sig-upload.jks"))` en PowerShell.
 4. En GitHub: **Settings → Secrets and variables → Actions → New repository secret**, crea estos cuatro (los nombres deben ser exactos):
 
 | Secreto | Qué lleva |
 |---|---|
 | `ANDROID_KEYSTORE_BASE64` | el texto del paso 3 |
 | `ANDROID_KEYSTORE_PASSWORD` | la contraseña del archivo `.jks` |
-| `ANDROID_KEY_ALIAS` | el alias (en el ejemplo, `zonasdevida`) |
+| `ANDROID_KEY_ALIAS` | el alias (en el ejemplo, `donflorentino`) |
 | `ANDROID_KEY_PASSWORD` | la contraseña de la llave |
 
-5. Lanza el flujo (**Actions → Compilar APK de Android → Run workflow**). Al terminar aparece un segundo artefacto, `zonas-de-vida-aab`, que es el archivo que se sube a Google Play Console.
+5. Lanza el flujo (**Actions → Compilar APK de Android → Run workflow**). Al terminar aparece un segundo artefacto, `don-florentino-sig-google-play-aab`, que es el archivo que se sube a Google Play Console (antes de guardarlo, el flujo comprueba que no lleve la llave de prueba).
 
 Cómo funciona por dentro: `scripts/patch-android.js` deja en el `build.gradle` una firma de publicación que lee la llave de variables de entorno (`ANDROID_KEYSTORE_PATH` y las otras tres); el paso del `.aab` decodifica el secreto a un archivo temporal del ejecutor, compila con `bundleRelease` y borra ese archivo al terminar (aunque falle). Ningún paso imprime los secretos. Con Google Play App Signing (que Google exige para apps nuevas), la llave que creas es la de **carga**: Google guarda la de firma final. Si pierdes la de carga hay un trámite para restablecerla en Play Console, pero conviene no depender de él.
 
@@ -99,6 +118,15 @@ Sube la carpeta `www/` a cualquier alojamiento web con HTTPS (por ejemplo GitHub
 - **Exportar**: KML, GeoJSON y GPX llevan todos los lotes (el elegido como polígono principal, los demás como capas con su nombre); el CSV añade la columna `Lote` y el Shapefile la columna `LOTE`, con una figura por lote.
 - **Guardado**: los proyectos de versiones anteriores pasan solos a tener un «Lote 1» con todo lo que tenían. La copia de seguridad lleva los lotes, y una copia hecha con una versión anterior se sigue pudiendo restaurar. Una copia hecha con la 2.15.0 (formato 2) no se puede restaurar en una versión anterior de la app: esta avisa que hay que actualizar.
 
+**2.33.0: nuevo nombre «Don Florentino SIG», seguridad, dos paquetes y licencias con enlaces.**
+- **Nombre nuevo**: «Don Florentino SIG» en el ícono, la app, las ayudas, el aviso del permiso del GPS, las copias de seguridad (`don-florentino-sig-copia-…`) y lo exportado («Exportado desde Don Florentino SIG», `creator` del GPX). Identificador `co.donflorentino.sig`: Android la instala como otra app. Las copias de «Zonas de Vida» (código `zonas-de-vida-gps`) se siguen restaurando. Los reportes conservan «Reporte de zona de vida» y el crédito a Campesino Urbano sigue igual. La memoria sin conexión pasa a `don-florentino-sig-v57`; las claves guardadas en el teléfono (`zvg.v1.*`) no cambian.
+- **Seguridad**: auditoría de pantallas y reportes. Lo que trae un archivo o se escribe (nombres, notas, capas, autor) sale como texto: el croquis ahora también escapa las comillas, y el reporte HTML lleva una política de seguridad (`Content-Security-Policy`: sin scripts ni cargas externas; solo sus estilos y las imágenes que lleva dentro). Pruebas nuevas: `tests/seguridad.test.js` y el recorrido 34, que importa un KML y un GeoJSON con «código» en los nombres y revisa cada pantalla.
+- **Dos paquetes**: el APK de prueba sale como `don-florentino-sig-prueba.apk` y el de Google Play como `don-florentino-sig-google-play.aab`. El flujo se detiene si el `.aab` sale sin firma o con la llave de prueba (`scripts/check-aab-key.js`, con sus pruebas).
+- **Fuentes y licencias con enlaces**: cada proveedor (OpenStreetMap, Esri, OpenTopoMap, NASA POWER, Open-Meteo, Leaflet, FAO/Recocrop, IGAC, Colombia en Mapas) con el enlace a su licencia o a sus condiciones. Nueva fila «Altitud por internet» (Copernicus DEM GLO-90 vía Open-Meteo), que faltaba.
+- **[PUBLICAR.md](PUBLICAR.md)**: lista de verificación antes de Google Play (cuenta y prueba cerrada de 12 personas por 14 días, llave, verificación de desarrollador de Android, privacidad, licencias pendientes, nivel de Android).
+- Ayudas: «Cómo usar la app» (Traer tus proyectos de «Zonas de Vida»), «Qué hay de nuevo» y «Fuentes y licencias». Lista de pruebas de campo con su sección 15.
+- Verificado con 754 pruebas unitarias y los 338 pasos del navegador (nuevo recorrido 34).
+
 **2.32.1: nombres de los puntos y vaciar el único polígono.**
 - En el mapa, los **nombres de los puntos vienen apagados**: los puntos se ven con el número de su orden, y al tocarlos se abre su ficha. Se encienden en el botón de capas › Ver › «Nombres de los puntos» (salen al acercar el mapa) y la app recuerda la elección. El croquis y el reporte siempre los muestran.
 - **«Vaciar y empezar de nuevo»** (el único polígono del proyecto) ahora lo deja como un predio nuevo: nombre «Predio», color de la app, sin puntos, clima, evaluación del terreno, consulta del IGAC ni número predial. «Deshacer» devuelve todo. Antes quedaba con el nombre del polígono importado. El botón aparece también cuando el polígono no tiene puntos pero sí nombre o datos guardados.
@@ -110,7 +138,7 @@ Sube la carpeta `www/` a cualquier alojamiento web con HTTPS (por ejemplo GitHub
 - **El lindero catastral entra por archivo:** en Colombia en Mapas se consulta el predio y se pulsa «Descargar GeoJSON». Al importarlo («Importar archivo» en Puntos, o al crear un predio o lote), la app lee su «Numero predial» y su municipio, le pone el número como nombre y lo guarda en el polígono. La hoja «Número predial y lindero» explica el paso a paso. El número también se puede escribir a mano.
 - La app **no consulta el catastro por su cuenta**: se descartó la consulta directa al servicio interno de Colombia en Mapas porque no está publicado para otras apps (riesgo legal; ver «Pendientes»). De lo importado solo se guardan el número, el anterior y el municipio; la dirección del archivo se descarta. Va en la copia de seguridad y en el reporte («Terreno»).
 - **«No es una app oficial del IGAC»**: dicho en «Fuentes y licencias», en «Para qué sirve la app» (Hasta dónde llega), en la capa del IGAC y en la hoja del catastro.
-- **La app se identifica ante los servidores de mapas** (`appendUserAgent` en `capacitor.config.json`: «ZonasDeVida» y la dirección del repositorio), como pide la política de uso de OpenStreetMap, que bloquea el tráfico con identificación genérica.
+- **La app se identifica ante los servidores de mapas** (`appendUserAgent` en `capacitor.config.json`: «ZonasDeVida» y la dirección del repositorio; desde la 2.33.0, «DonFlorentinoSIG» y la dirección nueva), como pide la política de uso de OpenStreetMap, que bloquea el tráfico con identificación genérica.
 - Ayudas: «Cómo usar el mapa» y «Para qué sirve la app» explican para qué sirve la capa del IGAC; «Cómo usar la app», «Para qué sirve» (Hasta dónde llega), «Qué hay de nuevo» y «Fuentes y licencias» explican el número predial. Lista de pruebas de campo con su sección.
 - Código: `js/catastro.js` (número predial, lectura del archivo, limpieza) y `js/ui-catastro.js`. Verificado con 739 pruebas unitarias y los 330 pasos del navegador (nuevo recorrido 32, que además comprueba que la app no hace ninguna consulta al catastro).
 
@@ -320,9 +348,9 @@ En KML y GPX **se quitan los caracteres de control** (por ejemplo U+0001) de los
 
 | Botón | Archivo | Fotos | Para qué sirve |
 |---|---|---|---|
-| **Copia completa (.zip)** | `zonas-de-vida-copia-AAAA-MM-DD.zip` (`copia.json` y `fotos/<id>.jpg`) | sí | la copia **de esta app**: no pierdes nada si cambias de teléfono o reinstalas |
-| **Copia liviana (.json)** | `zonas-de-vida-copia-AAAA-MM-DD.json` | no | llevar los proyectos a **otros dispositivos**; pesa poco (cabe en un correo o en un chat). Es el formato de siempre |
-| **Copia pesada (.json con fotos)** | `zonas-de-vida-copia-fotos-AAAA-MM-DD.json` | sí, **dentro del mismo .json** (cada foto como texto base64, en la clave `photos`, al final) | llevar también las fotos en un solo .json. El texto ocupa **un tercio más** que las imágenes y el archivo se arma entero en memoria, por eso hay un **tope de 40 MB de fotos**: pasado el tope, la app avisa y manda a la copia completa sin crear nada |
+| **Copia completa (.zip)** | `don-florentino-sig-copia-AAAA-MM-DD.zip` (`copia.json` y `fotos/<id>.jpg`) | sí | la copia **de esta app**: no pierdes nada si cambias de teléfono o reinstalas |
+| **Copia liviana (.json)** | `don-florentino-sig-copia-AAAA-MM-DD.json` | no | llevar los proyectos a **otros dispositivos**; pesa poco (cabe en un correo o en un chat). Es el formato de siempre |
+| **Copia pesada (.json con fotos)** | `don-florentino-sig-copia-fotos-AAAA-MM-DD.json` | sí, **dentro del mismo .json** (cada foto como texto base64, en la clave `photos`, al final) | llevar también las fotos en un solo .json. El texto ocupa **un tercio más** que las imágenes y el archivo se arma entero en memoria, por eso hay un **tope de 40 MB de fotos**: pasado el tope, la app avisa y manda a la copia completa sin crear nada |
 
 El .zip va sin comprimir (el JPEG ya viene comprimido) y se abre con cualquier programa de ZIP. El botón de la copia pesada se desactiva mientras no haya fotos; la hoja muestra cuánto pesaría hoy. Si hay fotos y eliges la liviana, el aviso lo dice («No incluye las N fotos…»).
 

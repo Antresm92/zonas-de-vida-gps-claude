@@ -28,7 +28,7 @@ test('sw.js: cada script de www/js está en index.html y en la memoria offline',
 });
 
 test('sw.js: la versión de la memoria offline cambia con cada versión de la app', () => {
-  const v = /const CACHE = 'zonas-de-vida-v(\d+)'/.exec(sw);
+  const v = /const CACHE = 'don-florentino-sig-v(\d+)'/.exec(sw);
   assert.ok(v && +v[1] >= 2, 'sube el número de CACHE cuando cambian los archivos');
 });
 

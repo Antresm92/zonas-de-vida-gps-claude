@@ -35,7 +35,7 @@ test('flujo: las pruebas corren antes de crear el proyecto Android y el parche (
 test('flujo: el APK de prueba sigue firmado con la clave fija, para que se instale encima del anterior', () => {
   assert.match(wf, /cp scripts\/debug\.keystore ~\/\.android\/debug\.keystore/);
   assert.match(wf, /gradlew assembleDebug/);
-  assert.match(wf, /name: zonas-de-vida-apk/);
+  assert.match(wf, /name: don-florentino-sig-prueba-apk/);
   assert.ok(fs.existsSync(path.join(ROOT, 'scripts', 'debug.keystore')));
 });
 
@@ -87,9 +87,42 @@ test('.gitignore: las llaves de publicación no se suben, pero la clave de prueb
   assert.match(gitignore, /^!scripts\/debug\.keystore$/m);
 });
 
-test('la app se identifica ante los servidores de mapas (política de OpenStreetMap, 2.32.0)', () => {
+test('la app se identifica ante los servidores de mapas (política de OpenStreetMap, 2.32.0; nombre nuevo en la 2.33.0)', () => {
   // OpenStreetMap bloquea el tráfico con identificación genérica: el WebView añade el nombre de la app y una dirección de contacto
   const cfg = JSON.parse(require('fs').readFileSync(require('path').join(__dirname, '..', 'capacitor.config.json'), 'utf8'));
-  assert.equal(cfg.appendUserAgent, 'ZonasDeVida (+https://github.com/Antresm92/zonas-de-vida-gps-claude)');
+  assert.equal(cfg.appendUserAgent, 'DonFlorentinoSIG (+https://github.com/Antresm92/don-florentino-sig-claude)');
   assert.equal(cfg.overrideUserAgent, undefined, 'no reemplazar la identificación del WebView, solo añadir');
+});
+
+test('2.33.0: la app se llama «Don Florentino SIG» y tiene identificador propio', () => {
+  const cfg = JSON.parse(fs.readFileSync(path.join(ROOT, 'capacitor.config.json'), 'utf8'));
+  assert.equal(cfg.appId, 'co.donflorentino.sig');
+  assert.equal(cfg.appName, 'Don Florentino SIG');
+  assert.equal(pkg.name, 'don-florentino-sig');
+  assert.equal(lock.name, 'don-florentino-sig'); assert.equal(lock.packages[''].name, 'don-florentino-sig');
+  const man = JSON.parse(fs.readFileSync(path.join(ROOT, 'www', 'manifest.webmanifest'), 'utf8'));
+  assert.equal(man.name, 'Don Florentino SIG'); assert.equal(man.short_name, 'Don Florentino SIG');
+  assert.match(fs.readFileSync(path.join(ROOT, 'www', 'index.html'), 'utf8'), /<title>Don Florentino SIG<\/title>/);
+});
+
+test('2.33.0: el APK de prueba y el paquete de Google Play tienen nombres que no se confunden', () => {
+  const sin = lineas(wf);
+  assert.match(sin, /app-debug\.apk don-florentino-sig-prueba\.apk/);
+  assert.match(sin, /name: don-florentino-sig-prueba-apk\n\s+path: don-florentino-sig-prueba\.apk/);
+  assert.match(sin, /app-release\.aab \.\.\/don-florentino-sig-google-play\.aab/);
+  assert.match(sin, /name: don-florentino-sig-google-play-aab\n\s+path: don-florentino-sig-google-play\.aab/);
+  assert.doesNotMatch(sin, /zonas-de-vida/, 'sin el nombre anterior');
+  assert.doesNotMatch(sin, /prueba[^\n]*\.aab|google-play[^\n]*\.apk/, 'el .apk es el de prueba y el .aab el de la tienda, nunca al revés');
+});
+
+test('2.33.0: el .aab se revisa (no lleva la llave de prueba) DESPUÉS de compilarlo y ANTES de guardarlo', () => {
+  const g = paso(/check-aab-key\.js/);
+  assert.ok(g, 'existe el paso de la guardia');
+  assert.match(g, /if: steps\.llave\.outputs\.hay == 'true'/);
+  assert.match(g, /run: node scripts\/check-aab-key\.js don-florentino-sig-google-play\.aab scripts\/debug\.keystore/);
+  assert.doesNotMatch(g, /continue-on-error/, 'si falla, el flujo se detiene');
+  const i = (re) => pasos.findIndex((p) => re.test(p));
+  assert.ok(i(/gradlew bundleRelease/) < i(/check-aab-key\.js/));
+  assert.ok(i(/check-aab-key\.js/) < i(/Guardar el paquete de publicación/));
+  assert.ok(fs.existsSync(path.join(ROOT, 'scripts', 'check-aab-key.js')));
 });

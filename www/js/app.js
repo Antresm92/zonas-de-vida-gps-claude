@@ -1,11 +1,11 @@
-/* app.js — interfaz de Zonas de Vida. Todo funciona sin conexión; internet solo completa datos. */
+/* app.js — interfaz de Don Florentino SIG (antes «Zonas de Vida»). Todo funciona sin conexión; internet solo completa datos. */
 (function () {
   'use strict';
 
   var Geo = window.Geo, H = window.Holdridge, Climate = window.Climate, A = window.Analysis, Fmt = window.Fmt,
       Gps = window.Gps, Store = window.Store, Diagram = window.Diagram, Report = window.Report,
       Gis = window.Gis, Backup = window.Backup, IO = window.IO, WL = window.WalterLieth, Mapa = window.Mapa, MapView = window.MapView, Satelite = window.Satelite, Perfil = window.Perfil, Fotos = window.Fotos, Zip = window.Zip, Units = window.Units;
-  var APP_VERSION = '2.32.1';
+  var APP_VERSION = '2.33.0';
 
   var S = Store.loadState();
   // 2.22.0: la primera vez, los lotes de antes que están dentro de un predio pasan a pertenecerle
@@ -1028,7 +1028,7 @@
       '<b>.json liviano</b>: <b>sin fotos</b>; sirve para llevar tus proyectos a otros dispositivos (cabe en un correo o en un chat). ' +
       '<b>.json pesado</b>: el mismo .json <b>con las fotos dentro</b>, para llevar también las fotos a otros dispositivos; ' + (np ? 'hoy pesaría unos ' + sizeText(nb * 4 / 3) + ' (' + np + (np === 1 ? ' foto' : ' fotos') + ', y el texto ocupa un tercio más que la imagen)' : 'todavía no hay fotos que incluir') + '. «Restaurar» entiende los tres.</p>';
     h += '<div class="btns"><button class="btn" data-act="backupPick">Restaurar copia…</button></div>';
-    h += '<p class="small muted" style="margin-top:14px">Zonas de Vida versión ' + APP_VERSION + '</p>';
+    h += '<p class="small muted" style="margin-top:14px">Don Florentino SIG versión ' + APP_VERSION + '</p>';
     openSheet('Proyectos', h);
   }
 
@@ -1054,7 +1054,7 @@
       var note = zip || heavy ? (used.length ? ' Incluye ' + used.length + (used.length === 1 ? ' foto.' : ' fotos.') : '') + (lost ? ' ' + lost + (lost === 1 ? ' foto no se encontró en este teléfono y no entró.' : ' fotos no se encontraron en este teléfono y no entraron.') : '')
         : (all.length ? ' No incluye las ' + all.length + (all.length === 1 ? ' foto' : ' fotos') + ' de tus puntos: para guardarlas usa la copia completa (.zip) o la pesada (.json con fotos).' : '');
       var name = Backup.fileName(null, zip ? 'zip' : 'json', heavy ? 'fotos' : null);
-      var meta = { title: 'Copia de seguridad de Zonas de Vida', dialogTitle: 'Guardar copia de seguridad' };
+      var meta = { title: 'Copia de seguridad de Don Florentino SIG', dialogTitle: 'Guardar copia de seguridad' };
       var saving = zip ? IO.saveBytes(name, 'application/zip', Backup.toZip(b, withPhotos), meta)
         : heavy ? IO.saveBytes(name, 'application/json', new TextEncoder().encode(Backup.stringify(Backup.attachPhotos(b, withPhotos))), meta)   // por trozos: un archivo de decenas de MB no cabe en un solo mensaje al sistema
         : IO.saveText(name, 'application/json', Backup.stringify(b), meta);
@@ -1428,7 +1428,7 @@
     var a = e.target.closest && e.target.closest('a[data-ext]');
     if (!a) return;
     if (navigator.onLine === false) { e.preventDefault(); toast('Necesitas internet para abrir ' + a.textContent.trim() + '.', { err: true }); return; }
-    // En el teléfono, ir a la dirección hace que Android la abra con la app de la red o con el navegador (no dentro de Zonas de Vida)
+    // En el teléfono, ir a la dirección hace que Android la abra con la app de la red o con el navegador (no dentro de Don Florentino SIG)
     if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) { e.preventDefault(); window.location.href = a.href; }
   });
   $('#polyFile').addEventListener('change', function (e) {

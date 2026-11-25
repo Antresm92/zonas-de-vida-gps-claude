@@ -200,7 +200,7 @@ module.exports = async function (c) {
   await step('Copia completa (.zip): un ZIP con copia.json y las 5 fotos tal como están guardadas', async () => {
     await act('projects');
     const f = await download(() => page.click('[data-act="backupZip"]'));
-    assert.match(f.name, /^zonas-de-vida-copia-\d{4}-\d{2}-\d{2}\.zip$/);
+    assert.match(f.name, /^don-florentino-sig-copia-\d{4}-\d{2}-\d{2}\.zip$/);
     assert.equal(Zip.isZip(f.bytes), true);
     zipFile = f;
     const nombres = Zip.entries(f.bytes).map((e) => e.name).sort();
@@ -220,7 +220,7 @@ module.exports = async function (c) {
   await step('Copia liviana (.json): sin fotos, con los mismos proyectos, y el aviso dice que las fotos no van', async () => {
     await act('projects');
     const f = await download(() => page.click('[data-act="backupJson"]'));
-    assert.match(f.name, /^zonas-de-vida-copia-\d{4}-\d{2}-\d{2}\.json$/);
+    assert.match(f.name, /^don-florentino-sig-copia-\d{4}-\d{2}-\d{2}\.json$/);
     jsonFile = f;
     const raw = JSON.parse(f.text);
     assert.equal(raw.summary.photos, 0);
@@ -238,10 +238,10 @@ module.exports = async function (c) {
   await step('Copia pesada (.json con fotos): un solo .json con las 5 fotos dentro como texto, idénticas a las guardadas, y pesa más que la liviana', async () => {
     await act('projects');
     const f = await download(() => page.click('[data-act="backupJsonFotos"]'));
-    assert.match(f.name, /^zonas-de-vida-copia-fotos-\d{4}-\d{2}-\d{2}\.json$/, 'el nombre dice que lleva fotos');
+    assert.match(f.name, /^don-florentino-sig-copia-fotos-\d{4}-\d{2}-\d{2}\.json$/, 'el nombre dice que lleva fotos');
     heavyFile = f;
     const raw = JSON.parse(f.text);
-    assert.equal(raw.app, 'zonas-de-vida-gps');
+    assert.equal(raw.app, 'don-florentino-sig');
     assert.equal(raw.summary.photos, 5);
     assert.deepEqual(Object.keys(raw.photos).sort(), ids.slice().sort());
     const pj = Backup.photosFromJson(raw);

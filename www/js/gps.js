@@ -15,7 +15,7 @@
 
   function explain(err) {
     var code = err && err.code;
-    if (code === 1) return 'Sin permiso de ubicación. Actívalo en Ajustes del teléfono > Aplicaciones > Zonas de Vida > Permisos.';
+    if (code === 1) return 'Sin permiso de ubicación. Actívalo en Ajustes del teléfono > Aplicaciones > Don Florentino SIG > Permisos.';
     if (code === 2) return 'No hay señal de GPS. Sal a un lugar abierto y espera unos segundos.';
     if (code === 3) return 'El GPS no responde. Verifica que la ubicación del teléfono esté activada, o sal a un lugar abierto y vuelve a intentar.';
     return 'No se pudo leer el GPS' + (err && err.message ? ': ' + err.message : '.');

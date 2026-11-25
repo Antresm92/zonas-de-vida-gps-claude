@@ -218,7 +218,7 @@
     try { obj = JSON.parse(text); } catch (e) { throw new Error('El archivo no es un JSON válido (' + (e && e.message || 'error de lectura') + ').'); }
     if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
       if (GJ_TYPES.indexOf(obj.type) >= 0) return parseGeoJSONObject(obj);
-      if (obj.app === 'zonas-de-vida-gps' || Array.isArray(obj.projects) || (obj.state && Array.isArray(obj.state.projects))) {
+      if (obj.app === 'don-florentino-sig' || obj.app === 'zonas-de-vida-gps' || Array.isArray(obj.projects) || (obj.state && Array.isArray(obj.state.projects))) {
         var err = new Error('Este archivo es una copia de seguridad de la app, no un mapa. Restáurala desde el menú Proyectos.');
         err.code = 'backup';
         throw err;
@@ -412,7 +412,7 @@
     if (m.areaM2 !== null) d.push('Área: ' + numEs(m.areaM2 / 10000, 4) + ' ha (' + numEs(m.areaM2, 0) + ' m²)');
     if (m.perimeter !== null) d.push('Perímetro: ' + numEs(m.perimeter, 1) + ' m');
     d.push(m.points.length + ' vértices');
-    d.push('Exportado desde Zonas de Vida el ' + new Date(m.date).toISOString().slice(0, 10));
+    d.push('Exportado desde Don Florentino SIG el ' + new Date(m.date).toISOString().slice(0, 10));
     out.push('<description>' + esc(d.join(' · ')) + '</description>');
     styles.forEach(function (s) {
       out.push('<Style id="' + s.id + '"><LineStyle><color>' + kmlColor(s.color, 'ff') + '</color><width>3</width></LineStyle>' +
@@ -505,7 +505,7 @@
   function toGPX(model) {
     var m = norm(model), out = [];
     out.push('<?xml version="1.0" encoding="UTF-8"?>',
-      '<gpx version="1.1" creator="Zonas de Vida" xmlns="http://www.topografix.com/GPX/1/1">',
+      '<gpx version="1.1" creator="Don Florentino SIG" xmlns="http://www.topografix.com/GPX/1/1">',
       '<metadata><name>' + esc(m.name) + '</name><time>' + new Date(m.date).toISOString() + '</time></metadata>');
     function wpt(p, name, desc) {
       return '<wpt lat="' + fix(p.lat, 7) + '" lon="' + fix(p.lon, 7) + '">' + (isNum(p.alt) ? '<ele>' + fix(p.alt, 1) + '</ele>' : '') +

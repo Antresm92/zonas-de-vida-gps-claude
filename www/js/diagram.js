@@ -13,7 +13,8 @@
               paper: '#FFFFFF', point: '#D8353C' };
   var X_MIN = -17, X_MAX = 19;        // ancho de las líneas de biotemperatura (en unidades)
 
-  function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+  // 2.33.0: también las comillas, porque algunos valores van dentro de atributos (colores, nombres)
+  function esc(s) { return String(s === null || s === undefined ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
   function f(n) { return (Math.round(n * 100) / 100).toString(); }
   function px(X) { return X * S; }
   function py(Y) { return Y * S; }

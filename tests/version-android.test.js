@@ -13,10 +13,10 @@ const V = require('../scripts/version-android.js');
 const GRADLE = `apply plugin: 'com.android.application'
 
 android {
-    namespace = "co.zonasdevida.app"
+    namespace = "co.donflorentino.sig"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "co.zonasdevida.app"
+        applicationId "co.donflorentino.sig"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
@@ -92,7 +92,7 @@ test('patchSigning: agrega signingConfigs antes de buildTypes y firma «release�
   for (const linea of ['storeFile file(ksPath)', "storePassword System.getenv('ANDROID_KEYSTORE_PASSWORD')", "keyAlias System.getenv('ANDROID_KEY_ALIAS')", "keyPassword System.getenv('ANDROID_KEY_PASSWORD')"])
     assert.ok(r.text.includes(linea), 'la firma configura: ' + linea);
   assert.match(r.text, /release \{\n\s+if \(System\.getenv\('ANDROID_KEYSTORE_PATH'\)\) \{ signingConfig signingConfigs\.release \}\n\s+minifyEnabled false/);
-  assert.ok(r.text.includes("applicationId \"co.zonasdevida.app\""), 'lo demás sigue igual');
+  assert.ok(r.text.includes("applicationId \"co.donflorentino.sig\""), 'lo demás sigue igual');
   assert.equal((r.text.match(/buildTypes \{/g) || []).length, 1);
   assert.equal((r.text.match(/signingConfigs \{/g) || []).length, 1);
   // 2.23.8: el APK de prueba se firma con la llave fija del repositorio, declarada en Gradle
