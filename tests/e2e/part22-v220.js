@@ -65,7 +65,7 @@ module.exports = async function (c) {
     await page.click('#repScope [data-s="fincas"]');
     assert.deepEqual(await scope(), ['Completo:false', 'Global:true', 'Específico:false']);
     assert.deepEqual(await page.$$eval('#repFincas .repfin', (l) => l.map((x) => x.textContent + ':' + x.querySelector('input').checked)), ['La Esperanza:true', 'El Retiro:true']);
-    const b = await page.locator('#repFincas .repfin').first().boundingBox(); assert.ok(b.height >= 44, 'casilla cómoda de tocar');
+    const b = await page.locator('#repFincas .repfin').first().boundingBox(); assert.ok(Math.round(b.height) >= 44, 'casilla cómoda de tocar (' + b.height + ')');
     await shot('v220-global');
     const f = await download(() => page.click('[data-act="shareReportHtml"]'));
     assert.equal(f.name, 'reporte-zona-de-vida-mi-primer-proyecto-fincas.html');

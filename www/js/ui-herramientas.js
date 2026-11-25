@@ -9,7 +9,7 @@
   window.ZV = window.ZV || {};
   window.ZV.herramientas = function (ctx) {
     var S = ctx.S, ui = ctx.ui, busy = ctx.busy, $ = ctx['$'], APP_VERSION = ctx.APP_VERSION, WHATS_NEW_ID = ctx.WHATS_NEW_ID, analysis = ctx.analysis, closeSheet = ctx.closeSheet, esc = ctx.esc, isNum = ctx.isNum, openSheet = ctx.openSheet, proj = ctx.proj, renderTab = ctx.renderTab, toast = ctx.toast;
-    var Climate = window.Climate, Fmt = window.Fmt, Fotos = window.Fotos, Report = window.Report, Store = window.Store, Units = window.Units;
+    var Climate = window.Climate, Fmt = window.Fmt, Fotos = window.Fotos, Report = window.Report, Store = window.Store, Units = window.Units, Errores = window.Errores, IO = window.IO;
 
     /* ---------- Herramientas (2.7.0): conversor de unidades, clima actual y GPS en vivo ---------- */
     var TOOL_ICON = {
@@ -32,14 +32,56 @@
         menuRow('projects', 'Copia de seguridad y restaurar', '.zip recomendado') + '</div>';
       var au = Store.loadAuthor(), auSub = [au.name, au.org, au.logo ? 'con logo' : ''].filter(Boolean).join(' · ');
       h += '<h3 class="sub">Reporte</h3><div class="menu">' + menuRow('authorEdit', 'Encabezado del reporte', auSub || 'Autor, entidad y logo') + '</div>';
-      h += '<h3 class="sub">Preferencias</h3><div class="menu"><label class="menurow"><span><b>Reporte con todas las secciones abiertas</b><small>Si no, cada sección se abre al tocar su título.</small></span>' +
+      h += '<h3 class="sub">Preferencias</h3><div class="menu"><label class="menurow"><span><b>Alto contraste</b><small>Negro sobre blanco y bordes marcados, para leer al sol. Solo cambia los colores.</small></span>' +
+        '<input type="checkbox" data-flag="altoContraste"' + (Store.loadFlag('altoContraste') === true ? ' checked' : '') + '></label>' +
+        '<label class="menurow"><span><b>Reporte con todas las secciones abiertas</b><small>Si no, cada sección se abre al tocar su título.</small></span>' +
         '<input type="checkbox" data-flag="reportOpen"' + (Store.loadFlag('reportOpen') === true ? ' checked' : '') + '></label>' +
         '<label class="menurow"><span><b>Pegar puntos a las esquinas de otros polígonos</b><small>Al marcar o mover un punto en el mapa muy cerca de la esquina de otro predio o lote, queda exactamente sobre ella.</small></span>' +
         '<input type="checkbox" data-flag="lotSnap"' + (Store.loadFlag('lotSnap') === false ? '' : ' checked') + '></label></div>';
       h += '<h3 class="sub">Ayuda</h3><div class="menu">' + menuRow('appGuide', 'Cómo usar la app', 'Los tres pasos y todo lo demás') + menuRow('whatsNew', 'Qué hay de nuevo', 'Lo nuevo de la versión ' + WHATS_NEW_ID) + menuRow('usesGuide', 'Para qué sirve la app', 'Usos por área y hasta dónde llega') + menuRow('mapGuide', 'Cómo usar el mapa', 'Puntos, polígonos, predios y lotes') +
-        menuRow('licenses', 'Fuentes y licencias', 'Mapas y datos de clima') + '</div>';
+        menuRow('licenses', 'Fuentes y licencias', 'Mapas y datos de clima') + menuRow('diag', 'Registro de errores', diagSub()) + '</div>';
       h += '<p class="small muted" style="margin-top:14px">Don Florentino SIG · versión ' + APP_VERSION + '. Funciona sin internet, salvo los mapas y los datos de clima.</p>';
       return h + creditHtml();
+    }
+    /* ---------- Registro de errores y tiempo de arranque (2.34.0, errores.js) ----------
+     * Se guarda solo en el teléfono y nunca se envía solo: sale únicamente si la persona lo comparte desde aquí. */
+    function diagStore() { try { return window.localStorage; } catch (e) { return null; } }
+    function diagSub() {
+      if (!Errores) return 'No disponible';
+      var s = Errores.summary(Errores.load(diagStore()));
+      return (s.errores ? s.errores + (s.errores === 1 ? ' error anotado' : ' errores anotados') : 'Sin errores') + (s.ultimo !== null ? ' · abrió en ' + Errores.seconds(s.ultimo) : '');
+    }
+    function openDiag(confirmClear) {
+      if (!Errores) { toast('El registro de errores no está disponible.', { err: true }); return; }
+      var d = Errores.load(diagStore()), s = Errores.summary(d), vacio = !d.errores.length && !d.arranques.length;
+      var h = '<p class="lead">Si algo falla, la app lo anota aquí para que puedas enviárselo a quien la mantiene. Se guarda solo en este teléfono y <b>nunca se envía solo</b>: sale únicamente si tú lo compartes. No guarda tus puntos ni coordenadas.</p>';
+      h += '<dl class="kv"><div><dt>Tiempo de arranque</dt><dd id="diagArranque">' + (s.ultimo !== null ? 'Última vez: ' + Errores.seconds(s.ultimo) + (s.arranques > 1 ? ' · promedio de ' + s.arranques + ': ' + Errores.seconds(s.promedio) : '') : 'Sin datos todavía') + '</dd></div>' +
+        '<div><dt>Errores anotados</dt><dd id="diagCuenta">' + (s.errores ? s.errores + (s.veces > s.errores ? ' (' + s.veces + ' veces)' : '') : 'Ninguno') + '</dd></div></dl>';
+      if (d.errores.length) {
+        h += '<ul class="errlist" id="diagLista">' + d.errores.slice().reverse().slice(0, 20).map(function (e) {
+          return '<li><b>' + esc(e.m) + '</b><small>' + esc(Errores.day(e.t)) + ' · versión ' + esc(e.v || '?') + (e.n > 1 ? ' · ' + e.n + ' veces' : '') + (e.d ? ' · ' + esc(e.d) : '') + '</small></li>';
+        }).join('') + '</ul>';
+        if (d.errores.length > 20) h += '<p class="small muted">Aquí se ven los 20 más recientes; al compartir van todos.</p>';
+      }
+      h += '<div class="btns"><button class="btn btn-primary" data-act="diagShare">Compartir el registro</button>' +
+        (confirmClear ? '<button class="btn btn-danger" data-act="diagClearYes">Sí, borrar el registro</button>' : '<button class="btn" data-act="diagClear"' + (vacio ? ' disabled' : '') + '>Borrar el registro</button>') + '</div>';
+      openSheet('Registro de errores', h);
+    }
+    function shareDiag() {
+      if (!Errores) return;
+      var txt = Errores.text(Errores.load(diagStore()), { version: APP_VERSION, ua: navigator.userAgent, now: Date.now() });
+      var name = 'don-florentino-sig-registro-' + Errores.day(new Date().toISOString()).slice(0, 10) + '.txt';
+      IO.saveText(name, 'text/plain', txt, { title: 'Registro de errores de Don Florentino SIG', text: 'Registro de errores de Don Florentino SIG (versión ' + APP_VERSION + ').', dialogTitle: 'Compartir el registro' }).then(function (r) {
+        if (r.how === 'download') toast('Archivo descargado: ' + name);
+        else if (r.how === 'share') toast('Registro listo para enviar.');
+      }).catch(function (e) { toast('No se pudo preparar el registro: ' + (e && e.message || e), { err: true }); });
+    }
+    function clearDiag() {
+      if (!Errores) return;
+      Errores.clear(diagStore());
+      closeSheet();
+      toast('Registro borrado.');
+      if (ui.tab === 'herramientas') renderTab('herramientas');
     }
     /* ---------- Crédito y redes de Campesino Urbano (2.23.1) ----------
      * Los iconos son dibujos sencillos propios (cámara, personas, globo de chat, nota musical), no los logotipos de las marcas;
@@ -218,6 +260,6 @@
       else if (ui.tool === 'clima') renderWeatherTool();
     }
 
-    return { tabHerramientas: tabHerramientas, openAuthor: openAuthor, readAuthorInputs: readAuthorInputs, refreshAuthor: refreshAuthor, saveAuthor: saveAuthor, setAuthorLogo: setAuthorLogo, onToolFix: onToolFix, openConverter: openConverter, openGpsTool: openGpsTool, openWeatherTool: openWeatherTool, renderConverter: renderConverter, renderGpsTool: renderGpsTool, renderWeatherTool: renderWeatherTool, weatherFetch: weatherFetch };
+    return { openDiag: openDiag, shareDiag: shareDiag, clearDiag: clearDiag, tabHerramientas: tabHerramientas, openAuthor: openAuthor, readAuthorInputs: readAuthorInputs, refreshAuthor: refreshAuthor, saveAuthor: saveAuthor, setAuthorLogo: setAuthorLogo, onToolFix: onToolFix, openConverter: openConverter, openGpsTool: openGpsTool, openWeatherTool: openWeatherTool, renderConverter: renderConverter, renderGpsTool: renderGpsTool, renderWeatherTool: renderWeatherTool, weatherFetch: weatherFetch };
   };
 })();

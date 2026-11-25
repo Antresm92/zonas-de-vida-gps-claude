@@ -110,3 +110,16 @@ test('2.33.0: «Fuentes y licencias» enlaza la licencia o las condiciones de ca
     'api.open-meteo.com/v1/elevation': /Altitud por internet<\/dt><dd>Open-Meteo/, 'mapas2.igac.gov.co': /mapas2\.igac\.gov\.co/ };
   for (const [host, re] of Object.entries(citado)) { assert.ok(js.includes(host), 'la app usa ' + host); assert.match(h, re, host + ' está citado'); }
 });
+
+test('2.34.0: las ayudas explican el alto contraste y el registro de errores', () => {
+  const { A, sheets } = load();
+  assert.ok(atLeast(A.WHATS_NEW_ID, '2.34'), A.WHATS_NEW_ID);
+  A.openAppGuide();
+  const guia = sheets[sheets.length - 1][1];
+  assert.match(guia, /Alto contraste.*Herramientas › Preferencias › «Alto contraste»: negro sobre blanco/s);
+  assert.match(guia, /Registro de errores.*nunca se envía solo.*No guarda tus puntos ni coordenadas/s);
+  A.openWhatsNew();
+  const nuevo = sheets[sheets.length - 1][1];
+  assert.ok(nuevo.indexOf('Alto contraste') < nuevo.indexOf('Nuevo nombre: Don Florentino SIG'), 'lo de la 2.34 va primero');
+  assert.match(nuevo, /Registro de errores.*Se guarda solo en tu teléfono y nunca se envía solo/s);
+});

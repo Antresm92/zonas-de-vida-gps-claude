@@ -5,7 +5,9 @@
   var Geo = window.Geo, H = window.Holdridge, Climate = window.Climate, A = window.Analysis, Fmt = window.Fmt,
       Gps = window.Gps, Store = window.Store, Diagram = window.Diagram, Report = window.Report,
       Gis = window.Gis, Backup = window.Backup, IO = window.IO, WL = window.WalterLieth, Mapa = window.Mapa, MapView = window.MapView, Satelite = window.Satelite, Perfil = window.Perfil, Fotos = window.Fotos, Zip = window.Zip, Units = window.Units;
-  var APP_VERSION = '2.33.0';
+  var APP_VERSION = '2.34.0';
+  var Errores = window.Errores;
+  if (Errores) Errores.setVersion(APP_VERSION);            // 2.34.0: el registro de errores anota en qué versión pasó cada uno
 
   var S = Store.loadState();
   // 2.22.0: la primera vez, los lotes de antes que están dentro de un predio pasan a pertenecerle
@@ -25,6 +27,8 @@
   function $(s, r) { return (r || document).querySelector(s); }
   function esc(s) { return String(s === null || s === undefined ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
   function isNum(x) { return typeof x === 'number' && isFinite(x); }
+  // 2.34.0: alto contraste (Herramientas › Preferencias). Solo pone o quita una clase: los colores están en app.css.
+  function applyContrast() { document.documentElement.classList.toggle('alto-contraste', Store.loadFlag('altoContraste') === true); }
   function proj() { return S.projects.filter(function (p) { return p.id === S.currentId; })[0] || S.projects[0]; }
   /* ---------- Lotes (2.15.0) ----------
    * proj().points, .climate, .mainColor… son siempre los del lote elegido (ver store.js). Los demás lotes del proyecto se dibujan
@@ -1373,6 +1377,7 @@
     lotDeleteAsk: function (t) { lotDeleteAsk(t.getAttribute('data-id')); }, lotDeleteNo: function () { var p = proj(), e = ui.edit, l = e && p.lots.filter(function (x) { return x.id === e.id; })[0], b = $('#lotDelBox'); if (b && l) b.outerHTML = lotDeleteBox(l, p); },
     hugePoint: function () { hugePoint(); }, climateToAll: Completar.climateToAll,
     authorEdit: function () { openAuthor(false); },
+    diag: function () { Herr.openDiag(false); }, diagShare: function () { Herr.shareDiag(); }, diagClear: function () { Herr.openDiag(true); }, diagClearYes: function () { Herr.clearDiag(); },
     authorLogo: function () { readAuthorInputs(); $('#logoFile').click(); },
     authorLogoDel: function () { ui.authorDraft.logo = ''; refreshAuthor(); },
     authorSave: function () { saveAuthor(); },
@@ -1396,7 +1401,10 @@
   document.addEventListener('change', function (e) {
     if (!e.target.matches) return;
     if (e.target.matches('[data-field]')) commitField(e.target);
-    else if (e.target.matches('[data-flag]')) Store.saveFlag(e.target.getAttribute('data-flag'), !!e.target.checked);
+    else if (e.target.matches('[data-flag]')) {
+      Store.saveFlag(e.target.getAttribute('data-flag'), !!e.target.checked);
+      if (e.target.getAttribute('data-flag') === 'altoContraste') applyContrast();
+    }
     else if (e.target.matches('[data-rep]')) {
       var on = !!e.target.checked;
       Store.saveFlag('rep_' + e.target.getAttribute('data-rep'), on);
@@ -1462,6 +1470,7 @@
   window.addEventListener('offline', function () { updateChips(); updateMapNotice(); if (ui.tab === 'clima') renderTab('clima'); });
 
   /* ---------- Inicio ---------- */
+  applyContrast();
   renderAll();
   // La primera vez se explican los tres pasos; quien actualiza ve una vez «Qué hay de nuevo» (2.23.5)
   if (Store.loadFlag('appGuide') !== true) { Store.saveFlag('appGuide', true); Store.saveFlag('whatsNew', WHATS_NEW_ID); openAppGuide(); }
@@ -1472,6 +1481,10 @@
   if (!native && 'serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
     navigator.serviceWorker.register('sw.js').catch(function () { /* sin trabajo en segundo plano: la app sigue igual */ });
   }
+  // 2.34.0: cuánto tardó en abrir (desde que el teléfono empezó a cargar la app hasta la primera pantalla lista). Se guarda solo en el
+  // teléfono, en el registro de errores (Herramientas › Ayuda), para ver si la app se pone lenta.
+  var arranque = window.performance && performance.now ? Math.round(performance.now()) : null;
+  if (Errores && arranque !== null) { try { Errores.save(localStorage, Errores.addStartup(Errores.load(localStorage), arranque, APP_VERSION)); } catch (e) { /* sin almacenamiento */ } }
   // Para pruebas automáticas
-  window.__app = { S: S, MEM: MEM, ui: ui, analysis: analysis, showTab: showTab, version: APP_VERSION };
+  window.__app = { S: S, MEM: MEM, ui: ui, analysis: analysis, showTab: showTab, version: APP_VERSION, arranque: arranque };
 })();

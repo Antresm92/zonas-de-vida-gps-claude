@@ -81,6 +81,8 @@
         ['Proyectos y copia de seguridad', 'Cada proyecto guarda en el teléfono sus predios, lotes, puntos y fotos; en Herramientas › Proyectos creas otro o cambias de proyecto. Haz con frecuencia una copia de seguridad (.zip) y guárdala fuera del teléfono: si la app se desinstala o el teléfono se pierde, es la única forma de recuperar tu trabajo.'],
         ['Traer tus proyectos de «Zonas de Vida»', 'La app antes se llamaba Zonas de Vida y el teléfono la instala como una app aparte. Para traer tus proyectos: en Zonas de Vida, Herramientas › Proyectos › «Copia completa (.zip)» (lleva las fotos); en Don Florentino SIG, Herramientas › Proyectos › «Restaurar copia…» con ese archivo. Después puedes desinstalar Zonas de Vida.'],
         ['Herramientas', 'Conversor de unidades, clima y GPS en vivo, proyectos y copia de seguridad, el encabezado del reporte (tu nombre y tu logo), preferencias y estas ayudas.'],
+        ['Alto contraste', 'Herramientas › Preferencias › «Alto contraste»: negro sobre blanco y bordes marcados, para leer al sol. Solo cambia los colores (nada se mueve de lugar) y se apaga igual. El reporte que compartes no cambia.'],
+        ['Registro de errores', 'Herramientas › Ayuda › «Registro de errores»: si algo falla, la app lo anota con la fecha y la versión, y también cuánto tardó en abrir. Se guarda solo en el teléfono y nunca se envía solo: con «Compartir el registro» se lo mandas a quien mantiene la app. No guarda tus puntos ni coordenadas; revisa el texto antes de enviarlo.'],
         ['Arriba', 'La franja de tres pasos dice qué está listo y qué falta. Tócala para ir a ese paso.'],
         ['Sin internet', 'La app abre y guarda puntos sin conexión. Los mapas, «Completar con internet», el clima actual y la consulta del mapa del IGAC sí la necesitan (el mapa del IGAC se puede guardar antes para verlo sin conexión).']
       ]]
@@ -88,8 +90,10 @@
     /* ---------- Qué hay de nuevo (2.23.5) ----------
      * Quien ya usaba la app y la actualiza ve, una sola vez, un resumen corto de lo nuevo; quien la instala por primera vez ve la ayuda
      * completa y no esto. Para una actualización grande futura basta con cambiar WHATS_NEW_ID y la lista. */
-    var WHATS_NEW_ID = '2.33';
+    var WHATS_NEW_ID = '2.34';
     var WHATS_NEW = [
+      ['Alto contraste', 'nuevo en Herramientas › Preferencias: negro sobre blanco y bordes marcados, para leer al sol. El texto de las pantallas queda con el contraste más alto que piden las pautas de accesibilidad (7 a 1).'],
+      ['Registro de errores', 'en Herramientas › Ayuda: anota los errores y cuánto tarda la app en abrir, para que puedas enviárselo a quien la mantiene. Se guarda solo en tu teléfono y nunca se envía solo.'],
       ['Nuevo nombre: Don Florentino SIG', 'la app antes se llamaba Zonas de Vida. Se instala como una app nueva: trae tus proyectos con una copia de seguridad (está explicado en «Cómo usar la app»). Los reportes siguen siendo de zona de vida de Holdridge.'],
       ['Fuentes y licencias con enlaces', 'en Herramientas › Fuentes y licencias, cada proveedor de mapas, clima y datos tiene el enlace a su licencia o a sus condiciones de uso. Se agregó la fuente de la altitud por internet (el modelo Copernicus DEM, vía Open-Meteo).'],
       ['Más seguridad', 'si un archivo importado o un nombre trae «código», la app lo muestra como texto y no lo ejecuta; el reporte HTML que compartes no deja correr ningún programa.'],

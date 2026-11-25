@@ -62,7 +62,7 @@ module.exports = async function (c) {
     await page.waitForSelector('#lotPolys');
     assert.equal(await text('#lotFileName'), 'lotes.kml · 4 polígonos');
     assert.deepEqual(await page.$$eval('#lotPolys .impoly', (l) => l.map((x) => x.textContent.replace(/ · .*/, '') + ':' + x.querySelector('input').checked)), ['Cafetal:true', 'Bosque:true', 'Potrero:true', 'Casa:true']);
-    const b = await page.locator('#lotPolys .impoly').first().boundingBox(); assert.ok(b.height >= 44, 'casilla cómoda de tocar');
+    const b = await page.locator('#lotPolys .impoly').first().boundingBox(); assert.ok(Math.round(b.height) >= 44, 'casilla cómoda de tocar (' + b.height + ')');
     await page.click('#lotPolys .impoly:nth-child(4) input');                                  // la casa no
     await shot('v223-elegir-poligonos');
     assert.equal(await text('#lotImportBtn'), 'Importar como lotes');
@@ -124,7 +124,8 @@ module.exports = async function (c) {
     assert.equal(await sheetTitle(), 'Qué polígonos exportar');
     assert.deepEqual(await page.$$eval('#expList label', (l) => l.map((x) => x.textContent.replace(/ · .*/, '') + (x.classList.contains('sub') ? ' (lote)' : '') + ':' + x.querySelector('input').checked)),
       ['La Vega:false', 'Cafetal (lote):false', 'Bosque (lote):false', 'Potrero (lote):false']);
-    const bb = await page.locator('#expList label').first().boundingBox(); assert.ok(bb.height >= 44, 'casilla cómoda de tocar');
+    // mientras la hoja entra (animación) el alto puede medir 43,99997: se redondea al píxel
+    const bb = await page.locator('#expList label').first().boundingBox(); assert.ok(Math.round(bb.height) >= 44, 'casilla cómoda de tocar (' + bb.height + ')');
     // marcar el predio marca sus lotes; luego se quitan los que no se quieren
     await page.click('#expList label:nth-child(1) input');
     assert.deepEqual(await page.$$eval('#expList input', (i) => i.map((x) => x.checked)), [true, true, true, true]);

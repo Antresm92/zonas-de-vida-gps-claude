@@ -124,7 +124,7 @@ const arg = (n) => { const a = process.argv.find((x) => x.startsWith('--' + n + 
   await page.goto(url);
   await page.waitForSelector('#tab-puntos');
   const only = (arg('parts') || '').split(',').filter(Boolean);
-  for (const part of ['part1-puntos', 'part2-area-importar', 'part3-clima', 'part4-informe-proyectos', 'part5-offline', 'part7-mapa', 'part8-perfil-satelital', 'part9-menu-mapa', 'part10-posicion-manual', 'part11-v25', 'part12-fotos', 'part13-pdf', 'part14-herramientas', 'part15-mapa-intuitivo', 'part16-guiada', 'part17-v214', 'part18-lotes', 'part19-v216', 'part20-fincas', 'part21-clasif', 'part22-v220', 'part23-linderos', 'part24-v223', 'part25-dibujar', 'part26-linderos-mapa', 'part27-borrar-tamano', 'part28-completar', 'part29-usos', 'part30-cultivos', 'part31-igac', 'part32-catastro', 'part33-nombres-vaciar', 'part34-seguridad']) {
+  for (const part of ['part1-puntos', 'part2-area-importar', 'part3-clima', 'part4-informe-proyectos', 'part5-offline', 'part7-mapa', 'part8-perfil-satelital', 'part9-menu-mapa', 'part10-posicion-manual', 'part11-v25', 'part12-fotos', 'part13-pdf', 'part14-herramientas', 'part15-mapa-intuitivo', 'part16-guiada', 'part17-v214', 'part18-lotes', 'part19-v216', 'part20-fincas', 'part21-clasif', 'part22-v220', 'part23-linderos', 'part24-v223', 'part25-dibujar', 'part26-linderos-mapa', 'part27-borrar-tamano', 'part28-completar', 'part29-usos', 'part30-cultivos', 'part31-igac', 'part32-catastro', 'part33-nombres-vaciar', 'part34-seguridad', 'part35-contraste-registro', 'part36-proyecto-grande']) {
     if (only.length && !only.some((o) => part.startsWith(o))) continue;
     const f = path.join(__dirname, part + '.js');
     if (fs.existsSync(f)) { console.log('\n' + part); await require(f)(ctx); }
