@@ -220,8 +220,8 @@ module.exports = async function (c) {
     await page.reload(); await page.waitForSelector('#sheet:not([hidden])');
     assert.equal(await sheetTitle(), 'Qué hay de nuevo');
     const dts = await page.$$eval('#whatsNew dt', (d) => d.map((x) => x.textContent));
-    assert.deepEqual(dts.slice(0, 2), ['Alto contraste', 'Registro de errores']);
-    assert.deepEqual(dts.slice(2, 5), ['Nuevo nombre: Don Florentino SIG', 'Fuentes y licencias con enlaces', 'Más seguridad'], 'siguen las novedades de la 2.33.0');
+    assert.deepEqual(dts.slice(0, 3), ['Origen de cada punto en el reporte', 'Alto contraste', 'Registro de errores']);
+    assert.deepEqual(dts.slice(3, 6), ['Nuevo nombre: Don Florentino SIG', 'Fuentes y licencias con enlaces', 'Más seguridad'], 'siguen las novedades de la 2.33.0');
     assert.ok(dts.includes('Nombres de los puntos') && dts.includes('Vaciar y empezar de nuevo'), 'siguen las novedades de la 2.32.1');
     assert.deepEqual(await page.$$eval('#sheet .btns button', (b) => b.map((x) => x.textContent)), ['Entendido', 'Ver la ayuda completa']);
     await shot('177-que-hay-de-nuevo');

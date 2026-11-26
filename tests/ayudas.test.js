@@ -123,3 +123,14 @@ test('2.34.0: las ayudas explican el alto contraste y el registro de errores', (
   assert.ok(nuevo.indexOf('Alto contraste') < nuevo.indexOf('Nuevo nombre: Don Florentino SIG'), 'lo de la 2.34 va primero');
   assert.match(nuevo, /Registro de errores.*Se guarda solo en tu teléfono y nunca se envía solo/s);
 });
+
+test('2.34.1: las ayudas explican el origen de cada punto en el reporte', () => {
+  const { A, sheets } = load();
+  assert.ok(atLeast(A.WHATS_NEW_ID, '2.34.1'), A.WHATS_NEW_ID);
+  A.openAppGuide();
+  assert.match(sheets[sheets.length - 1][1], /Qué va en el reporte.*Cada punto dice de dónde salió su posición y su altitud.*«sin dato» si no se guardó.*Origen de los puntos/s);
+  A.openWhatsNew();
+  const nuevo = sheets[sheets.length - 1][1];
+  assert.ok(nuevo.indexOf('Origen de cada punto en el reporte') < nuevo.indexOf('Alto contraste'), 'lo de la 2.34.1 va primero');
+  assert.match(nuevo, /la app ya no supone «a mano»/);
+});

@@ -18,7 +18,8 @@
   var T_MARGIN = { manual: 0.5, online: 1.5, onlineSinCorregir: 3, memoria: 1.5 };
   var P_MARGIN = { manual: 0.10, online: 0.30, memoria: 0.35 };
 
-  var SRC_LABEL = { gps: 'GPS', manual: 'escrita a mano', internet: 'internet' };
+  // 2.34.1: también la altitud de un archivo, y la de un punto que no guardó su origen («sin dato»: no se supone que fue a mano)
+  var SRC_LABEL = { gps: 'GPS', manual: 'escrita a mano', internet: 'internet', archivo: 'archivo importado', sindato: 'origen sin dato' };
 
   function altitudeOf(points, climate) {
     var withAlt = points.filter(function (p) { return isNum(p.alt); });
@@ -30,10 +31,10 @@
       withAlt.forEach(function (p) { s += p.alt; });
       res.value = s / withAlt.length;
       var srcs = {};
-      withAlt.forEach(function (p) { srcs[p.altSrc || 'manual'] = true; });
+      withAlt.forEach(function (p) { srcs[Object.prototype.hasOwnProperty.call(SRC_LABEL, p.altSrc) ? p.altSrc : 'sindato'] = true; });
       var keys = Object.keys(srcs);
       res.src = keys.length === 1 ? keys[0] : 'mixta';
-      res.srcLabel = keys.length === 1 ? SRC_LABEL[keys[0]] || keys[0] : 'varias fuentes';
+      res.srcLabel = keys.length === 1 ? SRC_LABEL[keys[0]] : 'varias fuentes';
     } else if (climate && climate.online && isNum(climate.online.elevation)) {
       res.value = climate.online.elevation; res.src = 'internet'; res.srcLabel = 'internet';
     }

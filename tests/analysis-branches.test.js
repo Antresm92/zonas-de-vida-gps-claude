@@ -16,9 +16,11 @@ test('altitud: una sola fuente la nombra; varias se llaman "varias fuentes"; sin
   const rara = A.altitudeOf([{ lat: 1, lon: 1, alt: 100, altSrc: 'archivo' }, { lat: 1, lon: 1, alt: 110 }], {});
   assert.equal(rara.src, 'mixta');
   const archivo = A.altitudeOf([{ lat: 1, lon: 1, alt: 100, altSrc: 'archivo' }], {});
-  assert.equal(archivo.srcLabel, 'archivo');
+  assert.equal(archivo.srcLabel, 'archivo importado');
+  // 2.34.1: sin origen guardado no se supone «a mano»: se dice que no hay dato (el valor de la altitud es el mismo)
   const sinSrc = A.altitudeOf([{ lat: 1, lon: 1, alt: 100 }], {});
-  assert.equal(sinSrc.src, 'manual'); assert.equal(sinSrc.srcLabel, 'escrita a mano');
+  assert.equal(sinSrc.src, 'sindato'); assert.equal(sinSrc.srcLabel, 'origen sin dato'); assert.equal(sinSrc.value, 100);
+  assert.equal(A.altitudeOf([{ lat: 1, lon: 1, alt: 100, altSrc: 'toString' }], {}).srcLabel, 'origen sin dato', 'no confunde nombres heredados de Object');
   const net = A.altitudeOf([{ lat: 1, lon: 1 }], { online: { elevation: 2300 } });
   assert.equal(net.value, 2300); assert.equal(net.src, 'internet'); assert.equal(net.min, null);
   const over = A.altitudeOf(linea([2600]), { altOverride: 2000 });

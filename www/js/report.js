@@ -71,6 +71,7 @@
     if (a.area) { L.push('Área: ' + Fmt.area(a.area, 'ha') + ' = ' + Fmt.area(a.area, 'm2') + ' = ' + Fmt.area(a.area, 'fanegadas')); }
     if (a.n >= 2) L.push('Perímetro: ' + Fmt.dist(a.perimeter));
     if (a.center) L.push('Centro: ' + Fmt.latlon(a.center.lat, a.center.lon) + withPlana(a.center));
+    if (project.points && project.points.length) L.push(ORIGIN_TITLE + ': ' + originSummary(project.points));      // 2.34.1
     var us = o && !skips(o, 'usos') ? o.usos : null;
     if (us && us.rows && us.rows.length) { L.push(''); L.push('Usos recomendados:'); us.rows.forEach(function (x) { L.push('  ' + x[0] + ': ' + x[1]); }); L.push('  ' + us.note + ' Fuente: ' + us.fuente); L.push(''); }
     var pf = Perfil.build(project.points);
@@ -100,7 +101,7 @@
     L.push('Puntos:');
     project.points.forEach(function (p, i) {
       var nf = Array.isArray(p.photos) ? p.photos.length : 0;
-      L.push('  ' + (p.name || 'P' + (i + 1)) + ': ' + Fmt.latlon(p.lat, p.lon) + (isNum(p.alt) ? ', ' + Fmt.num(p.alt, 0) + ' m' : '') + withPlana(p) + (nf ? ' · ' + nf + (nf === 1 ? ' foto' : ' fotos') : ''));
+      L.push('  ' + (p.name || 'P' + (i + 1)) + ': ' + Fmt.latlon(p.lat, p.lon) + (isNum(p.alt) ? ', ' + Fmt.num(p.alt, 0) + ' m' : '') + withPlana(p) + ' · ' + originText(p) + (nf ? ' · ' + nf + (nf === 1 ? ' foto' : ' fotos') : ''));
     });
     if (project.layers && project.layers.length) {
       L.push('');
@@ -131,6 +132,60 @@
   // Coordenadas planas (Origen Nacional) de un punto, para añadir a su línea; '' fuera de Colombia
   function withPlana(p) { var s = p ? Fmt.plana(p.lat, p.lon) : ''; return s ? ' · ' + s : ''; }
   function planaHtml(p) { var s = p ? Fmt.plana(p.lat, p.lon) : ''; return s ? '<br><span class="small">' + esc(s) + '</span>' : ''; }
+
+  /* ---------- Origen de cada punto (2.34.1) ----------
+   * De dónde salió la posición y la altitud de cada punto, tal como quedaron guardadas, para que quien lee el reporte sepa qué tan
+   * confiable es cada dato. El ± del GPS es la precisión que el teléfono informó al marcar el punto. Si un punto no guarda su
+   * origen (datos de versiones anteriores a la 2.4) se dice «sin dato»: nunca se supone. */
+  var POS_TXT = { gps: 'GPS', manual: 'a mano', archivo: 'de un archivo' };
+  var ALT_TXT = { gps: 'del GPS', manual: 'a mano', internet: 'de internet', archivo: 'del archivo' };
+  function has(o, k) { return typeof k === 'string' && Object.prototype.hasOwnProperty.call(o, k); }
+  function pm(x) { return '±' + Math.round(x) + ' m'; }
+  // «GPS ±4 m · altitud ±9 m», «a mano · altitud de internet», «de un archivo · sin altitud», «origen sin dato»…
+  function originText(p) {
+    p = p || {};
+    var pos = has(POS_TXT, p.src), alt = has(ALT_TXT, p.altSrc);
+    var t = pos ? POS_TXT[p.src] + (p.src === 'gps' && isNum(p.acc) ? ' ' + pm(p.acc) : '') : 'origen sin dato';
+    if (!isNum(p.alt)) return t + ' · sin altitud';
+    if (alt && p.altSrc === p.src) return t + (p.altSrc === 'gps' && isNum(p.altAcc) ? ' · altitud ' + pm(p.altAcc) : '');   // la altitud viene de lo mismo
+    if (!alt && !pos) return t;                                    // no se sabe ninguno de los dos: se dice una sola vez
+    return t + ' · altitud ' + (alt ? ALT_TXT[p.altSrc] : 'sin dato de origen');
+  }
+  function rangePm(v) {
+    var lo = Math.round(Math.min.apply(null, v)), hi = Math.round(Math.max.apply(null, v));
+    return lo === hi ? '±' + lo + ' m' : '±' + lo + ' a ±' + hi + ' m';
+  }
+  function listY(a) { return a.length < 2 ? a.join('') : a.slice(0, -1).join(', ') + ' y ' + a[a.length - 1]; }
+  // «12 con GPS (±3 a ±8 m), 4 a mano y 30 de un archivo. Altitud: 40 del GPS (±5 a ±12 m), 4 de internet y 2 sin altitud.»
+  function originSummary(points) {
+    var pts = (points || []).filter(function (p) { return p && typeof p === 'object'; });
+    if (!pts.length) return '';
+    var n = { gps: 0, manual: 0, archivo: 0, otro: 0 }, acc = [], sinAcc = 0;
+    var a = { gps: 0, manual: 0, internet: 0, archivo: 0, otro: 0, ninguna: 0 }, aacc = [];
+    pts.forEach(function (p) {
+      var k = has(POS_TXT, p.src) ? p.src : 'otro';
+      n[k]++;
+      if (k === 'gps') { if (isNum(p.acc)) acc.push(p.acc); else sinAcc++; }
+      if (!isNum(p.alt)) { a.ninguna++; return; }
+      var ka = has(ALT_TXT, p.altSrc) ? p.altSrc : 'otro';
+      a[ka]++;
+      if (ka === 'gps' && isNum(p.altAcc)) aacc.push(p.altAcc);
+    });
+    var gpsNota = [acc.length ? rangePm(acc) : '', sinAcc ? sinAcc + ' sin precisión guardada' : ''].filter(Boolean).join('; ');
+    var pos = [], alt = [];
+    if (n.gps) pos.push(n.gps + ' con GPS' + (gpsNota ? ' (' + gpsNota + ')' : ''));
+    if (n.manual) pos.push(n.manual + ' a mano');
+    if (n.archivo) pos.push(n.archivo + ' de un archivo');
+    if (n.otro) pos.push(n.otro + ' sin dato de origen');
+    if (a.gps) alt.push(a.gps + ' del GPS' + (aacc.length ? ' (' + rangePm(aacc) + ')' : ''));
+    if (a.manual) alt.push(a.manual + ' a mano');
+    if (a.internet) alt.push(a.internet + ' de internet');
+    if (a.archivo) alt.push(a.archivo + ' del archivo');
+    if (a.otro) alt.push(a.otro + ' sin dato de origen');
+    if (a.ninguna) alt.push(a.ninguna + ' sin altitud');
+    return listY(pos) + '. Altitud: ' + listY(alt) + '.';
+  }
+  var ORIGIN_TITLE = 'Origen de los puntos';
   function anyPlana(project, a) {
     return !!((a && a.center && Fmt.plana(a.center.lat, a.center.lon)) || (project.points || []).some(function (p) { return !!Fmt.plana(p.lat, p.lon); }));
   }
@@ -344,12 +399,14 @@
       if (a.area) h += '<tr><th>Área</th><td>' + esc(Fmt.area(a.area, 'ha')) + ' · ' + esc(Fmt.area(a.area, 'm2')) + ' · ' + esc(Fmt.area(a.area, 'fanegadas')) + '</td></tr>';
       if (a.n >= 2) h += '<tr><th>Perímetro</th><td>' + esc(Fmt.dist(a.perimeter)) + '</td></tr>';
       h += '<tr><th>Centro</th><td>' + esc(Fmt.latlon(a.center.lat, a.center.lon)) + planaHtml(a.center) + '</td></tr>';
+      if (project.points && project.points.length) h += '<tr><th>' + ORIGIN_TITLE + '</th><td>' + esc(originSummary(project.points)) + '</td></tr>';      // 2.34.1
       (o.catastro || []).forEach(function (x) { h += '<tr><th>' + esc(x[0]) + '</th><td>' + esc(x[1]) + '</td></tr>'; });      // número predial (2.32.0)
       h += '</table>';
       h += usosHtml(o);
       h += '<h2>Puntos</h2><table>';
       project.points.forEach(function (p, i) {
-        h += '<tr><th>' + dot(p, project) + esc(p.name || 'P' + (i + 1)) + '</th><td>' + esc(Fmt.latlon(p.lat, p.lon)) + (isNum(p.alt) ? ' · ' + esc(Fmt.num(p.alt, 0)) + ' m' : '') + planaHtml(p) + '</td></tr>';
+        h += '<tr><th>' + dot(p, project) + esc(p.name || 'P' + (i + 1)) + '</th><td>' + esc(Fmt.latlon(p.lat, p.lon)) + (isNum(p.alt) ? ' · ' + esc(Fmt.num(p.alt, 0)) + ' m' : '') + planaHtml(p) +
+          '<br><span class="small">' + esc(originText(p)) + '</span></td></tr>';      // de dónde salió el punto (2.34.1)
       });
       h += '</table>' + (anyPlana(project, a) ? '<p class="small">' + esc(Fmt.PLANA_NOTE) + '</p>' : '');
       if (a.n >= 2) h += '<h2>Croquis</h2><div style="max-width:560px;margin-top:12px">' + Diagram.polygonSVG(project.points, { width: 560, height: 380, center: a.center, bad: a.selfIntersects, dots: !!project.dots, layers: project.layers, color: project.mainColor, focus: true }) + Diagram.legendHTML(project.layers, project.mainColor, project.lotName || 'Mis puntos', true) + '</div>';
@@ -412,5 +469,5 @@
 
   }
 
-  return { REPORT_CSP: REPORT_CSP, conclusionText: conclusionText, conclusionOf: conclusionOf, CLASIF_NOTE: Clasif.NOTE, SECTIONS: SECTIONS, skips: skips, clasifRows: clasifRows, lotTitle: lotTitle, kindText: kindText, overview: overview, summary: summary, htmlAll: htmlAll, textAll: textAll, bodyHtml: bodyHtml, reid: reid, headLines: headLines, authorOf: authorOf, withPlana: withPlana, anyPlana: anyPlana, text: text, html: html, rows: rows, dot: dot, currentRows: currentRows, currentStamp: currentStamp, CURRENT_NOTE: CURRENT_NOTE, QUALITY: QUALITY, DISCLAIMER: DISCLAIMER, SRC_T: SRC_T, SRC_P: SRC_P };
+  return { originText: originText, originSummary: originSummary, ORIGIN_TITLE: ORIGIN_TITLE, REPORT_CSP: REPORT_CSP, conclusionText: conclusionText, conclusionOf: conclusionOf, CLASIF_NOTE: Clasif.NOTE, SECTIONS: SECTIONS, skips: skips, clasifRows: clasifRows, lotTitle: lotTitle, kindText: kindText, overview: overview, summary: summary, htmlAll: htmlAll, textAll: textAll, bodyHtml: bodyHtml, reid: reid, headLines: headLines, authorOf: authorOf, withPlana: withPlana, anyPlana: anyPlana, text: text, html: html, rows: rows, dot: dot, currentRows: currentRows, currentStamp: currentStamp, CURRENT_NOTE: CURRENT_NOTE, QUALITY: QUALITY, DISCLAIMER: DISCLAIMER, SRC_T: SRC_T, SRC_P: SRC_P };
 });

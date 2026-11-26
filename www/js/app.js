@@ -5,7 +5,7 @@
   var Geo = window.Geo, H = window.Holdridge, Climate = window.Climate, A = window.Analysis, Fmt = window.Fmt,
       Gps = window.Gps, Store = window.Store, Diagram = window.Diagram, Report = window.Report,
       Gis = window.Gis, Backup = window.Backup, IO = window.IO, WL = window.WalterLieth, Mapa = window.Mapa, MapView = window.MapView, Satelite = window.Satelite, Perfil = window.Perfil, Fotos = window.Fotos, Zip = window.Zip, Units = window.Units;
-  var APP_VERSION = '2.34.0';
+  var APP_VERSION = '2.34.1';
   var Errores = window.Errores;
   if (Errores) Errores.setVersion(APP_VERSION);            // 2.34.0: el registro de errores anota en qué versión pasó cada uno
 
@@ -436,10 +436,12 @@
   }
   function pointById(id) { return proj().points.filter(function (p) { return p.id === id; })[0]; }
 
+  var ALT_CHIP = { gps: 'GPS', internet: 'internet', manual: 'a mano', archivo: 'archivo', sindato: 'sin dato' };
   function altChip(p) {
     if (!isNum(p.alt)) return '<span class="alt alt-none">sin altitud</span>';
-    var lab = p.altSrc === 'gps' ? 'GPS' : p.altSrc === 'internet' ? 'internet' : 'a mano';
-    return '<span class="alt alt-' + (p.altSrc || 'manual') + '">' + Fmt.num(p.alt, 0) + ' m · ' + lab + '</span>';
+    // 2.34.1: la altitud de un archivo decía «a mano»; sin origen guardado dice «sin dato» (no se supone)
+    var k = ALT_CHIP[p.altSrc] ? p.altSrc : 'sindato';
+    return '<span class="alt alt-' + k + '">' + Fmt.num(p.alt, 0) + ' m · ' + ALT_CHIP[k] + '</span>';
   }
 
   function tabPuntos() {
@@ -473,7 +475,7 @@
       p.points.forEach(function (pt) {
         var low = Gps.precisionState(pt.acc, S.settings.minAcc).worse;
         h += '<li><button class="row pt" data-act="editPoint" data-id="' + esc(pt.id) + '" style="--pc:' + Mapa.pointColor(pt, p.mainColor) + '"><span class="pname">' + esc(pt.name) + '</span>' +
-          '<span class="pcoord">' + Fmt.latlon(pt.lat, pt.lon) + (isNum(pt.acc) ? '<span class="psub' + (low ? ' low' : '') + '">precisión ±' + Math.round(pt.acc) + ' m' + (low ? ' · menos preciso que tu mínimo' : '') + '</span>' : '<span class="psub">' + (pt.src === 'gps' ? 'GPS' : pt.src === 'archivo' ? 'de un archivo' : 'escrito a mano') + '</span>') + photoStrip(pt) + '</span>' +
+          '<span class="pcoord">' + Fmt.latlon(pt.lat, pt.lon) + (isNum(pt.acc) ? '<span class="psub' + (low ? ' low' : '') + '">precisión ±' + Math.round(pt.acc) + ' m' + (low ? ' · menos preciso que tu mínimo' : '') + '</span>' : '<span class="psub">' + (pt.src === 'gps' ? 'GPS' : pt.src === 'archivo' ? 'de un archivo' : pt.src === 'manual' ? 'escrito a mano' : 'origen sin dato') + '</span>') + photoStrip(pt) + '</span>' +
           altChip(pt) + '</button></li>';
       });
       h += '</ul>';
@@ -646,7 +648,7 @@
   var SRC_TXT = { gps: 'GPS', archivo: 'archivo importado', manual: 'a mano' };
   // Otros datos del punto, solo para leer
   function pointInfo(pt) {
-    var rows = [['Origen de la posición', SRC_TXT[pt.src] || SRC_TXT.manual]];
+    var rows = [['Origen de la posición', Object.prototype.hasOwnProperty.call(SRC_TXT, pt.src) ? SRC_TXT[pt.src] : 'sin dato']];
     if (isNum(pt.acc)) rows.push(['Precisión del GPS', '±' + Math.round(pt.acc) + ' m']);
     if (isNum(pt.altGps)) rows.push(['Altitud del GPS', Fmt.num(pt.altGps, 0) + ' m' + (isNum(pt.altAcc) ? ' (±' + Math.round(pt.altAcc) + ' m)' : '')]);
     var when = isNum(pt.ts) ? Fmt.dateTime(pt.ts) : '';
@@ -657,7 +659,9 @@
     if (!isNum(pt.alt)) return 'Sin altitud. Escríbela o complétala con internet desde la pestaña Información.';
     if (pt.altSrc === 'gps') return 'Altitud tomada del GPS' + (isNum(pt.altAcc) ? ' (±' + Math.round(pt.altAcc) + ' m)' : '') + '. Puedes corregirla escribiendo otro valor.';
     if (pt.altSrc === 'internet') return 'Altitud obtenida de internet (modelo digital de elevación). Puedes corregirla.';
-    return 'Altitud escrita a mano.';
+    if (pt.altSrc === 'archivo') return 'Altitud tomada del archivo importado. Puedes corregirla.';
+    if (pt.altSrc === 'manual') return 'Altitud escrita a mano.';
+    return 'No se guardó de dónde salió esta altitud (punto de una versión anterior). Puedes corregirla.';
   }
 
   function bindCoordPreview() {
@@ -847,7 +851,7 @@
 
   /* ---------- Clima ---------- */
   function srcBadge(src) {
-    var map = { manual: ['alt-manual', 'a mano'], online: ['alt-internet', 'internet'], memoria: ['alt-internet', 'memoria'], estimada: ['alt-none', 'estimada'], gps: ['alt-gps', 'GPS'], internet: ['alt-internet', 'internet'], mixta: ['alt-gps', 'varias fuentes'] };
+    var map = { manual: ['alt-manual', 'a mano'], online: ['alt-internet', 'internet'], memoria: ['alt-internet', 'memoria'], estimada: ['alt-none', 'estimada'], gps: ['alt-gps', 'GPS'], internet: ['alt-internet', 'internet'], mixta: ['alt-gps', 'varias fuentes'], archivo: ['alt-archivo', 'archivo'], sindato: ['alt-sindato', 'sin dato'] };
     var m = map[src] || ['alt-none', src || ''];
     return '<span class="alt ' + m[0] + '">' + m[1] + '</span>';
   }

@@ -8,7 +8,7 @@
   'use strict';
 
   var COL = { ink: '#14301F', soft: '#5B6F61', grid: '#D6DED8', halo: '#FFFFFF' };
-  var SRC_LABEL = { gps: 'GPS', manual: 'a mano', internet: 'internet', archivo: 'archivo' };
+  var SRC_LABEL = { gps: 'GPS', manual: 'a mano', internet: 'internet', archivo: 'archivo', sindato: 'sin dato' };
   var STEPS = [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 5000];
   var HEX = /^#[0-9a-fA-F]{6}$/;
   var GPS_QUIET_RELIEF = 20;      // por debajo de este desnivel (m) un perfil hecho con GPS puede ser solo ruido
@@ -17,7 +17,8 @@
   function validLL(p) { return !!p && isNum(p.lat) && isNum(p.lon) && Math.abs(p.lat) <= 90 && Math.abs(p.lon) <= 180; }
   function esc(s) { return String(s === null || s === undefined ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
   function r1(v) { return Math.round(v * 10) / 10; }
-  function srcLabel(src) { return Object.prototype.hasOwnProperty.call(SRC_LABEL, src) ? SRC_LABEL[src] : 'a mano'; }
+  // 2.34.1: una altitud sin origen guardado dice «sin dato» (antes se suponía «a mano»)
+  function srcLabel(src) { return Object.prototype.hasOwnProperty.call(SRC_LABEL, src) ? SRC_LABEL[src] : 'sin dato'; }
 
   // Cuentas del perfil. Los puntos se recorren en el orden de la lista (sin volver al primero).
   // Devuelve { ok:false, reason } o { ok:true, items, total, ... }.
@@ -28,7 +29,7 @@
       if (prev) dist += Geo.distance(prev.lat, prev.lon, p.lat, p.lon);
       prev = p;
       if (!isNum(p.alt)) { missing++; return; }
-      var src = p.altSrc || 'manual';
+      var src = Object.prototype.hasOwnProperty.call(SRC_LABEL, p.altSrc) ? p.altSrc : 'sindato';
       items.push({ name: p.name || ('P' + (i + 1)), alt: p.alt, src: src, srcLabel: srcLabel(src), dist: dist, color: HEX.test(p.color || '') ? p.color : null });
     });
     if (items.length < 2) return { ok: false, reason: 'Se necesitan al menos 2 puntos con altitud para dibujar el perfil.', missing: missing };

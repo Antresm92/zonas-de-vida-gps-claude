@@ -46,6 +46,7 @@
       h += '<div class="block" style="margin-top:18px"><h2>Datos usados</h2><dl class="kv">';
       Report.rows(p, a).forEach(function (x) { h += '<div><dt>' + esc(x[0]) + '</dt><dd>' + esc(x[1]) + '</dd></div>'; });
       if (a.area) h += '<div><dt>Área</dt><dd>' + Fmt.area(a.area, S.settings.areaUnit || 'ha') + '</dd></div>';
+      if (p.points.length) h += '<div><dt>' + esc(Report.ORIGIN_TITLE) + '</dt><dd>' + esc(Report.originSummary(p.points)) + '</dd></div>';      // 2.34.1: igual que en el reporte
       h += '</dl><p class="small muted">' + esc(Report.QUALITY[a.quality]) + '</p></div>';
       var cr = Report.clasifRows(a);
       if (cr.length) {

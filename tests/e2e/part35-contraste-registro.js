@@ -137,12 +137,13 @@ module.exports = async function (c) {
     assert.match(hoja, /Se guarda solo en este teléfono y nunca se envía solo: sale únicamente si tú lo compartes\. No guarda tus puntos ni coordenadas\./);
     assert.match(hoja, /TypeError: No se pudo leer el punto en #,#/);
     assert.match(hoja, /Prueba de promesa sin atender/);
-    assert.match(hoja, /versión 2\.34\.0/);
+    const V = await page.evaluate(() => window.__app.version), Vre = V.replace(/\./g, '\\.');      // la versión de la app (cambia en cada entrega)
+    assert.match(hoja, new RegExp('versión ' + Vre));
     assert.doesNotMatch(hoja, /4\.601234|74\.080123/, 'sin coordenadas');
     const f = await download(() => page.click('[data-act="diagShare"]'));
     assert.match(f.name, /^don-florentino-sig-registro-\d{4}-\d{2}-\d{2}\.txt$/);
-    assert.match(f.text, /^Registro de errores · Don Florentino SIG\nVersión: 2\.34\.0 · /);
-    assert.match(f.text, /2\. .*· versión 2\.34\.0\n   TypeError: No se pudo leer el punto en #,#\n/);
+    assert.match(f.text, new RegExp('^Registro de errores · Don Florentino SIG\\nVersión: ' + Vre + ' · '));
+    assert.match(f.text, new RegExp('2\\. .*· versión ' + Vre + '\\n   TypeError: No se pudo leer el punto en #,#\\n'));
     assert.match(f.text, /1\. .*promesa sin atender\n   Prueba de promesa sin atender/);
     assert.doesNotMatch(f.text, /4\.601234|74\.080123|127\.0\.0\.1|localhost/);
     await waitToast(/Archivo descargado: don-florentino-sig-registro-/);
@@ -164,7 +165,8 @@ module.exports = async function (c) {
     const d = await page.evaluate(() => JSON.parse(localStorage.getItem('zvg.v1.diagnostico')));
     assert.equal(d.arranques.length, 10, 'solo las últimas 10');
     assert.equal(d.arranques[9].ms, ms);
-    assert.ok(d.arranques.every((a) => a.v === '2.34.0'));
+    const V = await page.evaluate(() => window.__app.version);
+    assert.ok(d.arranques.every((a) => a.v === V), 'cada arranque con la versión de la app');
     await tab('herramientas');
     assert.match(await text('#tab-herramientas'), /Registro de errores\s*Sin errores · abrió en \d+,\d s/);
     await act('diag');

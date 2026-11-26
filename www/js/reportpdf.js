@@ -144,6 +144,7 @@
       if (a.area) land.push(['Área', Fmt.area(a.area, 'ha') + ' · ' + Fmt.area(a.area, 'm2') + ' · ' + Fmt.area(a.area, 'fanegadas')]);
       if (a.n >= 2) land.push(['Perímetro', Fmt.dist(a.perimeter)]);
       land.push(['Centro', Fmt.latlon(a.center.lat, a.center.lon) + Report.withPlana(a.center)]);
+      if (project.points && project.points.length) land.push([Report.ORIGIN_TITLE, Report.originSummary(project.points)]);      // 2.34.1
       (o.catastro || []).forEach(function (x) { land.push([x[0], x[1]]); });      // número predial (2.32.0)
       B.push({ t: 'h2', text: 'Terreno' }); B.push({ t: 'table', rows: land });
       var us = skip('usos') ? null : o.usos;
@@ -152,7 +153,7 @@
         B.push({ t: 'p', small: true, text: us.note + ' Fuente: ' + us.fuente });
       }
       B.push({ t: 'h2', text: 'Puntos' });
-      B.push({ t: 'table', rows: project.points.map(function (p, i) { return [p.name || 'P' + (i + 1), Fmt.latlon(p.lat, p.lon) + (isNum(p.alt) ? ' · ' + Fmt.num(p.alt, 0) + ' m' : '') + Report.withPlana(p), pointColor(p, project)]; }) });
+      B.push({ t: 'table', rows: project.points.map(function (p, i) { return [p.name || 'P' + (i + 1), Fmt.latlon(p.lat, p.lon) + (isNum(p.alt) ? ' · ' + Fmt.num(p.alt, 0) + ' m' : '') + Report.withPlana(p) + ' · ' + Report.originText(p), pointColor(p, project)]; }) });
       if (Report.anyPlana(project, a)) B.push({ t: 'p', small: true, text: Fmt.PLANA_NOTE });
       if (a.n >= 2) {
         B.push({ t: 'h2', text: 'Croquis' });

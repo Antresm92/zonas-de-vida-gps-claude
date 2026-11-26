@@ -94,15 +94,18 @@ test('build: avisos sobre la altitud del GPS, el poco desnivel y la mezcla de fu
   assert.deepEqual(sinGps.notes, []);                // sin GPS y con una sola fuente, no hay nada que advertir
 });
 
-test('build: fuente desconocida o ausente se llama «a mano»; archivo e internet tienen nombre propio', () => {
+test('build: fuente desconocida o ausente dice «sin dato» (2.34.1; antes se suponía «a mano»); archivo e internet tienen nombre propio', () => {
   assert.equal(Perfil.srcLabel('gps'), 'GPS');
   assert.equal(Perfil.srcLabel('internet'), 'internet');
   assert.equal(Perfil.srcLabel('archivo'), 'archivo');
   assert.equal(Perfil.srcLabel('manual'), 'a mano');
-  assert.equal(Perfil.srcLabel('toString'), 'a mano');      // no confunde nombres heredados de Object
-  assert.equal(Perfil.srcLabel(undefined), 'a mano');
+  assert.equal(Perfil.srcLabel('toString'), 'sin dato');      // no confunde nombres heredados de Object
+  assert.equal(Perfil.srcLabel(undefined), 'sin dato');
   const m = Perfil.build([{ lat: 4.6, lon: -74.1, alt: 100 }, { lat: 4.7, lon: -74.1, alt: 400 }]);
-  assert.equal(m.items[0].src, 'manual'); assert.equal(m.items[0].srcLabel, 'a mano');
+  assert.equal(m.items[0].src, 'sindato'); assert.equal(m.items[0].srcLabel, 'sin dato');
+  assert.ok(!m.notes.some((n) => /varias fuentes/.test(n)), 'dos sin dato son una sola fuente');
+  const mez = Perfil.build([{ lat: 4.6, lon: -74.1, alt: 100, altSrc: 'manual' }, { lat: 4.7, lon: -74.1, alt: 400 }]);
+  assert.ok(mez.notes.some((n) => /varias fuentes \(a mano, sin dato\)/.test(n)), 'una a mano y una sin dato pueden no ser comparables');
 });
 
 test('rows: datos para la tabla del reporte', () => {

@@ -73,7 +73,8 @@ test('text: sin altitud ni temperatura no hay zona y la fecha por defecto es hoy
   const { project, a } = build({ points: [{ name: 'P1', lat: 4.6, lon: -74.1 }, { name: 'P2', lat: 4.7, lon: -74.1 }], climate: {} });
   const t = Report.text(project, a);
   assert.match(t, /Resultado incompleto: falta la altitud o la temperatura\./);
-  assert.match(t, /P2: 4\.70000, -74\.10000 · E 4\.878\.048 m · N 2\.077\.440 m\n/);   // sin altitud no agrega « m»; en Colombia van las planas
+  assert.match(t, /P2: 4\.70000, -74\.10000 · E 4\.878\.048 m · N 2\.077\.440 m · origen sin dato · sin altitud\n/);   // sin altitud no agrega « m»; en Colombia van las planas; 2.34.1: y su origen
+  assert.match(t, /\nOrigen de los puntos: 2 sin dato de origen\. Altitud: 2 sin altitud\.\n/);
   assert.doesNotMatch(t, /Área:/);
   assert.match(t, /\d{4}/);                                            // lleva alguna fecha
 });
@@ -247,4 +248,55 @@ test('text: el resumen incluye el desnivel entre puntos solo si hay al menos 2 a
   assert.match(Report.text(project, a, { date: DATE }), /Desnivel entre puntos: 1200 m \(más alto P3, 3000 m; más bajo P1, 1800 m\)/);
   const una = build({ points: [{ name: 'P1', lat: 4.6, lon: -74.1, alt: 2000 }, { name: 'P2', lat: 4.7, lon: -74.1 }] });
   assert.doesNotMatch(Report.text(una.project, una.a, { date: DATE }), /Desnivel/);
+});
+
+/* 2.34.1: el origen de cada punto, tal como quedó guardado, en el reporte (HTML, texto y PDF) */
+test('origen: cada punto dice de dónde salió su posición y su altitud, sin suponer nada', () => {
+  const casos = [
+    [{ src: 'gps', acc: 4.2, alt: 2640, altSrc: 'gps', altAcc: 8.6 }, 'GPS ±4 m · altitud ±9 m'],
+    [{ src: 'gps', acc: 3.4, alt: 2600, altSrc: 'gps' }, 'GPS ±3 m'],
+    [{ src: 'gps', alt: 2600, altSrc: 'gps' }, 'GPS'],
+    [{ src: 'gps', acc: 7.8, alt: 2610, altSrc: 'manual' }, 'GPS ±8 m · altitud a mano'],
+    [{ src: 'gps', acc: 5 }, 'GPS ±5 m · sin altitud'],
+    [{ src: 'manual', alt: 2612, altSrc: 'manual' }, 'a mano'],
+    [{ src: 'manual', alt: 2612, altSrc: 'internet' }, 'a mano · altitud de internet'],
+    [{ src: 'archivo', alt: 2500, altSrc: 'archivo' }, 'de un archivo'],
+    [{ src: 'archivo', alt: 2500, altSrc: 'internet' }, 'de un archivo · altitud de internet'],
+    [{ src: 'archivo' }, 'de un archivo · sin altitud'],
+    [{ alt: 2400 }, 'origen sin dato'],
+    [{ alt: 2400, altSrc: 'gps' }, 'origen sin dato · altitud del GPS'],
+    [{}, 'origen sin dato · sin altitud'],
+    [{ src: 'manual', alt: 1, altSrc: 'otra' }, 'a mano · altitud sin dato de origen'],
+    [{ src: 'toString', alt: 1, altSrc: 'constructor' }, 'origen sin dato'],
+    [null, 'origen sin dato · sin altitud']
+  ];
+  for (const [p, txt] of casos) assert.equal(Report.originText(p), txt, JSON.stringify(p));
+});
+
+test('origen: el resumen cuenta los puntos por origen, con el rango de precisión del GPS y el origen de las altitudes', () => {
+  const pts = [
+    { src: 'gps', acc: 3.4, alt: 2600, altSrc: 'gps', altAcc: 5 }, { src: 'gps', acc: 7.8, alt: 2610, altSrc: 'gps', altAcc: 12.2 }, { src: 'gps', alt: 2620, altSrc: 'internet' },
+    { src: 'manual', alt: 2612, altSrc: 'manual' }, { src: 'archivo' }, { src: 'archivo', alt: 2500, altSrc: 'archivo' }, { alt: 2400 }
+  ];
+  assert.equal(Report.originSummary(pts), '3 con GPS (±3 a ±8 m; 1 sin precisión guardada), 1 a mano, 2 de un archivo y 1 sin dato de origen. Altitud: 2 del GPS (±5 a ±12 m), 1 a mano, 1 de internet, 1 del archivo, 1 sin dato de origen y 1 sin altitud.');
+  assert.equal(Report.originSummary([{ src: 'gps', acc: 4, alt: 1, altSrc: 'gps' }]), '1 con GPS (±4 m). Altitud: 1 del GPS.');
+  assert.equal(Report.originSummary([{ src: 'manual' }, { src: 'manual' }]), '2 a mano. Altitud: 2 sin altitud.');
+  assert.equal(Report.originSummary([]), '');
+  assert.equal(Report.originSummary(null), '');
+});
+
+test('origen: va en el reporte HTML (Terreno y Puntos) y en el de texto; los datos guardados no cambian', () => {
+  const pts = [{ name: 'P1', lat: 4.6, lon: -74.1, alt: 2600, altSrc: 'gps', src: 'gps', acc: 4, altAcc: 9 }, { name: 'P2', lat: 4.61, lon: -74.1, alt: 2620, altSrc: 'internet', src: 'manual' },
+    { name: 'P3', lat: 4.61, lon: -74.09, src: 'archivo' }];
+  const antes = JSON.stringify(pts);
+  const { project, a } = build({ points: pts, climate: { pManual: 1200 } });
+  const h = Report.html(project, a, {});
+  assert.match(h, /<tr><th>Origen de los puntos<\/th><td>1 con GPS \(±4 m\), 1 a mano y 1 de un archivo\. Altitud: 1 del GPS \(±9 m\), 1 de internet y 1 sin altitud\.<\/td><\/tr>/);
+  assert.match(h, /P1<\/th><td>[^<]*(<br><span class="small">[^<]*<\/span>)?<br><span class="small">GPS ±4 m · altitud ±9 m<\/span><\/td>/);
+  assert.match(h, /P2<\/th><td>[^<]*(<br><span class="small">[^<]*<\/span>)?<br><span class="small">a mano · altitud de internet<\/span><\/td>/);
+  assert.match(h, /P3<\/th><td>[^<]*(<br><span class="small">[^<]*<\/span>)?<br><span class="small">de un archivo · sin altitud<\/span><\/td>/);
+  const t = Report.text(project, a, {});
+  assert.match(t, /\nOrigen de los puntos: 1 con GPS \(±4 m\), 1 a mano y 1 de un archivo\. Altitud: 1 del GPS \(±9 m\), 1 de internet y 1 sin altitud\.\n/);
+  assert.match(t, /  P1: [^\n]* · GPS ±4 m · altitud ±9 m\n/);
+  assert.equal(JSON.stringify(pts), antes, 'el reporte solo lee: no cambia los puntos');
 });

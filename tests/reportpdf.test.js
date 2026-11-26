@@ -163,7 +163,7 @@ test('blocks: reporte completo, con todas las secciones del HTML y en su orden',
   const puntos = bl[bl.findIndex((b) => b.text === 'Puntos') + 1];
   assert.equal(puntos.t, 'table');
   assert.deepEqual(puntos.rows.map((r) => r[2]), ['#D8353C', '#2F8F4E', '#2F8F4E', '#2F8F4E']);
-  assert.match(puntos.rows[0][1], /^4\.60000, -74\.10000 · 1800 m · E 4\.878\.031 m · N 2\.066\.389 m$/);
+  assert.match(puntos.rows[0][1], /^4\.60000, -74\.10000 · 1800 m · E 4\.878\.031 m · N 2\.066\.389 m · origen sin dato$/);   // 2.34.1: con su origen (aquí no lo guarda)
   // la leyenda aparece porque hay una capa importada
   const leyenda = bl.find((b) => b.t === 'legend');
   assert.deepEqual(leyenda.items, [['#2F8F4E', 'Mis puntos'], ['#E67E22', 'Lote vecino']]);
@@ -303,7 +303,7 @@ test('blocks: la nota del margen de error, la fila del área y el perímetro tra
   assert.match(nota.text, /^Con el margen de error de los datos \(±\d+(,\d)? °C y ±\d+ % en precipitación, supuestos\) el punto también podría caer en: .+ \([a-z]+-[A-Za-z]+\)(; .+)*\.$/);
   const t = bl[bl.findIndex((b) => b.text === 'Terreno') + 1].rows;
   assert.match(t[0][1], /^[\d.,]+ ha · [\d.,]+ m² · [\d.,]+ fanegadas$/);
-  assert.deepEqual(t.map((r) => r[0]), ['Área', 'Perímetro', 'Centro']);
+  assert.deepEqual(t.map((r) => r[0]), ['Área', 'Perímetro', 'Centro', 'Origen de los puntos']);
   assert.match(t[1][1], /^[\d.,]+ (m|km)$/);
   assert.equal(/NaN|undefined/.test(JSON.stringify(bl)), false);
 });
