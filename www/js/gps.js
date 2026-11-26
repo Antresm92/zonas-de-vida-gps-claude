@@ -2,9 +2,9 @@
  * Funciona igual en el navegador/PWA y dentro de la app Android (WebView de Capacitor).
  *
  * La altitud que entrega el GPS suele tener un error vertical de 10 a 30 m, así que "sample"
- * toma varias lecturas y promedia las mejores. Según el teléfono, la altitud puede venir
- * medida desde el elipsoide WGS84 y no desde el nivel del mar: en Colombia la diferencia es
- * de decenas de metros, que mueven la temperatura estimada menos de 0,5 °C. */
+ * toma varias lecturas y promedia las mejores. La API la da sobre el elipsoide WGS84 (en iPhone,
+ * sobre el nivel del mar); desde la 2.35.1 la app la pasa al nivel del mar con el geoide EGM2008
+ * al guardar el punto (geoide.js). En Colombia la diferencia va de unos −21 a +28 m. */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.Gps = factory();

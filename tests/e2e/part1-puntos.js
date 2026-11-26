@@ -131,7 +131,7 @@ module.exports = async function (c) {
     await gpsPush({ lat: 4.6097, lon: -74.0817, alt: 2639.4, acc: 4 });
     assert.match(await text('#gpsChipText'), /±4 m/);
     assert.match(await text('#rLat'), /4\.6097/);
-    assert.match(await text('#rAlt'), /2639/);
+    assert.match(await text('#rAlt'), /2616/);            // 2.35.1: 2639,4 sobre el elipsoide − 23,08 m del geoide = 2616 sobre el nivel del mar
     assert.equal(await page.locator('#precBanner.okmsg').count(), 1);
     await gpsPush({ lat: 4.6097, lon: -74.0817, alt: null, acc: null });
     assert.match(await text('#gpsChipText'), /GPS activo/);
@@ -168,14 +168,16 @@ module.exports = async function (c) {
     assert.equal(pt.altSrc, 'gps');
     assert.equal(pt.src, 'gps');
     assert.equal(pt.acc, 3);
-    // renombrar no toca el origen de la altitud (el campo muestra 2639 y la guardada es 2639,4)
+    assert.equal(pt.altRef, 'egm2008'); assert.equal(pt.altN, 23.08);                    // 2.35.1: pasó al nivel del mar
+    assert.ok(Math.abs(pt.alt - 2616.32) < 1e-6, String(pt.alt)); assert.equal(pt.altGps, pt.alt);
+    // renombrar no toca el origen de la altitud (el campo muestra 2616 y la guardada es 2616,32)
     await page.locator('[data-act="editPoint"]').last().click();
     await fill('#fName', 'Mojón GPS');
     await page.click('[data-act="saveEdit"]');
     await waitSheetClosed();
     p = await proj();
     assert.equal(p.points[p.points.length - 1].altSrc, 'gps');
-    assert.equal(p.points[p.points.length - 1].alt, 2639.4);
+    assert.ok(Math.abs(p.points[p.points.length - 1].alt - 2616.32) < 1e-6);
     // corregir a mano y restaurar la del GPS
     await page.locator('[data-act="editPoint"]').last().click();
     await fill('#fAlt', '2700');
@@ -187,14 +189,14 @@ module.exports = async function (c) {
     await act('restoreGps');
     p = await proj();
     assert.equal(p.points[p.points.length - 1].altSrc, 'gps');
-    assert.equal(p.points[p.points.length - 1].alt, 2639.4);
+    assert.ok(Math.abs(p.points[p.points.length - 1].alt - 2616.32) < 1e-6, 'vuelve la del GPS, ya al nivel del mar');
   });
 
   await step('Usar la altitud del GPS al escribir coordenadas a mano', async () => {
     await gpsPush({ lat: 4.6097, lon: -74.0817, alt: 2641.8, acc: 3 });
     await act('addCoords');
     await act('altFromGps');
-    assert.equal(await page.inputValue('#fAlt'), '2642');
+    assert.equal(await page.inputValue('#fAlt'), '2619');           // 2.35.1: 2641,8 − 23,08 m del geoide
     await act('closeSheet'); await waitSheetClosed();
   });
 

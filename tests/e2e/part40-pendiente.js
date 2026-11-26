@@ -17,7 +17,7 @@ module.exports = async function (c) {
   const esquinas = (src) => [[-50, -50], [50, -50], [50, 50], [-50, 50]].map(([x, y], i) => {
     const alt = 1500 + 0.104 * y, ll = Geo.fromXY(F0, { x, y });
     return { id: src + i, name: 'G' + (i + 1), lat: ll.lat, lon: ll.lon, alt, altGps: src === 'gps' ? alt : null, altSrc: src, acc: 3,
-      altAcc: src === 'gps' ? 1.2 : null, src: src === 'gps' ? 'gps' : 'manual', ts: Date.now() };
+      altAcc: src === 'gps' ? 1.2 : null, src: src === 'gps' ? 'gps' : 'manual', ts: Date.now(), ...(src === 'gps' ? { altRef: 'egm2008', altN: 21 } : {}) };   // 2.35.1: ya al nivel del mar
   });
   const poner = (pts) => page.evaluate((p) => {
     const l = window.__app.S.projects[0].lots[0];
@@ -155,7 +155,7 @@ module.exports = async function (c) {
     assert.equal(p['Pendiente media del terreno'], '10,4 % ± 2,4 % (95 %) · 5,9° · baja hacia el sur', 'la casa, 50 m más abajo, no tuerce la pendiente');
     assert.equal(p['Altitudes usadas para la pendiente'], '4 del GPS; no se usaron Casa (escritas a mano)');
     const tips = await page.$$eval('#tab-informe .tip', (d) => d.map((x) => x.textContent));
-    assert.ok(tips.some((t) => t.includes('Para la pendiente no se usaron Casa (escritas a mano), para no mezclar altitudes con distinta referencia.')), tips.join(' | '));
+    assert.ok(tips.some((t) => t.includes('Para la pendiente no se usaron Casa (escritas a mano), para no mezclar altitudes medidas de forma distinta.')), tips.join(' | '));
     await shot('v2350-mezcla');
   });
 

@@ -202,3 +202,20 @@ test('2.35.0: las ayudas explican la pendiente con su margen, la medida en campo
   assert.deepEqual([...ref[2]].map((l) => l[1]), ['https://people.duke.edu/~hpgavin/SystemID/CourseNotes/linear-least-squares.pdf', 'https://cis2.eea.europa.eu/data/489',
     'https://developer.android.com/reference/android/location/Location#getVerticalAccuracyMeters()']);
 });
+
+test('2.35.1: las ayudas explican el paso de la altitud del GPS al nivel del mar, con sus fuentes', () => {
+  const { A, sheets } = load();
+  assert.ok(atLeast(A.WHATS_NEW_ID, '2.35.1'), A.WHATS_NEW_ID);
+  A.openAppGuide();
+  assert.match(sheets[sheets.length - 1][1], /Altitud del GPS y nivel del mar.*sobre el elipsoide WGS84.*geoide EGM2008.*−21 m \(La Guajira\).*\+28 m \(Cauca y Nariño\).*Bogotá es 22 m.*La ficha del punto dice cuánto se restó.*En iPhone no se resta.*fuera de Colombia no se corrige/s);
+  A.openWhatsNew();
+  const nuevo = sheets[sheets.length - 1][1];
+  assert.ok(nuevo.indexOf('Altitud del GPS al nivel del mar') < nuevo.indexOf('Pendiente con su margen'), 'lo de la 2.35.1 va primero');
+  assert.match(nuevo, /Bogotá, Medellín, Cali y Pasto el GPS marcaba de 22 a 28 m de más; en la costa Caribe, de 5 a 21 m de menos.*también se corrigieron, una sola vez/s);
+  const ref = A.LICENSES.find((x) => x[0] === 'Altitud del GPS al nivel del mar');
+  assert.ok(ref, 'la fuente del geoide está en Fuentes y licencias');
+  assert.match(ref[1], /EGM2008 de la NGA \(dominio público\)/); assert.match(ref[1], /máximo 0,46 m \(RMS 0,03 m\)/);
+  assert.deepEqual([...ref[2]].map((l) => l[1]), ['https://earth-info.nga.mil/', 'https://github.com/OSGeo/PROJ-data/tree/master/us_nga',
+    'https://developer.mozilla.org/en-US/docs/Web/API/GeolocationCoordinates/altitude', 'https://github.com/w3c/geolocation/issues/210',
+    'https://dataspace.copernicus.eu/explore-data/data-collections/copernicus-contributing-missions/collections-description/COP-DEM']);
+});

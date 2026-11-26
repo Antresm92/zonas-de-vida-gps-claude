@@ -1,9 +1,9 @@
 /* store.js — datos guardados en el dispositivo (localStorage), siempre con try/catch.
  * Si el almacenamiento no está disponible la app sigue funcionando con los datos en memoria. */
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory(require('./fotos.js'), require('./igac.js'), require('./catastro.js'));
-  else root.Store = factory(root.Fotos, root.Igac, root.Catastro);
-})(typeof self !== 'undefined' ? self : this, function (Fotos, Igac, Catastro) {
+  if (typeof module === 'object' && module.exports) module.exports = factory(require('./fotos.js'), require('./igac.js'), require('./catastro.js'), require('./geoide.js'));
+  else root.Store = factory(root.Fotos, root.Igac, root.Catastro, root.Geoide);
+})(typeof self !== 'undefined' ? self : this, function (Fotos, Igac, Catastro, Geoide) {
   'use strict';
 
   var KEY_STATE = 'zvg.v1.state';
@@ -72,6 +72,7 @@
     var tr = cleanTerreno(l.terreno); if (tr) l.terreno = tr; else delete l.terreno;          // evaluación del terreno (2.29.0)
     var ig = Igac.clean(l.igac); if (ig) l.igac = ig; else delete l.igac;                   // lo que dice el mapa del IGAC (2.31.0)
     var pr = Catastro.clean(l.predial); if (pr) l.predial = pr; else delete l.predial;      // número predial (2.32.0)
+    if (Geoide) Geoide.migrate(l.points);                             // 2.35.1: la altura del GPS de antes pasa al nivel del mar (una sola vez)
     l.points.forEach(function (pt) {                                  // fotos de cada punto (2.5.0): solo la lista de ids; la imagen vive aparte
       if (!pt || typeof pt !== 'object' || pt.photos === undefined) return;
       var ph = Fotos.cleanList(pt.photos);

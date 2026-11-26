@@ -19,6 +19,7 @@
   var LIM = { projects: 500, lots: 30, points: 20000, layers: 500, layerPoints: 150000, memory: 100000, note: 300, photos: 20000, photoBytes: 600 * 1024 * 1024, jsonPhotoBytes: 40 * 1024 * 1024 };   // jsonPhotoBytes: tope de fotos dentro de un .json (el texto pesa un tercio más y se arma entero en memoria)
   var ALT_SRC = ['gps', 'manual', 'internet', 'archivo'];
   var PT_SRC = ['gps', 'manual', 'archivo'];
+  var ALT_REF = ['egm2008', 'mar', 'elipsoide'];        // 2.35.1: cómo quedó la altura del GPS (ver geoide.js)
   var KINDS = ['polygon', 'line', 'points'];
   var UNITS = ['ha', 'm2', 'km2', 'fanegadas'];
   var MIN_ACC = [0, 3, 5, 10, 20];
@@ -71,6 +72,14 @@
     // 2.34.2: lecturas del GPS promediadas y su método; solo en puntos del GPS (si falta o no es válido, el punto se lee igual)
     var gn = num(p.gpsN, 1, 100000);
     if (out.src === 'gps' && gn !== null) { out.gpsN = Math.round(gn); out.gpsMet = p.gpsMet === 'simple' ? 'simple' : 'ponderado'; }
+    // 2.35.1: si la altura del GPS ya pasó al nivel del mar, la copia lo dice, para no corregirla dos veces al restaurar; altN deja
+    // deshacerlo. Sin altRef, el punto es de antes y se corrige al cargarlo (Store, con geoide.js).
+    var ref = oneOf(p.altRef, ALT_REF, null);
+    if (ref && (out.altSrc === 'gps' || out.altGps !== null)) {
+      out.altRef = ref;
+      var nn = num(p.altN, -200, 200);
+      if (ref === 'egm2008' && nn !== null) out.altN = nn;
+    }
     var color = hex(p.color, null), leyenda = note(p.note, LIM.note);
     if (color) out.color = color;
     if (leyenda) out.note = leyenda;

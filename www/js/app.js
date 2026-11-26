@@ -5,8 +5,8 @@
   var Geo = window.Geo, H = window.Holdridge, Climate = window.Climate, A = window.Analysis, Fmt = window.Fmt,
       Gps = window.Gps, Store = window.Store, Diagram = window.Diagram, Report = window.Report,
       Gis = window.Gis, Backup = window.Backup, IO = window.IO, WL = window.WalterLieth, Mapa = window.Mapa, MapView = window.MapView, Satelite = window.Satelite, Perfil = window.Perfil, Fotos = window.Fotos, Zip = window.Zip, Units = window.Units;
-  var APP_VERSION = '2.35.0';
-  var Errores = window.Errores;
+  var APP_VERSION = '2.35.1';
+  var Errores = window.Errores, Geoide = window.Geoide;
   if (Errores) Errores.setVersion(APP_VERSION);            // 2.34.0: el registro de errores anota en qué versión pasó cada uno
 
   var S = Store.loadState();
@@ -302,7 +302,7 @@
     var f = ui.fix, set = function (id, t) { var e = $('#' + id); if (e) e.innerHTML = t; };
     set('rLat', f ? Fmt.coord(f.lat) + '°' : '—');
     set('rLon', f ? Fmt.coord(f.lon) + '°' : '—');
-    set('rAlt', f && isNum(f.alt) ? Fmt.num(f.alt, 0) + ' <small>m</small>' : (f ? '<small>sin dato</small>' : '—'));
+    set('rAlt', f && isNum(f.alt) ? Fmt.num(fixAlt(f), 0) + ' <small>m</small>' : (f ? '<small>sin dato</small>' : '—'));     // 2.35.1: ya al nivel del mar
     set('rAcc', f && isNum(f.acc) ? '±' + Fmt.num(f.acc, 0) + ' <small>m</small>' : '—');
     precisionBanner();
   }
@@ -441,6 +441,12 @@
     };
     // 2.34.2: cuántas lecturas del GPS se promediaron y con qué método (para saber qué significa su ±)
     if (isNum(d.gpsN) && d.gpsN >= 1) { pt.gpsN = Math.round(d.gpsN); pt.gpsMet = d.gpsMet === 'simple' ? 'simple' : 'ponderado'; }
+    // 2.35.1: la altura que da el GPS (sobre el elipsoide) pasa al nivel del mar con el geoide EGM2008, y queda anotado cómo
+    if (d.altSrc === 'gps' && isNum(d.alt) && !d.altRef) {
+      var g = Geoide.fromDevice(d.lat, d.lon, d.alt);
+      pt.alt = g.alt; pt.altGps = g.alt; pt.altRef = g.ref;
+      if (isNum(g.n)) pt.altN = g.n;
+    }
     p.nextPoint++;
     p.points.push(pt);
     save();
@@ -644,7 +650,7 @@
     h += '<div class="preview" id="fPrev"></div>';
     h += '<label class="f"><span>Altitud en metros (opcional)</span><input type="text" id="fAlt" inputmode="decimal" value="' + (isEdit && isNum(pt.alt) ? esc(Fmt.num(pt.alt, 0)) : '') + '" autocomplete="off" placeholder="2640">' +
       '<span class="hint" id="fAltHint">' + (isEdit ? altHint(pt) : 'Si la dejas vacía puedes completarla después con internet, o escribirla cuando la sepas.') + '</span></label>';
-    if (!isEdit && ui.gpsOn && ui.fix && isNum(ui.fix.alt)) h += '<button class="btn btn-block" style="margin-bottom:14px" data-act="altFromGps">Estoy en este punto: usar la altitud del GPS (' + Fmt.num(ui.fix.alt, 0) + ' m)</button>';
+    if (!isEdit && ui.gpsOn && ui.fix && isNum(ui.fix.alt)) h += '<button class="btn btn-block" style="margin-bottom:14px" data-act="altFromGps">Estoy en este punto: usar la altitud del GPS (' + Fmt.num(fixAlt(ui.fix), 0) + ' m)</button>';
     if (isEdit && isNum(pt.altGps) && pt.alt !== pt.altGps) h += '<button class="btn btn-block" style="margin-bottom:14px" data-act="restoreGps" data-id="' + esc(pt.id) + '">Restaurar altitud del GPS (' + Fmt.num(pt.altGps, 0) + ' m)</button>';
     if (!isEdit) h += '<label class="f"><span>Nombre (opcional)</span><input type="text" id="fName" autocomplete="off" placeholder="P' + proj().nextPoint + '"></label>';
     if (isEdit) {
@@ -669,13 +675,25 @@
     if (isNum(pt.acc)) rows.push(['Precisión del GPS', '±' + Math.round(pt.acc) + ' m']);
     if (pt.src === 'gps' && isNum(pt.gpsN)) rows.push(['Lecturas del GPS', pt.gpsN === 1 ? 'una sola' : pt.gpsN + ', ' + (pt.gpsMet === 'simple' ? 'promedio simple (± de la mejor lectura)' : 'promedio ponderado (± promedio de las lecturas)')]);
     if (isNum(pt.altGps)) rows.push(['Altitud del GPS', Fmt.num(pt.altGps, 0) + ' m' + (isNum(pt.altAcc) ? ' (±' + Math.round(pt.altAcc) + ' m)' : '')]);
+    var nm = seaLevelText(pt);
+    if (nm) rows.push(['Paso al nivel del mar', nm]);
     var when = isNum(pt.ts) ? Fmt.dateTime(pt.ts) : '';
     if (when) rows.push(['Guardado', when]);
     return '<h3 class="sub">Otros datos</h3><dl class="kv" style="margin-bottom:14px">' + rows.map(function (r) { return '<div><dt>' + esc(r[0]) + '</dt><dd>' + esc(r[1]) + '</dd></div>'; }).join('') + '</dl>';
   }
+  // 2.35.1: cómo pasó la altura del GPS al nivel del mar («se restaron 23,1 m (geoide EGM2008)»), o '' si no es del GPS
+  function seaLevelText(pt) {
+    if (!isNum(pt.altGps) && pt.altSrc !== 'gps') return '';
+    if (pt.altRef === 'egm2008' && isNum(pt.altN)) return (pt.altN >= 0 ? 'se restaron ' : 'se sumaron ') + Fmt.num(Math.abs(pt.altN), 1) + ' m (geoide EGM2008)';
+    if (pt.altRef === 'mar') return 'no hizo falta: el teléfono la da sobre el nivel del mar';
+    if (pt.altRef === 'elipsoide') return 'no se hizo: el punto está fuera de la zona del geoide (Colombia); la altitud es sobre el elipsoide';
+    return '';
+  }
+  // La altitud del GPS en este momento, ya en el nivel del mar
+  function fixAlt(f) { var g = f && Geoide.fromDevice(f.lat, f.lon, f.alt); return g ? g.alt : null; }
   function altHint(pt) {
     if (!isNum(pt.alt)) return 'Sin altitud. Escríbela o complétala con internet desde la pestaña Información.';
-    if (pt.altSrc === 'gps') return 'Altitud tomada del GPS' + (isNum(pt.altAcc) ? ' (±' + Math.round(pt.altAcc) + ' m)' : '') + '. Puedes corregirla escribiendo otro valor.';
+    if (pt.altSrc === 'gps') return 'Altitud tomada del GPS' + (isNum(pt.altAcc) ? ' (±' + Math.round(pt.altAcc) + ' m)' : '') + (pt.altRef === 'elipsoide' ? ', sobre el elipsoide (fuera de la zona del geoide)' : pt.altRef ? ', sobre el nivel del mar' : '') + '. Puedes corregirla escribiendo otro valor.';
     if (pt.altSrc === 'internet') return 'Altitud obtenida de internet (modelo digital de elevación). Puedes corregirla.';
     if (pt.altSrc === 'archivo') return 'Altitud tomada del archivo importado. Puedes corregirla.';
     if (pt.altSrc === 'manual') return 'Altitud escrita a mano.';
@@ -1342,7 +1360,7 @@
     askDelete: function (t) { askDelete(t.getAttribute('data-id')); },
     doDelete: function (t) { doDelete(t.getAttribute('data-id')); },
     closeSheet: closeSheet,
-    altFromGps: function () { if (ui.fix && isNum(ui.fix.alt)) { $('#fAlt').value = Fmt.num(ui.fix.alt, 0); $('#fAltHint').textContent = 'Altitud del GPS. Solo úsala si estás parado en este punto.'; } },
+    altFromGps: function () { if (ui.fix && isNum(ui.fix.alt)) { $('#fAlt').value = Fmt.num(fixAlt(ui.fix), 0); $('#fAltHint').textContent = 'Altitud del GPS, sobre el nivel del mar. Solo úsala si estás parado en este punto.'; } },
     restoreGps: function (t) { var pt = pointById(t.getAttribute('data-id')); if (pt && isNum(pt.altGps)) { pt.alt = pt.altGps; pt.altSrc = 'gps'; save(); closeSheet(); renderTab(ui.tab); toast('Altitud del GPS restaurada.'); } },
     unit: function (t) { S.settings.areaUnit = t.getAttribute('data-u'); save(); renderTab('area'); },
     reorder: reorder,

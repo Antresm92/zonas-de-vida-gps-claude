@@ -34,7 +34,7 @@ module.exports = async function (c) {
     assert.equal(pt.src, 'gps'); assert.equal(pt.gpsN, 4); assert.equal(pt.gpsMet, 'ponderado');
     assert.ok(Math.abs(metros(pt.lon) - ESPERADO.m) < 0.01, 'posición ponderada: ' + metros(pt.lon).toFixed(3) + ' m (esperado ' + ESPERADO.m.toFixed(3) + ')');
     assert.ok(Math.abs(pt.acc - ESPERADO.acc) < 1e-9, 'precisión promedio (3, 4, 4,5 y 4): ' + pt.acc);
-    assert.equal(pt.alt, 2602, 'altitud: la mediana, como antes');
+    assert.equal(pt.altN, 23.17); assert.ok(Math.abs(pt.alt - (2602 - 23.17)) < 1e-9, 'altitud: la mediana, como antes (2602), pasada al nivel del mar: ' + pt.alt);
     assert.match(await c.toastText(), /guardado \(±4 m, promedio ponderado de 4 lecturas\)/);
     // lista y ficha
     const fila = await page.locator('#tab-puntos .row.pt').last().textContent();

@@ -241,7 +241,8 @@
       var f = ui.fix, set = function (id, t) { var e = $('#' + id); if (e) e.innerHTML = t; };
       if (!f) return;
       set('tgLat', Fmt.coord(f.lat) + '°'); set('tgLon', Fmt.coord(f.lon) + '°');
-      set('tgAlt', isNum(f.alt) ? Fmt.num(f.alt, 0) + ' <small>m</small>' : '<small>sin dato</small>');
+      var g = window.Geoide.fromDevice(f.lat, f.lon, f.alt);      // 2.35.1: sobre el nivel del mar (geoide EGM2008)
+      set('tgAlt', g ? Fmt.num(g.alt, 0) + ' <small>m</small>' : '<small>sin dato</small>');
       set('tgAcc', isNum(f.acc) ? '±' + Fmt.num(f.acc, 0) + ' <small>m</small>' : '—');
       var pl = Fmt.plana(f.lat, f.lon);
       set('tgDms', esc(Fmt.dms(f.lat, f.lon)) + (pl ? '<br><span id="tgPlana">Planas (Origen Nacional): ' + esc(pl) + '</span>' : ''));
@@ -260,7 +261,7 @@
           '<div><span class="k">Altitud</span><span class="v" id="tgAlt"></span></div><div><span class="k">Precisión</span><span class="v" id="tgAcc"></span></div></div>' +
           '<p class="small muted" id="tgDms" style="margin:8px 0 0"></p>' +
           '<div class="btns" style="margin-top:12px"><button class="btn btn-primary" data-act="toolGpsCopy">Copiar coordenadas</button><button class="btn" data-act="toolGpsOff">Apagar GPS</button></div>' +
-          '<p class="small muted" style="margin-top:12px">La altitud del GPS suele errar entre 10 y 30 m; la precisión es el error probable de la posición. El GPS sigue encendido hasta que lo apagues aquí o en Puntos.</p>';
+          '<p class="small muted" style="margin-top:12px">La altitud ya está pasada al nivel del mar (geoide EGM2008) y suele errar entre 10 y 30 m; la precisión es el error probable de la posición. El GPS sigue encendido hasta que lo apagues aquí o en Puntos.</p>';
       }
       el.innerHTML = h;
       if (kind === 'fix') fillGpsNumbers();

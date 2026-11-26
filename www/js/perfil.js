@@ -63,7 +63,7 @@
     if (kinds > 1) m.notes.push('Las altitudes vienen de varias fuentes (' + Object.keys(srcCounts).map(srcLabel).join(', ') + '): pueden no ser comparables entre sí.');
     if (sl) {
       m.notes.push('La pendiente media sale de ajustar un plano a los ' + sl.n + ' puntos con altitudes ' + SRC_PHRASE[sl.src] + (sl.marginKnown ? ', con su margen al ' + (sl.level === 1 ? '68' : '95') + ' %' : '; su margen es desconocido porque no se sabe con qué precisión se midieron') + ': es una aproximación y no reemplaza un levantamiento topográfico.');
-      if (sl.excluded.length) m.notes.push('Para la pendiente no se usaron ' + sl.excluded.map(function (e) { return e.name + ' (' + SRC_PHRASE[e.src] + ')'; }).join(', ') + ', para no mezclar altitudes con distinta referencia.');
+      if (sl.excluded.length) m.notes.push('Para la pendiente no se usaron ' + sl.excluded.map(function (e) { return e.name + ' (' + SRC_PHRASE[e.src] + ')'; }).join(', ') + ', para no mezclar altitudes medidas de forma distinta.');
       if (sl.surface) m.notes.push('Las altitudes de internet son de la superficie del terreno, con árboles y construcciones: en un lote con árboles la pendiente puede ser la de las copas.');
       if (sl.uncertain) m.notes.push('Con su margen, la pendiente puede estar en ' + sl.classes.length + ' clases del IGAC: mídela en campo (Información › Usos recomendados › Evaluar el terreno).');
     } else if (info.reason) m.notes.push(info.reason);
@@ -112,8 +112,10 @@
 
   /* ---------- Pendiente con su margen (2.35.0) ----------
    * 1. Una sola fuente de altitud: la del grupo con más puntos (empate: a mano, GPS, internet, archivo, sin dato). Mezcladas,
-   *    la diferencia de referencia se vuelve desnivel: en Android el GPS da la altura sobre el elipsoide y la de internet es
-   *    sobre el nivel del mar.
+   *    la diferencia entre fuentes se vuelve desnivel. Hasta la 2.35.0 el GPS daba la altura sobre el elipsoide y la de internet
+   *    era sobre el nivel del mar; desde la 2.35.1 las dos están en EGM2008 (geoide.js), pero se siguen sin mezclar: internet es
+   *    la superficie con árboles y construcciones en celdas de 90 m, el GPS es el suelo con su propio error y la escrita a mano
+   *    sale de otra medida.
    * 2. Margen: con un error vertical σz igual en los puntos usados, la covarianza de las dos componentes del plano es
    *    σz² (XᵀX)⁻¹ (H. P. Gavin, «Generalized Linear Least Squares and Error Analysis», Duke University, ec. 18), y el de la
    *    pendiente sale por propagación de primer orden (ec. 3). Casi plano (pendiente menor que dos veces el eje largo de esa

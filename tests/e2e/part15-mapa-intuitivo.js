@@ -365,7 +365,8 @@ module.exports = async function (c) {
     let p = await pts();
     assert.equal(p.length, 3);
     assert.deepEqual(p.map((q) => q.name), ['P1', 'P2', 'P3']);
-    assert.deepEqual(p.map((q) => [q.src, q.alt, q.acc]), [['gps', 2600, 4], ['gps', 2602, 4], ['gps', 2604, 6]]);
+    // 2.35.1: la altura de cada lectura (2600, 2602 y 2604 sobre el elipsoide) pasa al nivel del mar: − 23,17 m del geoide
+    assert.deepEqual(p.map((q) => [q.src, Math.round(q.alt * 100) / 100, q.acc, q.altRef]), [['gps', 2576.83, 4, 'egm2008'], ['gps', 2578.83, 4, 'egm2008'], ['gps', 2580.83, 6, 'egm2008']]);
     const i = await waitInfo((x) => Math.abs(x.center.lat - (4.6 + 22 * m)) < 1e-5, 'el mapa sigue a la persona');
     assert.equal(i.markers.length, 3);
     assert.match(await text('#mapSum'), /· 3 puntos$/);

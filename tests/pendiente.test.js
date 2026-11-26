@@ -163,7 +163,7 @@ test('el perfil trae los avisos: el margen con su nivel, los puntos por fuera, l
   m = Perfil.build(pts, { level: 1 });
   assert.ok(m.notes.some((n) => /con su margen al 68 %/.test(n))); assert.ok(!m.notes.some((n) => /clases del IGAC/.test(n)));
   m = Perfil.build(pts.concat([at(0, 0, 1400, { name: 'Casa', altSrc: 'manual' })]));
-  assert.ok(m.notes.includes('Para la pendiente no se usaron Casa (escritas a mano), para no mezclar altitudes con distinta referencia.'));
+  assert.ok(m.notes.includes('Para la pendiente no se usaron Casa (escritas a mano), para no mezclar altitudes medidas de forma distinta.'));
   m = Perfil.build(rect(100, 100, 0, 0.2, { altSrc: 'manual' }));
   assert.ok(m.notes.some((n) => /su margen es desconocido porque no se sabe con qué precisión se midieron/.test(n)));
   m = Perfil.build(rect(400, 400, 0, 0.2, { altSrc: 'internet' }));

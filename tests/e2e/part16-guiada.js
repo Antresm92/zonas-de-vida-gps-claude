@@ -174,7 +174,7 @@ module.exports = async function (c) {
     await page.click('#sheet .btn-primary'); await waitSheetClosed();
     await act('appGuide'); await page.waitForSelector('#sheet:not([hidden])');
     assert.equal(await sheetTitle(), 'Cómo usar la app');
-    assert.deepEqual(await page.$$eval('#sheet .guide dt', (d) => d.map((x) => x.textContent)), ['1 · Puntos', '2 · Información', '3 · Reporte', '1 · Marca el predio', '2 · Agrega los lotes', '3 · Completa el clima', '4 · Revisa el reporte', '5 · Comparte', 'Marcar con el GPS', 'Polígono', 'Predios y lotes', 'Varios polígonos a la vez', 'Usos recomendados y evaluar el terreno', 'Pendiente y su margen', 'Según el mapa del IGAC', 'Número predial y lindero catastral', 'Cultivos a evaluar y conclusión', 'Qué va en el reporte', 'Firma y tarjeta profesional', 'Proyectos y copia de seguridad', 'Traer tus proyectos de «Zonas de Vida»', 'Herramientas', 'Alto contraste', 'Registro de errores', 'Arriba', 'Sin internet']);
+    assert.deepEqual(await page.$$eval('#sheet .guide dt', (d) => d.map((x) => x.textContent)), ['1 · Puntos', '2 · Información', '3 · Reporte', '1 · Marca el predio', '2 · Agrega los lotes', '3 · Completa el clima', '4 · Revisa el reporte', '5 · Comparte', 'Marcar con el GPS', 'Altitud del GPS y nivel del mar', 'Polígono', 'Predios y lotes', 'Varios polígonos a la vez', 'Usos recomendados y evaluar el terreno', 'Pendiente y su margen', 'Según el mapa del IGAC', 'Número predial y lindero catastral', 'Cultivos a evaluar y conclusión', 'Qué va en el reporte', 'Firma y tarjeta profesional', 'Proyectos y copia de seguridad', 'Traer tus proyectos de «Zonas de Vida»', 'Herramientas', 'Alto contraste', 'Registro de errores', 'Arriba', 'Sin internet']);
     assert.deepEqual(await page.$$eval('#sheet .guide-h', (d) => d.map((x) => x.textContent)), ['Los tres pasos', 'Ejemplo: tu primer predio en 5 pasos', 'Lo demás']);
     // la ayuda nombra lo que la app hace hoy (2.19.0)
     const ayuda = await text('#sheet');
@@ -220,9 +220,10 @@ module.exports = async function (c) {
     await page.reload(); await page.waitForSelector('#sheet:not([hidden])');
     assert.equal(await sheetTitle(), 'Qué hay de nuevo');
     const dts = await page.$$eval('#whatsNew dt', (d) => d.map((x) => x.textContent));
-    assert.deepEqual(dts.slice(0, 3), ['Pendiente con su margen', 'Pendiente medida en campo', 'Margen al 68 % o al 95 %'], 'lo de la 2.35.0 va primero');
-    assert.deepEqual(dts.slice(3, 10), ['Elegir el promedio del GPS', 'Nombre corto bajo el ícono', 'Firma y tarjeta profesional en el reporte', 'Promedio ponderado del GPS', 'Origen de cada punto en el reporte', 'Alto contraste', 'Registro de errores']);
-    assert.deepEqual(dts.slice(10, 13), ['Nuevo nombre: Don Florentino SIG', 'Fuentes y licencias con enlaces', 'Más seguridad'], 'siguen las novedades de la 2.33.0');
+    assert.deepEqual(dts.slice(0, 1), ['Altitud del GPS al nivel del mar'], 'lo de la 2.35.1 va primero');
+    assert.deepEqual(dts.slice(1, 4), ['Pendiente con su margen', 'Pendiente medida en campo', 'Margen al 68 % o al 95 %'], 'después lo de la 2.35.0');
+    assert.deepEqual(dts.slice(4, 11), ['Elegir el promedio del GPS', 'Nombre corto bajo el ícono', 'Firma y tarjeta profesional en el reporte', 'Promedio ponderado del GPS', 'Origen de cada punto en el reporte', 'Alto contraste', 'Registro de errores']);
+    assert.deepEqual(dts.slice(11, 14), ['Nuevo nombre: Don Florentino SIG', 'Fuentes y licencias con enlaces', 'Más seguridad'], 'siguen las novedades de la 2.33.0');
     assert.ok(dts.includes('Nombres de los puntos') && dts.includes('Vaciar y empezar de nuevo'), 'siguen las novedades de la 2.32.1');
     assert.deepEqual(await page.$$eval('#sheet .btns button', (b) => b.map((x) => x.textContent)), ['Entendido', 'Ver la ayuda completa']);
     await shot('177-que-hay-de-nuevo');

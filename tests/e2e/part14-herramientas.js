@@ -226,7 +226,7 @@ module.exports = async function (c) {
     await page.waitForSelector('#toolBody .readout');
     assert.equal(await text('#tgLat'), '4.60000°');
     assert.equal(await text('#tgLon'), '-74.08000°');
-    assert.equal((await text('#tgAlt')).trim(), '2640 m');
+    assert.equal((await text('#tgAlt')).trim(), '2617 m');        // 2.35.1: 2640 sobre el elipsoide − 23,17 m del geoide
     assert.equal((await text('#tgAcc')).trim(), '±8 m');
     assert.match(await text('#tgDms'), /4° .*N .*74° .*W/);
     assert.equal(await text('#gpsChipText'), '±8 m');
@@ -235,7 +235,7 @@ module.exports = async function (c) {
     await gpsPush({ lat: 4.60123, lon: -74.08456, alt: 2651, acc: 12 });
     assert.equal(await text('#tgLat'), '4.60123°');
     assert.equal(await text('#tgLon'), '-74.08456°');
-    assert.equal((await text('#tgAlt')).trim(), '2651 m');
+    assert.equal((await text('#tgAlt')).trim(), '2628 m');
     assert.equal((await text('#tgAcc')).trim(), '±12 m');
     assert.equal(await boton.evaluate((e) => e.isConnected), true, 'el botón sigue siendo el mismo (un toque no se pierde)');
     await gpsPush({ lat: 4.6, lon: -74.08, acc: 6 });                       // sin altitud

@@ -351,7 +351,7 @@ module.exports = async function (c) {
     assert.equal(p.points[3].src, 'gps');
     near(p.points[3].lat, 4.6050, 1e-4, 'lat guardada');
     const i = await waitInfo((x) => x.markers.length === 4, 3000, 'punto nuevo en el mapa');
-    assert.equal(i.markers[3].label, 'P4 · 2639 m');
+    assert.equal(i.markers[3].label, 'P4 · 2616 m');        // 2.35.1: 2639,4 del GPS − 23,08 m del geoide
     assert.equal(await page.locator('#mapProgBar').count(), 0, 'la barra de avance desaparece');
     assert.equal(await page.locator('[data-act="mapMark"]').isDisabled(), false);
     assert.ok(i.fix && i.fix.acc === 3, 'se ve la posición del GPS en el mapa');

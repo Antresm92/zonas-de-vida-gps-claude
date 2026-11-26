@@ -165,6 +165,22 @@
     return lo === hi ? '±' + lo + ' m' : '±' + lo + ' a ±' + hi + ' m';
   }
   function listY(a) { return a.length < 2 ? a.join('') : a.slice(0, -1).join(', ') + ' y ' + a[a.length - 1]; }
+  // 2.35.1: cómo quedaron las altitudes del GPS frente al nivel del mar: «al nivel del mar con el geoide EGM2008: −23,1 m»
+  function seaLevelNote(pts) {
+    var ns = [], mar = 0, eli = 0;
+    pts.forEach(function (p) {
+      if (p.altSrc !== 'gps' || !isNum(p.alt)) return;
+      if (p.altRef === 'egm2008' && isNum(p.altN)) ns.push(-p.altN); else if (p.altRef === 'mar') mar++; else if (p.altRef === 'elipsoide') eli++;
+    });
+    var t = [], sg = function (v) { return (v > 0 ? '+' : v < 0 ? '−' : '') + Fmt.num(Math.abs(v), 1); };
+    if (ns.length) {
+      var lo = sg(Math.min.apply(null, ns)), hi = sg(Math.max.apply(null, ns));
+      t.push('al nivel del mar con el geoide EGM2008: ' + (lo === hi ? lo : lo + ' a ' + hi) + ' m');
+    }
+    if (mar) t.push(mar + (mar === 1 ? ' ya venía' : ' ya venían') + ' sobre el nivel del mar');
+    if (eli) t.push(eli + ' sobre el elipsoide, fuera de la zona del geoide');
+    return t.join('; ');
+  }
   // «12 con GPS (±3 a ±8 m), 4 a mano y 30 de un archivo. Altitud: 40 del GPS (±5 a ±12 m), 4 de internet y 2 sin altitud.»
   function originSummary(points) {
     var pts = (points || []).filter(function (p) { return p && typeof p === 'object'; });
@@ -186,7 +202,8 @@
     if (n.manual) pos.push(n.manual + ' a mano');
     if (n.archivo) pos.push(n.archivo + ' de un archivo');
     if (n.otro) pos.push(n.otro + ' sin dato de origen');
-    if (a.gps) alt.push(a.gps + ' del GPS' + (aacc.length ? ' (' + rangePm(aacc) + ')' : ''));
+    var gpsAlt = [aacc.length ? rangePm(aacc) : '', seaLevelNote(pts)].filter(Boolean).join('; ');
+    if (a.gps) alt.push(a.gps + ' del GPS' + (gpsAlt ? ' (' + gpsAlt + ')' : ''));
     if (a.manual) alt.push(a.manual + ' a mano');
     if (a.internet) alt.push(a.internet + ' de internet');
     if (a.archivo) alt.push(a.archivo + ' del archivo');
