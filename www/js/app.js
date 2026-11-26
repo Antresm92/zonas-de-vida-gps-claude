@@ -5,7 +5,7 @@
   var Geo = window.Geo, H = window.Holdridge, Climate = window.Climate, A = window.Analysis, Fmt = window.Fmt,
       Gps = window.Gps, Store = window.Store, Diagram = window.Diagram, Report = window.Report,
       Gis = window.Gis, Backup = window.Backup, IO = window.IO, WL = window.WalterLieth, Mapa = window.Mapa, MapView = window.MapView, Satelite = window.Satelite, Perfil = window.Perfil, Fotos = window.Fotos, Zip = window.Zip, Units = window.Units;
-  var APP_VERSION = '2.34.2';
+  var APP_VERSION = '2.34.3';
   var Errores = window.Errores;
   if (Errores) Errores.setVersion(APP_VERSION);            // 2.34.0: el registro de errores anota en qué versión pasó cada uno
 
@@ -1402,6 +1402,11 @@
     diag: function () { Herr.openDiag(false); }, diagShare: function () { Herr.shareDiag(); }, diagClear: function () { Herr.openDiag(true); }, diagClearYes: function () { Herr.clearDiag(); },
     authorLogo: function () { readAuthorInputs(); $('#logoFile').click(); },
     authorLogoDel: function () { ui.authorDraft.logo = ''; refreshAuthor(); },
+    authorSignPhoto: function () { readAuthorInputs(); $('#signFile').click(); },
+    authorSignDraw: function () { Herr.openSignPad(); },
+    authorSignDel: function () { ui.authorDraft.sign = ''; refreshAuthor(); },
+    signPadClear: function () { if (ui.signPad) ui.signPad.clear(); },
+    signPadBack: function () { Herr.closeSignPad(); }, signPadUse: function () { Herr.useSignPad(); },
     authorSave: function () { saveAuthor(); },
     csvStyle: function (t) { S.settings.csvStyle = t.getAttribute('data-s'); save(); renderTab(ui.tab); },
     wlSave: saveWalterSvg, monthly: openMonthly, saveMonthly: saveMonthly, clearMonthly: clearMonthly,
@@ -1482,6 +1487,11 @@
     var f = e.target.files && e.target.files[0];
     e.target.value = '';
     if (f) setAuthorLogo(f);
+  });
+  $('#signFile').addEventListener('change', function (e) {
+    var f = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (f) Herr.setAuthorSign(f);
   });
   $('#backupFile').addEventListener('change', function (e) {
     var f = e.target.files && e.target.files[0];

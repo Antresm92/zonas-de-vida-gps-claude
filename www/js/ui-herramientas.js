@@ -9,7 +9,7 @@
   window.ZV = window.ZV || {};
   window.ZV.herramientas = function (ctx) {
     var S = ctx.S, ui = ctx.ui, busy = ctx.busy, $ = ctx['$'], APP_VERSION = ctx.APP_VERSION, WHATS_NEW_ID = ctx.WHATS_NEW_ID, analysis = ctx.analysis, closeSheet = ctx.closeSheet, esc = ctx.esc, isNum = ctx.isNum, openSheet = ctx.openSheet, proj = ctx.proj, renderTab = ctx.renderTab, toast = ctx.toast;
-    var Climate = window.Climate, Fmt = window.Fmt, Fotos = window.Fotos, Report = window.Report, Store = window.Store, Units = window.Units, Errores = window.Errores, IO = window.IO;
+    var Climate = window.Climate, Fmt = window.Fmt, Fotos = window.Fotos, Firma = window.Firma, Report = window.Report, Store = window.Store, Units = window.Units, Errores = window.Errores, IO = window.IO;
 
     /* ---------- Herramientas (2.7.0): conversor de unidades, clima actual y GPS en vivo ---------- */
     var TOOL_ICON = {
@@ -30,8 +30,8 @@
       h += '<h3 class="sub">Proyectos y copias</h3><div class="menu">' +
         menuRow('projects', 'Proyectos', S.projects.length + (S.projects.length === 1 ? ' proyecto' : ' proyectos') + ' · actual: ' + p.name) +
         menuRow('projects', 'Copia de seguridad y restaurar', '.zip recomendado') + '</div>';
-      var au = Store.loadAuthor(), auSub = [au.name, au.org, au.logo ? 'con logo' : ''].filter(Boolean).join(' · ');
-      h += '<h3 class="sub">Reporte</h3><div class="menu">' + menuRow('authorEdit', 'Encabezado del reporte', auSub || 'Autor, entidad y logo') + '</div>';
+      var au = Store.loadAuthor(), auSub = [au.name, au.org, au.logo ? 'con logo' : '', au.sign ? 'con firma' : ''].filter(Boolean).join(' · ');
+      h += '<h3 class="sub">Reporte</h3><div class="menu">' + menuRow('authorEdit', 'Encabezado del reporte', auSub || 'Autor, entidad, logo y firma') + '</div>';
       h += '<h3 class="sub">Preferencias</h3><div class="menu"><label class="menurow"><span><b>Alto contraste</b><small>Negro sobre blanco y bordes marcados, para leer al sol. Solo cambia los colores.</small></span>' +
         '<input type="checkbox" data-flag="altoContraste"' + (Store.loadFlag('altoContraste') === true ? ' checked' : '') + '></label>' +
         '<label class="menurow"><span><b>Marcar con el método anterior</b><small>Promedio simple: todas las lecturas pesan igual y el punto guarda la precisión de la mejor, que es más optimista que la real. Viene apagado: lo recomendado es el promedio ponderado.</small></span>' +
@@ -101,15 +101,19 @@
             '<svg viewBox="0 0 24 24" aria-hidden="true">' + s[2] + '</svg><span>' + s[0] + '</span></a>';
         }).join('') + '</div></div>';
     }
-    /* ---------- Autor y logo del reporte (2.14.0) ---------- */
+    /* ---------- Autor y logo del reporte (2.14.0); tarjeta profesional y firma (2.34.3) ---------- */
     function authorBody() {
       var au = ui.authorDraft;
-      return '<p class="lead">Arriba del reporte (PDF, HTML y resumen) sale: Proyecto, Elaborado por y la fecha; el logo va a la derecha. Se guardan en este teléfono; no van en la copia de seguridad.</p>' +
+      return '<p class="lead">Arriba del reporte (PDF, HTML y resumen) sale: Proyecto, Elaborado por y la fecha; el logo va a la derecha. Al final va la firma, con tu nombre y tu tarjeta profesional. Se guardan en este teléfono; no van en la copia de seguridad.</p>' +
         '<label class="f"><span>Nombre de quien elabora</span><input type="text" id="auName" maxlength="' + Store.AUTHOR_MAX + '" value="' + esc(au.name) + '" autocomplete="name" placeholder="Ej.: Ana Pérez, ingeniera forestal"></label>' +
         '<label class="f"><span>Entidad o empresa (opcional)</span><input type="text" id="auOrg" maxlength="' + Store.AUTHOR_MAX + '" value="' + esc(au.org) + '" autocomplete="organization" placeholder="Ej.: Finca La Esperanza"></label>' +
+        '<label class="f"><span>Tarjeta profesional (opcional)</span><input type="text" id="auCard" maxlength="' + Store.CARD_MAX + '" value="' + esc(au.card) + '" autocomplete="off" placeholder="Número de tu tarjeta profesional"></label>' +
         '<div class="f f-logo"><span class="f-label">Logo (opcional)</span><div class="logobox" id="auLogo">' + (au.logo ? '<img src="data:image/jpeg;base64,' + au.logo + '" alt="Logo elegido">' : '<span class="small muted">Sin logo</span>') + '</div>' +
         '<div class="btns"><button class="btn" data-act="authorLogo">' + (au.logo ? 'Cambiar logo' : 'Elegir logo') + '</button>' + (au.logo ? '<button class="btn" data-act="authorLogoDel">Quitar logo</button>' : '') + '</div>' +
         '<span class="f-hint">Se recortan los bordes de un solo color, se reduce a 400 píxeles y se guarda como JPEG (lo transparente queda blanco).</span></div>' +
+        '<div class="f f-logo f-sign"><span class="f-label">Firma (opcional)</span><div class="logobox signbox" id="auSign">' + (au.sign ? '<img src="data:image/jpeg;base64,' + au.sign + '" alt="Firma elegida">' : '<span class="small muted">Sin firma</span>') + '</div>' +
+        '<div class="btns"><button class="btn" data-act="authorSignPhoto">' + (au.sign ? 'Otra foto' : 'Subir foto') + '</button><button class="btn" data-act="authorSignDraw">Dibujar</button>' + (au.sign ? '<button class="btn" data-act="authorSignDel">Quitar firma</button>' : '') + '</div>' +
+        '<span class="f-hint">Foto: firma en papel blanco con tinta oscura y tómale la foto de cerca, que el papel llene la foto, con buena luz y sin sombras; la app deja el fondo blanco y recorta los bordes. O dibújala con el dedo. Es una imagen, no una firma digital certificada, y el reporte lo dice.</span></div>' +
         '<div class="btns"><button class="btn btn-primary" data-act="authorSave">Guardar</button></div>';
     }
     function openAuthor(keep) {
@@ -117,9 +121,10 @@
       openSheet('Encabezado del reporte', authorBody());
     }
     function readAuthorInputs() {
-      var n = $('#auName'), o = $('#auOrg');
+      var n = $('#auName'), o = $('#auOrg'), t = $('#auCard');
       if (n) ui.authorDraft.name = n.value;
       if (o) ui.authorDraft.org = o.value;
+      if (t) ui.authorDraft.card = t.value;
     }
     function refreshAuthor() {          // vuelve a dibujar la hoja sin perder lo escrito
       readAuthorInputs();
@@ -136,6 +141,37 @@
         if (r.trimmed) toast('Se recortaron los bordes lisos del logo.');
       }).catch(function (e) { toast('No se pudo usar esa imagen: ' + (e && e.message || e), { err: true }); });
     }
+    // Firma en foto (2.34.3): papel blanco y tinta oscura (Fotos.inkLevels), bordes recortados y a 600 píxeles como mucho
+    function setAuthorSign(file) {
+      if (!ui.authorDraft) return;
+      Fotos.shrink(file, { max: 600, quality: 0.9, trim: true, ink: true }).then(function (r) {
+        var b64 = Fotos.toBase64(r.bytes);
+        if (b64.length > Store.SIGN_MAX) throw new Error('La firma sigue siendo muy pesada; prueba con una foto más de cerca.');
+        ui.authorDraft.sign = b64;
+        refreshAuthor();
+      }).catch(function (e) { toast('No se pudo usar esa imagen: ' + (e && e.message || e), { err: true }); });
+    }
+    // Firma dibujada con el dedo (2.34.3): otra hoja con el recuadro; «Usar esta firma» o «Cancelar» vuelven al encabezado sin perder lo escrito
+    function openSignPad() {
+      if (!ui.authorDraft) return;
+      readAuthorInputs();
+      openSheet('Dibujar la firma', '<p class="lead">Firma con el dedo dentro del recuadro, como en papel. Si no queda bien, «Borrar» y otra vez.</p>' +
+        '<canvas class="signpad" id="signPad" role="img" aria-label="Recuadro para firmar con el dedo"></canvas>' +
+        '<div class="btns"><button class="btn" data-act="signPadClear">Borrar</button><button class="btn" data-act="signPadBack">Cancelar</button><button class="btn btn-primary" data-act="signPadUse" id="signUse" disabled>Usar esta firma</button></div>');
+      var c = $('#signPad');
+      ui.signPad = c && Firma ? Firma.pad(c, function (empty) { var b = $('#signUse'); if (b) b.disabled = empty; }) : null;
+    }
+    function useSignPad() {
+      var p = ui.signPad;
+      if (!p || !ui.authorDraft) return;
+      p.toJpeg(document).then(function (bytes) {
+        var b64 = Fotos.toBase64(bytes);
+        if (b64.length > Store.SIGN_MAX) throw new Error('La firma quedó muy pesada.');
+        ui.authorDraft.sign = b64; ui.signPad = null;
+        openAuthor(true);
+      }).catch(function (e) { toast(e && e.message || String(e), { err: true }); });
+    }
+    function closeSignPad() { ui.signPad = null; openAuthor(true); }
     function saveAuthor() {
       readAuthorInputs();
       var r = Store.saveAuthor(ui.authorDraft);
@@ -262,6 +298,6 @@
       else if (ui.tool === 'clima') renderWeatherTool();
     }
 
-    return { openDiag: openDiag, shareDiag: shareDiag, clearDiag: clearDiag, tabHerramientas: tabHerramientas, openAuthor: openAuthor, readAuthorInputs: readAuthorInputs, refreshAuthor: refreshAuthor, saveAuthor: saveAuthor, setAuthorLogo: setAuthorLogo, onToolFix: onToolFix, openConverter: openConverter, openGpsTool: openGpsTool, openWeatherTool: openWeatherTool, renderConverter: renderConverter, renderGpsTool: renderGpsTool, renderWeatherTool: renderWeatherTool, weatherFetch: weatherFetch };
+    return { openDiag: openDiag, shareDiag: shareDiag, clearDiag: clearDiag, tabHerramientas: tabHerramientas, openAuthor: openAuthor, readAuthorInputs: readAuthorInputs, refreshAuthor: refreshAuthor, saveAuthor: saveAuthor, setAuthorLogo: setAuthorLogo, setAuthorSign: setAuthorSign, openSignPad: openSignPad, useSignPad: useSignPad, closeSignPad: closeSignPad, onToolFix: onToolFix, openConverter: openConverter, openGpsTool: openGpsTool, openWeatherTool: openWeatherTool, renderConverter: renderConverter, renderGpsTool: renderGpsTool, renderWeatherTool: renderWeatherTool, weatherFetch: weatherFetch };
   };
 })();

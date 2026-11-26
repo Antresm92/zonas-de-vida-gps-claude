@@ -234,9 +234,18 @@
       B.push({ t: 'note', text: k.nota });
       k.fuentes.forEach(function (f) { B.push({ t: 'p', small: true, text: f }); });
     }
+    if (!o.noHead) signBlocks(B, Report.signOf(o));                               // la firma y la advertencia van una sola vez, al final
     B.push({ t: 'spacer', h: 10 });
     if (!o.noHead) B.push({ t: 'p', small: true, text: Report.DISCLAIMER });      // en el reporte de todo el proyecto va una sola vez, al final
     return B;
+  }
+  // Firma al final (2.34.3): el título, la imagen sobre la raya y los renglones van juntos en la misma hoja (bloque «sign» de Pdf)
+  function signBlocks(B, sg) {
+    if (!sg) return;
+    var img = sg.sign ? Fotos.fromBase64(sg.sign) : null;
+    B.push({ t: 'h2', text: Report.SIGN_TITLE });
+    B.push({ t: 'sign', img: img ? { bytes: img } : null, lines: sg.lines, maxW: 200, maxH: 80 });
+    if (sg.note) B.push({ t: 'p', small: true, text: sg.note });
   }
 
   /* ---------- Reporte de todo el proyecto (2.15.0) ---------- */
@@ -271,6 +280,7 @@
       B.push({ t: 'h1', text: Report.lotTitle(pt.project) });
       B = B.concat(blocks(pt.project, pt.a, po, own));
     });
+    signBlocks(B, Report.signOf(o));
     B.push({ t: 'p', small: true, text: Report.DISCLAIMER });
     return B;
   }
@@ -295,5 +305,5 @@
     });
   }
 
-  return { sketchesAll: sketchesAll, blocksAll: blocksAll, buildAll: buildAll, sketches: sketches, blocks: blocks, build: build, rasterize: rasterize, rasterizeAll: rasterizeAll, svgSize: svgSize, sized: sized, PX: PX };
+  return { signBlocks: signBlocks, sketchesAll: sketchesAll, blocksAll: blocksAll, buildAll: buildAll, sketches: sketches, blocks: blocks, build: build, rasterize: rasterize, rasterizeAll: rasterizeAll, svgSize: svgSize, sized: sized, PX: PX };
 });

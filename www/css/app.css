@@ -444,6 +444,9 @@ details.why summary { min-height: 32px; padding: 6px 0; color: var(--blue); font
 /* Autor y logo del reporte (2.14.0) */
 .logobox { display: flex; align-items: center; justify-content: center; min-height: 84px; margin: 6px 0 10px; padding: 10px; border: 1px dashed var(--line); border-radius: 12px; background: #fff; }
 .logobox img { display: block; max-width: 180px; max-height: 90px; }
+/* Firma (2.34.3): la vista previa y el recuadro para firmar con el dedo (sin desplazar la hoja al firmar) */
+.signbox img { max-width: 240px; max-height: 96px; }
+.signpad { display: block; width: 100%; height: 190px; margin: 8px 0 12px; border: 1px dashed var(--line); border-radius: 12px; background: #fff linear-gradient(#9AA59E, #9AA59E) no-repeat 16px 78% / calc(100% - 32px) 1px; touch-action: none; cursor: crosshair; }
 .f-logo .f-label { display: block; margin-bottom: 4px; font-weight: 650; }
 .f-logo .f-hint { display: block; margin: 4px 0 14px; font-size: 14px; color: var(--ink-soft); }
 
@@ -568,6 +571,7 @@ details.why summary { min-height: 32px; padding: 6px 0; color: var(--blue); font
 .alto-contraste #netChip { background: #FFE14D; color: #000000; box-shadow: none; }
 /* bordes más marcados con una sombra de 1 px (un borde más grueso correría el contenido) */
 .alto-contraste .card, .alto-contraste .menu, .alto-contraste .tcard, .alto-contraste .readout, .alto-contraste .mapcard { border-color: #000000; box-shadow: 0 0 0 1px #000000; }
+.alto-contraste .signpad, .alto-contraste .logobox { border-color: #000000; }
 .alto-contraste .tabs { border-top-color: #000000; box-shadow: inset 0 1px 0 #000000; }
 .alto-contraste .tabs button { color: var(--ink-soft); }
 .alto-contraste .tabs button[aria-current="page"] { color: #000000; box-shadow: inset 0 5px 0 #000000; text-decoration: underline; text-underline-offset: 3px; }

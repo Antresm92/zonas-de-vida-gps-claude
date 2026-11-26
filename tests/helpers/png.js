@@ -30,4 +30,19 @@ function solidPng(r, g, b, a, size) {
   ]);
 }
 
-module.exports = { solidPng, crc32 };
+// w × h píxeles; px(x, y) devuelve [r, g, b, a] (2.34.3: la foto de una firma en papel con sombra)
+function rgbaPng(w, h, px) {
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(w, 0); ihdr.writeUInt32BE(h, 4);
+  ihdr[8] = 8; ihdr[9] = 6; ihdr[10] = 0; ihdr[11] = 0; ihdr[12] = 0;
+  const raw = Buffer.alloc(h * (1 + w * 4));
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) { const c = px(x, y), o = y * (1 + w * 4) + 1 + x * 4; raw[o] = c[0]; raw[o + 1] = c[1]; raw[o + 2] = c[2]; raw[o + 3] = c[3]; }
+  }
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]),
+    chunk('IHDR', ihdr), chunk('IDAT', zlib.deflateSync(raw)), chunk('IEND', Buffer.alloc(0))
+  ]);
+}
+
+module.exports = { solidPng, rgbaPng, crc32 };

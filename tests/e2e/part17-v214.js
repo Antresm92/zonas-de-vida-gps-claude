@@ -58,7 +58,7 @@ module.exports = async function (c) {
   await step('Autor y logo: se configuran en Herramientas y salen en el reporte', async () => {
     await fresh(); await tres();
     await tab('herramientas');
-    assert.match(await text('[data-act="authorEdit"]'), /Autor, entidad y logo/);
+    assert.match(await text('[data-act="authorEdit"]'), /Autor, entidad, logo y firma/);
     await act('authorEdit');
     assert.equal(await sheetTitle(), 'Encabezado del reporte');
     await fill('#auName', 'Ana Pérez');
@@ -98,7 +98,7 @@ module.exports = async function (c) {
     await page.click('[data-act="authorLogoDel"]');
     await fill('#auName', ''); await fill('#auOrg', '');
     await act('authorSave'); await waitSheetClosed();
-    assert.match(await text('[data-act="authorEdit"]'), /Autor, entidad y logo/);
+    assert.match(await text('[data-act="authorEdit"]'), /Autor, entidad, logo y firma/);
   });
 
   await step('Sin errores de JavaScript en la consola', async () => {

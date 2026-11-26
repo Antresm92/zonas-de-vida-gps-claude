@@ -224,20 +224,20 @@ const LOGO = '/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQ
 test('autor: se guarda limpio, aparte del estado, y descarta logos que no son JPEG', () => {
   const mem = {};
   Store.setBackend({ getItem: (k) => (k in mem ? mem[k] : null), setItem: (k, v) => { mem[k] = String(v); }, removeItem: (k) => { delete mem[k]; } });
-  assert.deepEqual(Store.loadAuthor(), { name: '', org: '', logo: '' });
+  assert.deepEqual(Store.loadAuthor(), { name: '', org: '', logo: '', card: '', sign: '' });
   assert.equal(Store.saveAuthor({ name: '  Ana\n Pérez\t', org: 'x'.repeat(200), logo: LOGO, extra: 1 }).ok, true);
-  assert.deepEqual(Store.loadAuthor(), { name: 'Ana Pérez', org: 'x'.repeat(80), logo: LOGO });
+  assert.deepEqual(Store.loadAuthor(), { name: 'Ana Pérez', org: 'x'.repeat(80), logo: LOGO, card: '', sign: '' });
   assert.ok('zvg.v1.author' in mem); assert.ok(!('zvg.v1.state' in mem));
   for (const bad of ['iVBORw0KGgo=', '/9j/<script>', '/9j/' + 'A'.repeat(Store.LOGO_MAX), 'data:image/jpeg;base64,' + LOGO, 42, '/9j/A']) {
     assert.equal(Store.cleanAuthor({ logo: bad }).logo, '', String(bad).slice(0, 20));
   }
-  assert.deepEqual(Store.cleanAuthor(null), { name: '', org: '', logo: '' });
-  assert.deepEqual(Store.cleanAuthor([1]), { name: '', org: '', logo: '' });
+  assert.deepEqual(Store.cleanAuthor(null), { name: '', org: '', logo: '', card: '', sign: '' });
+  assert.deepEqual(Store.cleanAuthor([1]), { name: '', org: '', logo: '', card: '', sign: '' });
   assert.equal(Store.cleanAuthor({ name: 5 }).name, '');
   mem['zvg.v1.author'] = '{roto';
   assert.equal(Store.loadAuthor().name, 'Ana Pérez');                 // guardado dañado: usa la copia en memoria, como el resto del almacén
   Store.setBackend({ getItem: () => '{"name":["x"],"logo":"/9j/"}', setItem() {}, removeItem() {} });
-  assert.deepEqual(Store.loadAuthor(), { name: '', org: '', logo: '/9j/' });
+  assert.deepEqual(Store.loadAuthor(), { name: '', org: '', logo: '/9j/', card: '', sign: '' });
 });
 
 const Climate = require('../www/js/climate.js');
@@ -286,7 +286,7 @@ test('encabezado: sin autor quedan proyecto y fecha; sin nombre de proyecto no e
   assert.equal(Report.headLines({ name: null }, {})[0].slice(0, 6), 'Fecha:');
   assert.equal(Report.headLines({ name: '  ' }, {}).length, 1);
   assert.equal(Report.headLines({ name: 7 }, {})[0], 'Proyecto: 7');
-  assert.deepEqual(Report.authorOf({ author: { org: 'IGAC' } }), { name: '', org: 'IGAC', logo: '', line: 'Elaborado por: IGAC' });
+  assert.deepEqual(Report.authorOf({ author: { org: 'IGAC' } }), { name: '', org: 'IGAC', logo: '', card: '', sign: '', line: 'Elaborado por: IGAC' });
   const solo = Report.html(project, a, { author: { logo: LOGO } });
   assert.match(solo, /alt="Logo"/); assert.doesNotMatch(solo, /Elaborado por/);
   // un logo que no es JPEG en base64 no entra al HTML (no se puede inyectar nada por ahí)

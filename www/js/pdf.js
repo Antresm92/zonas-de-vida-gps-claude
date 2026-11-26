@@ -269,6 +269,7 @@
       case 'zone': this.zone(b); break;
       case 'legend': this.legend(b.items || []); break;
       case 'image': this.image(b); break;
+      case 'sign': this.sign(b); break;
       case 'gallery': this.gallery(b); break;
       case 'spacer': this.y += typeof b.h === 'number' ? b.h : 8; break;
       case 'pagebreak': if (!this.top()) this.page(); break;
@@ -336,6 +337,7 @@
       var info = jpegInfo(b.img && b.img.bytes);
       return info ? this.fit(info, b.maxW, this.imageMaxH(b)).h + 6 + this.captionHeight(b) : 0;
     }
+    if (b && b.t === 'sign') return this.signSize(b).h + 6;
     if (b && b.t === 'gallery') {
       var per = b.per || 3, cw = (this.W - 10 * (per - 1)) / per;
       var first = (b.items || []).slice(0, per).map(function (it) { return jpegInfo(it && it.img && it.img.bytes); }).filter(Boolean);
@@ -355,6 +357,22 @@
     this.draw(e, M.l, this.y, s.w, s.h);
     this.y += s.h + 6;
     if (b.caption) this.block({ t: 'p', text: b.caption, small: true });
+  };
+
+  // Firma (2.34.3): la imagen (si hay) sobre una raya y debajo los renglones, el primero en negrilla; todo junto en una hoja.
+  // Sin imagen queda el espacio sobre la raya, para firmar a mano en el papel.
+  Doc.prototype.signSize = function (b) {
+    var info = b.img && jpegInfo(b.img.bytes), s = info ? this.fit(info, b.maxW || 200, b.maxH || 80) : null;
+    return { s: s, h: (s ? s.h + 4 : 36) + 8 + (b.lines || []).length * 14.5 };
+  };
+  Doc.prototype.sign = function (b) {
+    var self = this, z = this.signSize(b), e = z.s && this.addImage(b.img);
+    this.need(z.h + 6);
+    if (e) { this.draw(e, M.l, this.y, z.s.w, z.s.h); this.y += z.s.h + 4; } else this.y += 36;
+    this.hline(M.l, M.l + Math.min(this.W, Math.max(200, e ? z.s.w : 0)), this.y, 0.8, C.text);
+    this.y += 8;
+    (b.lines || []).forEach(function (t, i) { self.lines(t, 10.5, i === 0, C.text, M.l, self.W, 14.5); });
+    this.y += 6;
   };
 
   Doc.prototype.gallery = function (b) {

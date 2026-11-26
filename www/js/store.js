@@ -160,19 +160,21 @@
   function saveFlag(name, value) { var f = flagBag(); f[name] = value; return write(KEY_FLAGS, f); }
 
   /* ---------- Autor del reporte (2.14.0): nombre, entidad y logo que salen en el encabezado del reporte ---------- */
-  // Se guarda aparte del estado (el logo es una imagen) y no viaja en las copias de seguridad.
+  // 2.34.3: también el número de tarjeta profesional y la firma (una imagen JPEG), que salen al final del reporte.
+  // Se guarda aparte del estado (el logo y la firma son imágenes) y no viaja en las copias de seguridad.
   var KEY_AUTHOR = 'zvg.v1.author';
   var AUTHOR_MAX = 80, LOGO_MAX = 200000;          // largo del nombre y de la entidad; el logo en base64 (unos 150 KB de JPEG)
+  var CARD_MAX = 40, SIGN_MAX = 150000;            // número de la tarjeta profesional; la firma en base64 (unos 110 KB de JPEG)
   var B64 = /^[A-Za-z0-9+/]+={0,2}$/;
-  function cleanText(v) { return typeof v === 'string' ? v.replace(/[\u0000-\u001F\u007F]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, AUTHOR_MAX) : ''; }
+  function cleanText(v, max) { return typeof v === 'string' ? v.replace(/[\u0000-\u001F\u007F]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max || AUTHOR_MAX) : ''; }
+  function jpegB64(v, max) { return typeof v === 'string' && v.length <= max && v.length % 4 === 0 && B64.test(v) && v.indexOf('/9j/') === 0 ? v : ''; }   // solo JPEG («/9j/» es FF D8 FF)
   function cleanAuthor(a) {
     a = a && typeof a === 'object' && !Array.isArray(a) ? a : {};
-    var logo = typeof a.logo === 'string' && a.logo.length <= LOGO_MAX && a.logo.length % 4 === 0 && B64.test(a.logo) && a.logo.indexOf('/9j/') === 0 ? a.logo : '';   // solo JPEG («/9j/» es FF D8 FF)
-    return { name: cleanText(a.name), org: cleanText(a.org), logo: logo };
+    return { name: cleanText(a.name), org: cleanText(a.org), logo: jpegB64(a.logo, LOGO_MAX), card: cleanText(a.card, CARD_MAX), sign: jpegB64(a.sign, SIGN_MAX) };
   }
   function loadAuthor() { return cleanAuthor(read(KEY_AUTHOR)); }
   function saveAuthor(a) { return write(KEY_AUTHOR, cleanAuthor(a)); }
 
-  return { lotify: lotify, toLots: toLots, newLot: newLot, activeLot: activeLot, lotName: lotName, LOT_MAX: LOT_MAX, LOT_NAME_MAX: LOT_NAME_MAX, LOT_KEYS: LOT_KEYS, loadAuthor: loadAuthor, saveAuthor: saveAuthor, cleanAuthor: cleanAuthor, CAT_MAX: CAT_MAX, AUTHOR_MAX: AUTHOR_MAX, LOGO_MAX: LOGO_MAX, loadState: loadState, saveState: saveState, hasSavedState: hasSavedState, loadMemory: loadMemory, saveMemory: saveMemory, loadFlag: loadFlag, saveFlag: saveFlag,
+  return { lotify: lotify, toLots: toLots, newLot: newLot, activeLot: activeLot, lotName: lotName, LOT_MAX: LOT_MAX, LOT_NAME_MAX: LOT_NAME_MAX, LOT_KEYS: LOT_KEYS, loadAuthor: loadAuthor, saveAuthor: saveAuthor, CARD_MAX: CARD_MAX, SIGN_MAX: SIGN_MAX, cleanAuthor: cleanAuthor, CAT_MAX: CAT_MAX, AUTHOR_MAX: AUTHOR_MAX, LOGO_MAX: LOGO_MAX, loadState: loadState, saveState: saveState, hasSavedState: hasSavedState, loadMemory: loadMemory, saveMemory: saveMemory, loadFlag: loadFlag, saveFlag: saveFlag,
            newProject: newProject, uid: uid, setBackend: setBackend, defaultState: defaultState, MAIN_COLOR: MAIN_COLOR, MIN_ACC: MIN_ACC };
 });

@@ -96,8 +96,35 @@
     return out.w * out.h > w * h * 0.96 ? full : out;
   }
 
-  // file: Blob/File (la foto elegida o ya guardada). opts: { max, quality, trim }. Devuelve { bytes: Uint8Array JPEG, w, h }.
+  /* Foto de una firma (2.34.3): deja el papel blanco y la tinta oscura, en grises, como si se hubiera escaneado.
+   * Cada píxel se compara con el brillo promedio de su vecindad (un cuadro de 1/8 del lado mayor): así una sombra suave
+   * o una luz despareja sobre el papel no cuentan como tinta. Con al menos 90 % del brillo de alrededor es papel (blanco);
+   * con 60 % o menos es tinta (negro); en medio, un gris que suaviza el borde del trazo. Cambia `data` (RGBA) y la devuelve. */
+  var INK_PAPER = 0.9, INK_FULL = 0.6;
+  function inkLevels(data, w, h) {
+    if (!data || !(w > 0 && h > 0) || data.length < w * h * 4) return data;
+    var n = w * h, Y = new Float32Array(n), S = new Float64Array((w + 1) * (h + 1)), x, y, i;
+    for (i = 0; i < n; i++) Y[i] = 0.299 * data[i * 4] + 0.587 * data[i * 4 + 1] + 0.114 * data[i * 4 + 2];
+    for (y = 0; y < h; y++) {                                     // suma acumulada: el promedio de cualquier cuadro sale con 4 restas
+      var row = 0;
+      for (x = 0; x < w; x++) { row += Y[y * w + x]; S[(y + 1) * (w + 1) + x + 1] = S[y * (w + 1) + x + 1] + row; }
+    }
+    var r = Math.max(4, Math.round(Math.max(w, h) / 16));
+    for (y = 0; y < h; y++) {
+      var y0 = Math.max(0, y - r), y1 = Math.min(h, y + r + 1);
+      for (x = 0; x < w; x++) {
+        var x0 = Math.max(0, x - r), x1 = Math.min(w, x + r + 1);
+        var mean = (S[y1 * (w + 1) + x1] - S[y0 * (w + 1) + x1] - S[y1 * (w + 1) + x0] + S[y0 * (w + 1) + x0]) / ((x1 - x0) * (y1 - y0));
+        var k = mean > 1 ? Y[y * w + x] / mean : 1, v = k >= INK_PAPER ? 255 : k <= INK_FULL ? 0 : Math.round((k - INK_FULL) / (INK_PAPER - INK_FULL) * 255);
+        i = (y * w + x) * 4; data[i] = data[i + 1] = data[i + 2] = v; data[i + 3] = 255;
+      }
+    }
+    return data;
+  }
+
+  // file: Blob/File (la foto elegida o ya guardada). opts: { max, quality, trim, ink }. Devuelve { bytes: Uint8Array JPEG, w, h }.
   // Con trim: true se recortan antes los bordes de un solo color (ver trimBox) y el resultado dice cuánto en `trimmed`.
+  // Con ink: true (la firma, 2.34.3) primero se deja el papel blanco y la tinta oscura (ver inkLevels); va con trim.
   function shrink(file, opts, env) {
     opts = opts || {}; env = env || root;
     var max = opts.max || MAX_SIDE, q = opts.quality || QUALITY;
@@ -116,6 +143,9 @@
       ctx.drawImage(img.source, 0, 0, s.w, s.h);
       if (img.close) img.close();
       var trimmed = false;
+      if (opts.ink) {
+        try { var px = ctx.getImageData(0, 0, s.w, s.h); inkLevels(px.data, s.w, s.h); ctx.putImageData(px, 0, 0); } catch (e) { /* sin acceso a los píxeles: se deja como está */ }
+      }
       if (opts.trim) {
         // se mira la imagen a buen tamaño, se busca el borde liso y se vuelve a dibujar solo la parte útil, ya reducida a `max`
         var box = { x: 0, y: 0, w: s.w, h: s.h };
@@ -266,7 +296,7 @@
 
   return {
     MAX_PER_POINT: MAX_PER_POINT, MAX_SIDE: MAX_SIDE, QUALITY: QUALITY, REPORT_SIDE: REPORT_SIDE, REPORT_QUALITY: REPORT_QUALITY, MAX_INPUT: MAX_INPUT, MAX_PHOTO: MAX_PHOTO,
-    trimBox: trimBox, isId: isId, newId: newId, isJpeg: isJpeg, fit: fit, cleanList: cleanList, shrink: shrink, createStore: createStore, sweep: sweep,
+    trimBox: trimBox, inkLevels: inkLevels, isId: isId, newId: newId, isJpeg: isJpeg, fit: fit, cleanList: cleanList, shrink: shrink, createStore: createStore, sweep: sweep,
     importAll: importAll, createUrls: createUrls, usedIds: usedIds, countAll: countAll, toBase64: toBase64, fromBase64: fromBase64
   };
 });

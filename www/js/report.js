@@ -114,6 +114,7 @@
     (a.warnings || []).forEach(function (w) { L.push('Aviso: ' + w); });
     (a.info || []).forEach(function (w) { L.push('Nota: ' + w); });
     conclusionText(o).forEach(function (x) { L.push(x); });
+    if (!o.noSign) signText(o).forEach(function (x) { L.push(x); });        // en el de todo el proyecto va una sola vez, al final
     L.push('');
     L.push(DISCLAIMER);
     return L.join('\n');
@@ -124,6 +125,7 @@
     '.zone{display:flex;gap:16px;align-items:center;margin:12px 0}.hex{width:92px;height:104px;flex:none}.zn{font-size:24px;font-weight:700;line-height:1.2}.zs{color:#5B6F61}' +
     'table{border-collapse:collapse;width:100%;max-width:760px}td,th{padding:6px 10px;border-bottom:1px solid #D6DED8;text-align:left;vertical-align:top}th{color:#5B6F61;font-weight:500;width:42%}' +
     '.note{background:#F2F5EF;border-left:4px solid #D8353C;padding:8px 12px;margin:8px 0}.small{color:#5B6F61;font-size:14px}svg{max-width:100%;height:auto}' +
+    '.firma{margin-top:32px;break-inside:avoid;page-break-inside:avoid}.firma-img{display:block;max-width:240px;max-height:96px;margin:8px 0 2px}.firma-raya{width:240px;max-width:100%;height:0;border-top:1px solid #14301F;margin:2px 0 6px}.firma-sin{height:44px}.firma-l{margin:2px 0}' +
     '.dot{display:inline-block;width:.75em;height:.75em;border-radius:50%;margin-right:.5em;border:1px solid rgba(0,0,0,.35);-webkit-print-color-adjust:exact;print-color-adjust:exact}' +
     '.gal{display:flex;flex-wrap:wrap;gap:10px;margin:6px 0 14px}.gal figure{margin:0;width:260px;max-width:100%;break-inside:avoid}.gal img{display:block;width:100%;height:auto;border-radius:6px;border:1px solid #D6DED8}.gal figcaption{font-size:13px;color:#5B6F61}h3.ptitle{font-size:16px;margin:14px 0 4px}' +
     '.legend{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:8px;font-size:14px}table.sum th{width:auto;font-weight:600}table.sum td:first-child{font-weight:600}table.sum .tot td{font-weight:700;border-top:2px solid #14301F}h1.lt{margin:36px 0 10px;padding-top:14px;border-top:3px solid #14301F}@media (max-width:480px){.logo{max-width:96px;max-height:72px}}@media print{body{padding:0}h2{break-after:avoid}.diag{break-before:page}}';
@@ -196,12 +198,43 @@
   function anyPlana(project, a) {
     return !!((a && a.center && Fmt.plana(a.center.lat, a.center.lon)) || (project.points || []).some(function (p) { return !!Fmt.plana(p.lat, p.lon); }));
   }
-  // Autor del reporte (o.author = { name, org, logo }): la línea «Elaborado por …» y el logo en base64; vacíos si no hay
+  // Autor del reporte (o.author = { name, org, logo, card, sign }): la línea «Elaborado por …», el logo y la firma en base64; vacíos si no hay
+  function jpegOk(v) { return typeof v === 'string' && /^\/9j\/[A-Za-z0-9+/]*={0,2}$/.test(v) ? v : ''; }
   function authorOf(o) {
     var a = o && o.author || {}, name = typeof a.name === 'string' ? a.name.trim() : '', org = typeof a.org === 'string' ? a.org.trim() : '';
-    var logo = typeof a.logo === 'string' && /^\/9j\/[A-Za-z0-9+/]*={0,2}$/.test(a.logo) ? a.logo : '';
+    var card = typeof a.card === 'string' ? a.card.trim() : '';
     var who = [name, org].filter(Boolean).join(' · ');
-    return { name: name, org: org, logo: logo, line: who ? 'Elaborado por: ' + who : '' };
+    return { name: name, org: org, logo: jpegOk(a.logo), card: card, sign: jpegOk(a.sign), line: who ? 'Elaborado por: ' + who : '' };
+  }
+
+  /* ---------- Firma al final del reporte (2.34.3) ----------
+   * Sale cuando hay firma (imagen) o número de tarjeta profesional: la imagen sobre una raya y debajo el nombre, la tarjeta
+   * y la entidad. Sin imagen queda la raya, para firmar a mano en el papel. Una firma en imagen no es una firma digital: la
+   * Ley 527 de 1999 (art. 2 y 28) llama firma digital a un valor calculado con la clave de quien firma y el contenido, que
+   * se puede verificar, está bajo su control exclusivo y deja de valer si el documento cambia; por eso se dice debajo. */
+  var SIGN_TITLE = 'Firma';
+  var SIGN_NOTE = 'Firma en imagen. No es una firma digital (Ley 527 de 1999): no se puede verificar, cualquiera que reciba el reporte podría copiarla y, si alguien lo cambia, la firma sigue igual.';
+  function cardText(card) { return card ? 'Tarjeta profesional N.º ' + card : ''; }
+  function signOf(o) {
+    var au = authorOf(o);
+    if (!au.sign && !au.card) return null;
+    return { sign: au.sign, lines: [au.name, cardText(au.card), au.org].filter(Boolean), note: au.sign ? SIGN_NOTE : '' };
+  }
+  function signHtml(o) {
+    var s = signOf(o);
+    if (!s) return '';
+    return '<section class="firma"><h2>' + SIGN_TITLE + '</h2>' +
+      (s.sign ? '<img class="firma-img" src="data:image/jpeg;base64,' + s.sign + '" alt="Firma">' : '<div class="firma-sin"></div>') + '<div class="firma-raya"></div>' +
+      s.lines.map(function (x, i) { return '<p class="firma-l">' + (i === 0 ? '<b>' + esc(x) + '</b>' : esc(x)) + '</p>'; }).join('') +
+      (s.note ? '<p class="small">' + esc(s.note) + '</p>' : '') + '</section>';
+  }
+  function signText(o) {
+    var s = signOf(o);
+    if (!s) return [];
+    var L = ['', SIGN_TITLE + ':'];
+    s.lines.forEach(function (x) { L.push('  ' + x); });
+    if (s.sign) L.push('  La imagen de la firma va en el PDF y en el HTML. ' + s.note);
+    return L;
   }
   // Las líneas del encabezado, en orden: proyecto, quién lo elabora y fecha (2.14.1)
   function headLines(project, o) {
@@ -286,7 +319,7 @@
     parts.forEach(function (pt, i) {
       h += '<section class="lote"><h1 class="lt">' + esc(lotTitle(pt.project)) + '</h1>' + reid(bodyHtml(pt.project, pt.a, pt.o), '-L' + (i + 1)) + '</section>';
     });
-    return h + '<p class="small" style="margin-top:28px">' + esc(DISCLAIMER) + '</p></body></html>';
+    return h + signHtml(o) + '<p class="small" style="margin-top:28px">' + esc(DISCLAIMER) + '</p></body></html>';
   }
   function textAll(project, parts, o) {
     var s = summary(parts), L = ['REPORTE DE ZONA DE VIDA (HOLDRIDGE)'];
@@ -297,11 +330,15 @@
     s.fincas.forEach(function (f) { L.push('  ' + f + '.'); });
     if (s.overlap) L.push('  Atención: ' + s.overlap);
     parts.forEach(function (pt) {
-      var t = text(pt.project, pt.a, pt.o).split('\n');
+      var po = {};
+      Object.keys(pt.o || {}).forEach(function (k) { po[k] = pt.o[k]; });
+      po.noSign = true;
+      var t = text(pt.project, pt.a, po).split('\n');
       L.push(''); L.push('———  LOTE: ' + (pt.project.lotName || pt.project.name) + '  ———');
       var from = t.indexOf('');                         // sin el título ni el encabezado, que ya van arriba
       L = L.concat(t.slice(from + 1, t.length - 2));    // ni la advertencia final, que va una sola vez
     });
+    signText(o).forEach(function (x) { L.push(x); });
     L.push(''); L.push(DISCLAIMER);
     return L.join('\n');
   }
@@ -472,9 +509,9 @@
   }
   function html(project, a, o) {
     o = o || {};
-    return docOpen(project.name) + headHtml(project, o) + bodyHtml(project, a, o) + '<p class="small" style="margin-top:28px">' + esc(DISCLAIMER) + '</p></body></html>';
+    return docOpen(project.name) + headHtml(project, o) + bodyHtml(project, a, o) + signHtml(o) + '<p class="small" style="margin-top:28px">' + esc(DISCLAIMER) + '</p></body></html>';
 
   }
 
-  return { originText: originText, originSummary: originSummary, ORIGIN_TITLE: ORIGIN_TITLE, REPORT_CSP: REPORT_CSP, conclusionText: conclusionText, conclusionOf: conclusionOf, CLASIF_NOTE: Clasif.NOTE, SECTIONS: SECTIONS, skips: skips, clasifRows: clasifRows, lotTitle: lotTitle, kindText: kindText, overview: overview, summary: summary, htmlAll: htmlAll, textAll: textAll, bodyHtml: bodyHtml, reid: reid, headLines: headLines, authorOf: authorOf, withPlana: withPlana, anyPlana: anyPlana, text: text, html: html, rows: rows, dot: dot, currentRows: currentRows, currentStamp: currentStamp, CURRENT_NOTE: CURRENT_NOTE, QUALITY: QUALITY, DISCLAIMER: DISCLAIMER, SRC_T: SRC_T, SRC_P: SRC_P };
+  return { signOf: signOf, signHtml: signHtml, signText: signText, cardText: cardText, SIGN_TITLE: SIGN_TITLE, SIGN_NOTE: SIGN_NOTE, originText: originText, originSummary: originSummary, ORIGIN_TITLE: ORIGIN_TITLE, REPORT_CSP: REPORT_CSP, conclusionText: conclusionText, conclusionOf: conclusionOf, CLASIF_NOTE: Clasif.NOTE, SECTIONS: SECTIONS, skips: skips, clasifRows: clasifRows, lotTitle: lotTitle, kindText: kindText, overview: overview, summary: summary, htmlAll: htmlAll, textAll: textAll, bodyHtml: bodyHtml, reid: reid, headLines: headLines, authorOf: authorOf, withPlana: withPlana, anyPlana: anyPlana, text: text, html: html, rows: rows, dot: dot, currentRows: currentRows, currentStamp: currentStamp, CURRENT_NOTE: CURRENT_NOTE, QUALITY: QUALITY, DISCLAIMER: DISCLAIMER, SRC_T: SRC_T, SRC_P: SRC_P };
 });

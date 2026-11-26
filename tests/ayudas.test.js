@@ -150,3 +150,19 @@ test('2.34.2: las ayudas explican el promedio ponderado del GPS y la opción del
   assert.ok(ref, 'la referencia del método está en Fuentes y licencias');
   assert.deepEqual([...ref[2]].map((l) => l[1]), ['https://pdg.lbl.gov/2018/mobile/reviews/pdf/rpp2018-rev-rpp-intro-m.pdf', 'https://doc.arcgis.com/en/field-maps/latest/prepare-maps/high-accuracy-data-collection.htm']);
 });
+
+test('2.34.3: las ayudas explican la firma y la tarjeta profesional, y que una firma en imagen no es una firma digital', () => {
+  const { A, sheets } = load();
+  assert.ok(atLeast(A.WHATS_NEW_ID, '2.34.3'), A.WHATS_NEW_ID);
+  A.openAppGuide();
+  const guia = sheets[sheets.length - 1][1];
+  assert.match(guia, /Firma y tarjeta profesional.*«Subir foto».*«Dibujar».*queda la raya para firmar a mano.*no van en la copia de seguridad.*no una firma digital \(Ley 527 de 1999\)/s);
+  assert.match(guia, /tu tarjeta profesional y tu firma\), preferencias/);
+  A.openWhatsNew();
+  const nuevo = sheets[sheets.length - 1][1];
+  assert.ok(nuevo.indexOf('Firma y tarjeta profesional en el reporte') < nuevo.indexOf('Promedio ponderado del GPS'), 'lo de la 2.34.3 va primero');
+  const ley = A.LICENSES.find((x) => x[0] === 'Firma en el reporte');
+  assert.ok(ley, 'la referencia está en Fuentes y licencias');
+  assert.match(ley[1], /artículos 2 y 28/);
+  assert.deepEqual([...ley[2]].map((l) => l[1]), ['https://cancilleria.gov.co/sites/default/files/Normograma/docs/ley_0527_1999.htm']);
+});
