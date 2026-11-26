@@ -439,7 +439,12 @@ details.why summary { min-height: 32px; padding: 6px 0; color: var(--blue); font
 .menurow b { display: block; font-size: 15px; }
 .menurow small { display: block; color: var(--ink-soft); font-size: 13px; }
 .menurow i { color: var(--ink-soft); font-style: normal; font-size: 22px; }
-.menurow input[type="checkbox"] { flex: none; width: 24px; height: 24px; accent-color: var(--blue); }
+.menurow input[type="checkbox"], .menurow input[type="radio"] { flex: none; width: 24px; height: 24px; accent-color: var(--blue); }
+/* 2.34.5: un recuadro con opciones para elegir una (el promedio del GPS), con su título arriba */
+.menu-sub { margin-top: 10px; }
+.menuhead { padding: 10px 12px; border-bottom: 1px solid var(--line); background: var(--paper); }
+.menuhead b { display: block; font-size: 15px; }
+.menuhead small { display: block; color: var(--ink-soft); font-size: 13px; }
 
 /* Autor y logo del reporte (2.14.0) */
 .logobox { display: flex; align-items: center; justify-content: center; min-height: 84px; margin: 6px 0 10px; padding: 10px; border: 1px dashed var(--line); border-radius: 12px; background: #fff; }

@@ -118,6 +118,12 @@ Sube la carpeta `www/` a cualquier alojamiento web con HTTPS (por ejemplo GitHub
 - **Exportar**: KML, GeoJSON y GPX llevan todos los lotes (el elegido como polígono principal, los demás como capas con su nombre); el CSV añade la columna `Lote` y el Shapefile la columna `LOTE`, con una figura por lote.
 - **Guardado**: los proyectos de versiones anteriores pasan solos a tener un «Lote 1» con todo lo que tenían. La copia de seguridad lleva los lotes, y una copia hecha con una versión anterior se sigue pudiendo restaurar. Una copia hecha con la 2.15.0 (formato 2) no se puede restaurar en una versión anterior de la app: esta avisa que hay que actualizar.
 
+**2.34.5: elegir el promedio del GPS en un recuadro con los dos métodos.**
+- En *Herramientas › Preferencias*, la casilla «Marcar con el método anterior» se cambió por el recuadro «Promedio del GPS al marcar un punto», con los dos métodos para elegir uno: «Promedio simple (método anterior)» y, debajo, «Promedio ponderado (recomendado)», que viene elegido. Cada uno tiene una explicación corta de cómo funciona.
+- Se guarda en la misma preferencia de la 2.34.2 (`gpsSimple`; los botones llevan `data-flag-radio`), así quien ya había elegido el método anterior lo sigue teniendo. No cambia cómo se mide ni los puntos guardados.
+- Ayudas: «Cómo usar la app» (Marcar con el GPS) y «Qué hay de nuevo». Lista de pruebas de campo: G4 al día y sección 21.
+- Verificado con 791 pruebas unitarias y los 357 pasos del navegador.
+
 **2.34.4: nombre corto bajo el ícono.**
 - En la pantalla de inicio el nombre «Don Florentino SIG» se cortaba con puntos suspensivos. Ahora bajo el ícono (y en la lista de aplicaciones) dice «Florentino SIG»; el nombre de la app sigue siendo «Don Florentino SIG» en Ajustes, en los permisos y dentro de la app.
 - Cómo: `scripts/patch-android.js` pone en `title_activity_main` (la etiqueta de la actividad que abre el ícono) el `short_name` de `www/manifest.webmanifest`, que ahora es «Florentino SIG»; `app_name` (la etiqueta de la aplicación) no cambia. La compilación comprueba los dos nombres después de `cap sync`. Si una versión futura de Capacitor deja de usar `title_activity_main` en la actividad principal, el script se detiene y lo dice.

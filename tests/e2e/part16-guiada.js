@@ -135,7 +135,7 @@ module.exports = async function (c) {
     assert.deepEqual(await page.$$eval('.tcard[data-act="convert"] b', (b) => b.map((x) => x.textContent)), ['Área', 'Distancia', 'Temperatura']);
     const fila = await page.$$eval('.tcard[data-act="convert"]', (b) => b.map((x) => Math.round(x.getBoundingClientRect().top)));
     assert.ok(fila.every((y) => y === fila[0]), 'los tres en una fila');
-    assert.deepEqual(await page.$$eval('#tab-herramientas .menurow b', (b) => b.map((x) => x.textContent)), ['Proyectos', 'Copia de seguridad y restaurar', 'Encabezado del reporte', 'Alto contraste', 'Marcar con el método anterior', 'Reporte con todas las secciones abiertas', 'Pegar puntos a las esquinas de otros polígonos', 'Cómo usar la app', 'Qué hay de nuevo', 'Para qué sirve la app', 'Cómo usar el mapa', 'Fuentes y licencias', 'Registro de errores']);
+    assert.deepEqual(await page.$$eval('#tab-herramientas .menurow b', (b) => b.map((x) => x.textContent)), ['Proyectos', 'Copia de seguridad y restaurar', 'Encabezado del reporte', 'Alto contraste', 'Reporte con todas las secciones abiertas', 'Pegar puntos a las esquinas de otros polígonos', 'Promedio simple (método anterior)', 'Promedio ponderado (recomendado)', 'Cómo usar la app', 'Qué hay de nuevo', 'Para qué sirve la app', 'Cómo usar el mapa', 'Fuentes y licencias', 'Registro de errores']);
     assert.match(await text('#tab-herramientas'), /Don Florentino SIG · versión \d+\.\d+\.\d+\./);
     // 2.23.1: crédito y redes de Campesino Urbano, al final y centrados
     assert.equal(await text('#credit p'), 'Un proyecto de Campesino Urbano');
@@ -220,8 +220,8 @@ module.exports = async function (c) {
     await page.reload(); await page.waitForSelector('#sheet:not([hidden])');
     assert.equal(await sheetTitle(), 'Qué hay de nuevo');
     const dts = await page.$$eval('#whatsNew dt', (d) => d.map((x) => x.textContent));
-    assert.deepEqual(dts.slice(0, 6), ['Nombre corto bajo el ícono', 'Firma y tarjeta profesional en el reporte', 'Promedio ponderado del GPS', 'Origen de cada punto en el reporte', 'Alto contraste', 'Registro de errores']);
-    assert.deepEqual(dts.slice(6, 9), ['Nuevo nombre: Don Florentino SIG', 'Fuentes y licencias con enlaces', 'Más seguridad'], 'siguen las novedades de la 2.33.0');
+    assert.deepEqual(dts.slice(0, 7), ['Elegir el promedio del GPS', 'Nombre corto bajo el ícono', 'Firma y tarjeta profesional en el reporte', 'Promedio ponderado del GPS', 'Origen de cada punto en el reporte', 'Alto contraste', 'Registro de errores']);
+    assert.deepEqual(dts.slice(7, 10), ['Nuevo nombre: Don Florentino SIG', 'Fuentes y licencias con enlaces', 'Más seguridad'], 'siguen las novedades de la 2.33.0');
     assert.ok(dts.includes('Nombres de los puntos') && dts.includes('Vaciar y empezar de nuevo'), 'siguen las novedades de la 2.32.1');
     assert.deepEqual(await page.$$eval('#sheet .btns button', (b) => b.map((x) => x.textContent)), ['Entendido', 'Ver la ayuda completa']);
     await shot('177-que-hay-de-nuevo');

@@ -45,12 +45,13 @@ module.exports = async function (c) {
     await shot('v2342-promedio');
   });
 
-  await step('Método anterior (opción en Preferencias): mismas lecturas, todas pesan igual y guarda la precisión de la mejor', async () => {
+  await step('Método anterior (se elige en Preferencias): mismas lecturas, todas pesan igual y guarda la precisión de la mejor', async () => {
     await tab('herramientas');
-    assert.match(await text('#tab-herramientas'), /Marcar con el método anterior\s*Promedio simple: todas las lecturas pesan igual y el punto guarda la precisión de la mejor, que es más optimista que la real\. Viene apagado/);
-    const chk = page.locator('input[data-flag="gpsSimple"]');
-    assert.equal(await chk.isChecked(), false, 'viene apagado');
-    await chk.check();
+    const simple = page.locator('input[name="gpsMetodo"][value="1"]'), ponderado = page.locator('input[name="gpsMetodo"][value="0"]');
+    assert.equal(await ponderado.isChecked(), true, 'viene elegido el ponderado');
+    assert.equal(await simple.isChecked(), false);
+    await simple.check();
+    assert.equal(await page.evaluate(() => window.Store.loadFlag('gpsSimple')), true);
     await tab('puntos');
     let vivo = '';
     const pt = await marcar((t) => { vivo = t; });
@@ -60,7 +61,36 @@ module.exports = async function (c) {
     assert.equal(pt.acc, 3, 'la de la mejor lectura');
     assert.match(await page.locator('#tab-puntos .row.pt').last().textContent(), /precisión ±3 m \(la mejor de 4 lecturas\)/);
     await tab('herramientas');
-    await page.locator('input[data-flag="gpsSimple"]').uncheck();
+    await page.locator('input[name="gpsMetodo"][value="0"]').check();
+    assert.equal(await page.evaluate(() => window.Store.loadFlag('gpsSimple')), false);
+    await tab('puntos');
+  });
+
+  await step('2.34.5: los dos métodos juntos en un recuadro, cada uno con su explicación; se elige uno, viene el ponderado y lo elegido se recuerda', async () => {
+    await tab('herramientas');
+    const grupo = page.locator('#tab-herramientas [role="radiogroup"]');
+    assert.equal(await grupo.count(), 1);
+    assert.equal(await grupo.getAttribute('aria-labelledby'), 'gpsMetT');
+    assert.equal(await text('#gpsMetT'), 'Promedio del GPS al marcar un puntoElige uno. Los puntos ya guardados no cambian.');
+    const filas = await grupo.locator('.menurow').evaluateAll((els) => els.map((e) => [e.querySelector('b').textContent, e.querySelector('small').textContent, e.querySelector('input').type, e.querySelector('input').checked]));
+    assert.deepEqual(filas, [
+      ['Promedio simple (método anterior)', 'Todas las lecturas pesan igual. El punto guarda la precisión de la mejor lectura, que suele prometer más de lo real.', 'radio', false],
+      ['Promedio ponderado (recomendado)', 'Las lecturas más precisas pesan más (cada una pesa 1 ÷ precisión²). El punto guarda la precisión promedio de las lecturas. Viene elegido.', 'radio', true]
+    ], 'el nuevo, abajo y elegido');
+    assert.equal(await page.locator('#tab-herramientas input[data-flag="gpsSimple"]').count(), 0, 'ya no está la casilla suelta');
+    await page.locator('#gpsMetT').scrollIntoViewIfNeeded();
+    await shot('v2345-metodo-gps');
+    await grupo.locator('input[value="1"]').check();
+    assert.equal(await grupo.locator('input[value="0"]').isChecked(), false, 'solo uno a la vez');
+    await page.reload(); await page.waitForSelector('#tab-puntos');
+    await tab('herramientas');
+    assert.equal(await page.locator('input[name="gpsMetodo"][value="1"]').isChecked(), true, 'se recuerda al volver a abrir');
+    await page.locator('input[name="gpsMetodo"][value="0"]').check();
+    assert.equal(await page.evaluate(() => window.Store.loadFlag('gpsSimple')), false);
+    await page.evaluate(() => { window.Store.saveFlag('gpsSimple', true); });      // como lo dejó la 2.34.2 con la casilla marcada
+    await tab('puntos'); await tab('herramientas');
+    assert.equal(await page.locator('input[name="gpsMetodo"][value="1"]').isChecked(), true, 'lo elegido con la casilla de antes sigue elegido');
+    await page.locator('input[name="gpsMetodo"][value="0"]').check();
     await tab('puntos');
   });
 

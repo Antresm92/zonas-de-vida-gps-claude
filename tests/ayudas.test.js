@@ -139,7 +139,7 @@ test('2.34.2: las ayudas explican el promedio ponderado del GPS y la opción del
   const { A, sheets } = load();
   assert.ok(atLeast(A.WHATS_NEW_ID, '2.34.2'), A.WHATS_NEW_ID);
   A.openAppGuide();
-  assert.match(sheets[sheets.length - 1][1], /Marcar con el GPS.*las más precisas pesan más \(cada una pesa 1 ÷ precisión²\).*precisión promedio.*Marcar con el método anterior/s);
+  assert.match(sheets[sheets.length - 1][1], /Marcar con el GPS.*las más precisas pesan más \(cada una pesa 1 ÷ precisión²\).*precisión promedio.*«Promedio del GPS al marcar un punto».*promedio ponderado \(viene elegido\).*promedio simple \(el método anterior\)/s);
   A.openWhatsNew();
   const nuevo = sheets[sheets.length - 1][1];
   assert.ok(nuevo.indexOf('Promedio ponderado del GPS') < nuevo.indexOf('Origen de cada punto en el reporte'), 'lo de la 2.34.2 va primero');
@@ -174,4 +174,13 @@ test('2.34.4: «Qué hay de nuevo» explica el nombre corto bajo el ícono y que
   const nuevo = sheets[sheets.length - 1][1];
   assert.ok(nuevo.indexOf('Nombre corto bajo el ícono') < nuevo.indexOf('Firma y tarjeta profesional en el reporte'), 'lo de la 2.34.4 va primero');
   assert.match(nuevo, /dice «Florentino SIG».*sigue siendo Don Florentino SIG: así aparece en Ajustes, en los permisos y dentro de la app/s);
+});
+
+test('2.34.5: «Qué hay de nuevo» explica el recuadro para elegir el promedio del GPS', () => {
+  const { A, sheets } = load();
+  assert.ok(atLeast(A.WHATS_NEW_ID, '2.34.5'), A.WHATS_NEW_ID);
+  A.openWhatsNew();
+  const nuevo = sheets[sheets.length - 1][1];
+  assert.ok(nuevo.indexOf('Elegir el promedio del GPS') < nuevo.indexOf('Nombre corto bajo el ícono'), 'lo de la 2.34.5 va primero');
+  assert.match(nuevo, /los dos métodos juntos, cada uno con una explicación corta.*viene elegido\. Si ya habías elegido el anterior, sigue elegido/s);
 });

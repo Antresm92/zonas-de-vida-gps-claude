@@ -5,7 +5,7 @@
   var Geo = window.Geo, H = window.Holdridge, Climate = window.Climate, A = window.Analysis, Fmt = window.Fmt,
       Gps = window.Gps, Store = window.Store, Diagram = window.Diagram, Report = window.Report,
       Gis = window.Gis, Backup = window.Backup, IO = window.IO, WL = window.WalterLieth, Mapa = window.Mapa, MapView = window.MapView, Satelite = window.Satelite, Perfil = window.Perfil, Fotos = window.Fotos, Zip = window.Zip, Units = window.Units;
-  var APP_VERSION = '2.34.4';
+  var APP_VERSION = '2.34.5';
   var Errores = window.Errores;
   if (Errores) Errores.setVersion(APP_VERSION);            // 2.34.0: el registro de errores anota en qué versión pasó cada uno
 
@@ -1428,6 +1428,9 @@
   document.addEventListener('change', function (e) {
     if (!e.target.matches) return;
     if (e.target.matches('[data-field]')) commitField(e.target);
+    else if (e.target.matches('[data-flag-radio]')) {          // 2.34.5: un grupo de opciones guardado como sí/no (value «1» = sí)
+      if (e.target.checked) Store.saveFlag(e.target.getAttribute('data-flag-radio'), e.target.value === '1');
+    }
     else if (e.target.matches('[data-flag]')) {
       Store.saveFlag(e.target.getAttribute('data-flag'), !!e.target.checked);
       if (e.target.getAttribute('data-flag') === 'altoContraste') applyContrast();

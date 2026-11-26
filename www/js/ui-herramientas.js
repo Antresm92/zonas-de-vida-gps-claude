@@ -34,12 +34,10 @@
       h += '<h3 class="sub">Reporte</h3><div class="menu">' + menuRow('authorEdit', 'Encabezado del reporte', auSub || 'Autor, entidad, logo y firma') + '</div>';
       h += '<h3 class="sub">Preferencias</h3><div class="menu"><label class="menurow"><span><b>Alto contraste</b><small>Negro sobre blanco y bordes marcados, para leer al sol. Solo cambia los colores.</small></span>' +
         '<input type="checkbox" data-flag="altoContraste"' + (Store.loadFlag('altoContraste') === true ? ' checked' : '') + '></label>' +
-        '<label class="menurow"><span><b>Marcar con el método anterior</b><small>Promedio simple: todas las lecturas pesan igual y el punto guarda la precisión de la mejor, que es más optimista que la real. Viene apagado: lo recomendado es el promedio ponderado.</small></span>' +
-        '<input type="checkbox" data-flag="gpsSimple"' + (Store.loadFlag('gpsSimple') === true ? ' checked' : '') + '></label>' +
         '<label class="menurow"><span><b>Reporte con todas las secciones abiertas</b><small>Si no, cada sección se abre al tocar su título.</small></span>' +
         '<input type="checkbox" data-flag="reportOpen"' + (Store.loadFlag('reportOpen') === true ? ' checked' : '') + '></label>' +
         '<label class="menurow"><span><b>Pegar puntos a las esquinas de otros polígonos</b><small>Al marcar o mover un punto en el mapa muy cerca de la esquina de otro predio o lote, queda exactamente sobre ella.</small></span>' +
-        '<input type="checkbox" data-flag="lotSnap"' + (Store.loadFlag('lotSnap') === false ? '' : ' checked') + '></label></div>';
+        '<input type="checkbox" data-flag="lotSnap"' + (Store.loadFlag('lotSnap') === false ? '' : ' checked') + '></label></div>' + gpsMethodGroup();
       h += '<h3 class="sub">Ayuda</h3><div class="menu">' + menuRow('appGuide', 'Cómo usar la app', 'Los tres pasos y todo lo demás') + menuRow('whatsNew', 'Qué hay de nuevo', 'Lo nuevo de la versión ' + WHATS_NEW_ID) + menuRow('usesGuide', 'Para qué sirve la app', 'Usos por área y hasta dónde llega') + menuRow('mapGuide', 'Cómo usar el mapa', 'Puntos, polígonos, predios y lotes') +
         menuRow('licenses', 'Fuentes y licencias', 'Mapas y datos de clima') + menuRow('diag', 'Registro de errores', diagSub()) + '</div>';
       h += '<p class="small muted" style="margin-top:14px">Don Florentino SIG · versión ' + APP_VERSION + '. Funciona sin internet, salvo los mapas y los datos de clima.</p>';
@@ -181,6 +179,19 @@
       if (ui.tab === 'herramientas') renderTab('herramientas');
     }
 
+    /* 2.34.5: los dos métodos para promediar el GPS, juntos en un recuadro y cada uno con su explicación; se elige uno y
+     * viene elegido el ponderado. Se guarda en la misma preferencia de la 2.34.2 (gpsSimple: true = el método anterior),
+     * así quien ya había elegido el anterior lo sigue teniendo. */
+    function gpsMethodGroup() {
+      var simple = Store.loadFlag('gpsSimple') === true;
+      function opt(v, on, title, sub) {
+        return '<label class="menurow"><span><b>' + title + '</b><small>' + sub + '</small></span>' +
+          '<input type="radio" name="gpsMetodo" data-flag-radio="gpsSimple" value="' + v + '"' + (on ? ' checked' : '') + '></label>';
+      }
+      return '<div class="menu menu-sub" role="radiogroup" aria-labelledby="gpsMetT"><div class="menuhead" id="gpsMetT"><b>Promedio del GPS al marcar un punto</b><small>Elige uno. Los puntos ya guardados no cambian.</small></div>' +
+        opt('1', simple, 'Promedio simple (método anterior)', 'Todas las lecturas pesan igual. El punto guarda la precisión de la mejor lectura, que suele prometer más de lo real.') +
+        opt('0', !simple, 'Promedio ponderado (recomendado)', 'Las lecturas más precisas pesan más (cada una pesa 1 ÷ precisión²). El punto guarda la precisión promedio de las lecturas. Viene elegido.') + '</div>';
+    }
     function menuRow(act, title, sub) {
       return '<button class="menurow" data-act="' + act + '"><span><b>' + esc(title) + '</b>' + (sub ? '<small>' + esc(sub) + '</small>' : '') + '</span><i aria-hidden="true">›</i></button>';
     }
