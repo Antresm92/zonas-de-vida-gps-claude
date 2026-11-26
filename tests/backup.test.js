@@ -220,3 +220,19 @@ test('2.33.0: la app se llama Don Florentino SIG; las copias de «Zonas de Vida�
   assert.equal(otra.ok, false);
   assert.match(otra.errors[0], /no es una copia de seguridad de Don Florentino SIG ni de Zonas de Vida/);
 });
+
+test('2.34.2: la copia conserva cuántas lecturas del GPS se promediaron y el método; las copias de antes se leen igual', () => {
+  const estado = (pts) => ({ app: 'don-florentino-sig', format: 2, created: '2026-11-25T15:00:00.000Z', state: { currentId: 'p', settings: {}, projects: [{ id: 'p', name: 'P', lots: [{ id: 'l', name: 'Predio', points: pts }] }] } });
+  let k = 0;
+  const r = Backup.validate(estado([
+    { id: 'a', name: 'P1', lat: 4.6, lon: -74.1, alt: 2600, altSrc: 'gps', acc: 3.8, src: 'gps', gpsN: 12, gpsMet: 'ponderado' },
+    { id: 'b', name: 'P2', lat: 4.61, lon: -74.1, acc: 3, src: 'gps', gpsN: 8, gpsMet: 'simple' },
+    { id: 'c', name: 'P3', lat: 4.61, lon: -74.09, src: 'gps', gpsN: 'muchas' },
+    { id: 'd', name: 'P4', lat: 4.6, lon: -74.09, src: 'manual', gpsN: 5, gpsMet: 'ponderado' },
+    { id: 'e', name: 'P5', lat: 4.605, lon: -74.095, src: 'gps', acc: 4 },
+    { id: 'f', name: 'P6', lat: 4.606, lon: -74.096, src: 'gps', gpsN: 3, gpsMet: 'otro' }
+  ]), { uid: () => 'u' + (++k) });
+  assert.equal(r.ok, true, r.errors.join('; '));
+  const pts = r.data.projects[0].lots[0].points;
+  assert.deepEqual(pts.map((p) => [p.gpsN, p.gpsMet]), [[12, 'ponderado'], [8, 'simple'], [undefined, undefined], [undefined, undefined], [undefined, undefined], [3, 'ponderado']]);
+});

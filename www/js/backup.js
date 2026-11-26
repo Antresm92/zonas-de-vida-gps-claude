@@ -68,6 +68,9 @@
       acc: num(p.acc, 0, 100000), altAcc: num(p.altAcc, 0, 100000), src: oneOf(p.src, PT_SRC, 'manual'), ts: num(p.ts, 0, 8.64e15) || this.now
     };
     if (p.lowAcc === true) out.lowAcc = true;
+    // 2.34.2: lecturas del GPS promediadas y su método; solo en puntos del GPS (si falta o no es válido, el punto se lee igual)
+    var gn = num(p.gpsN, 1, 100000);
+    if (out.src === 'gps' && gn !== null) { out.gpsN = Math.round(gn); out.gpsMet = p.gpsMet === 'simple' ? 'simple' : 'ponderado'; }
     var color = hex(p.color, null), leyenda = note(p.note, LIM.note);
     if (color) out.color = color;
     if (leyenda) out.note = leyenda;

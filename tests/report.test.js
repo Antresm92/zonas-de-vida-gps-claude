@@ -300,3 +300,11 @@ test('origen: va en el reporte HTML (Terreno y Puntos) y en el de texto; los dat
   assert.match(t, /  P1: [^\n]* · GPS ±4 m · altitud ±9 m\n/);
   assert.equal(JSON.stringify(pts), antes, 'el reporte solo lee: no cambia los puntos');
 });
+
+test('2.34.2: el origen de un punto del GPS dice cuántas lecturas se promediaron y con qué método', () => {
+  assert.equal(Report.originText({ src: 'gps', acc: 3.8, gpsN: 12, gpsMet: 'ponderado', alt: 2600, altSrc: 'gps', altAcc: 9 }), 'GPS ±4 m · promedio ponderado de 12 lecturas · altitud ±9 m');
+  assert.equal(Report.originText({ src: 'gps', acc: 3, gpsN: 12, gpsMet: 'simple', alt: 2600, altSrc: 'gps' }), 'GPS ±3 m · promedio simple de 12 lecturas (± de la mejor)');
+  assert.equal(Report.originText({ src: 'gps', acc: 5, gpsN: 1, gpsMet: 'ponderado', alt: 2600, altSrc: 'gps' }), 'GPS ±5 m · una sola lectura');
+  assert.equal(Report.originText({ src: 'gps', acc: 5, alt: 2600, altSrc: 'gps' }), 'GPS ±5 m', 'puntos de antes y del recorrido del lindero: como antes');
+  assert.equal(Report.originText({ src: 'manual', gpsN: 12, alt: 1, altSrc: 'manual' }), 'a mano', 'un punto movido a mano no habla de lecturas');
+});

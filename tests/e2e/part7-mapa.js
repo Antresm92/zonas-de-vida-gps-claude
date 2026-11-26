@@ -342,7 +342,7 @@ module.exports = async function (c) {
     assert.match(await text('#mapProgTxt'), /Esperando la primera lectura/);
     assert.equal(await page.locator('[data-act="mapMark"]').isDisabled(), true, 'no se puede marcar dos veces a la vez');
     await gpsPush({ lat: 4.6050, lon: -74.0750, alt: 2639.4, acc: 3 });
-    await page.waitForFunction(() => /Promediando lecturas: 1 · mejor precisión ±3 m/.test((document.querySelector('#mapProgTxt') || {}).textContent || ''));
+    await page.waitForFunction(() => /Promediando: 1 lectura · precisión promedio ±3 m/.test((document.querySelector('#mapProgTxt') || {}).textContent || ''));
     await shot('74-marcando-punto');
     await gpsPush({ lat: 4.6050, lon: -74.0750, alt: 2639.4, acc: 3 }, 4);
     await waitToast(/P4 guardado \(±3 m/, 14000);

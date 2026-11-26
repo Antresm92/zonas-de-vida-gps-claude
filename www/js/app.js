@@ -5,7 +5,7 @@
   var Geo = window.Geo, H = window.Holdridge, Climate = window.Climate, A = window.Analysis, Fmt = window.Fmt,
       Gps = window.Gps, Store = window.Store, Diagram = window.Diagram, Report = window.Report,
       Gis = window.Gis, Backup = window.Backup, IO = window.IO, WL = window.WalterLieth, Mapa = window.Mapa, MapView = window.MapView, Satelite = window.Satelite, Perfil = window.Perfil, Fotos = window.Fotos, Zip = window.Zip, Units = window.Units;
-  var APP_VERSION = '2.34.1';
+  var APP_VERSION = '2.34.2';
   var Errores = window.Errores;
   if (Errores) Errores.setVersion(APP_VERSION);            // 2.34.0: el registro de errores anota en qué versión pasó cada uno
 
@@ -349,19 +349,21 @@
     var min = S.settings.minAcc;
     if (force !== true && Gps.precisionState(ui.fix && ui.fix.acc, min).worse) { confirmLowPrecision(); return; }
     var secs = 10, ac = typeof AbortController !== 'undefined' ? new AbortController() : null;
-    var st = { start: Date.now(), n: 0, acc: null, secs: secs, ac: ac, cancelled: false };
+    // 2.34.2: promedio ponderado; el método anterior (promedio simple) solo si se eligió en Preferencias
+    var method = Store.loadFlag('gpsSimple') === true ? 'simple' : 'ponderado';
+    var st = { start: Date.now(), n: 0, acc: null, secs: secs, ac: ac, cancelled: false, method: method, samples: [] };
     ui.sampling = st;
     renderTab('puntos');
     if (ui.tab === 'area') renderTab('area');
     var timer = setInterval(updateProgress, 200);
-    Gps.sample({ seconds: secs, goodAcc: min > 0 ? Math.min(5, min) : 5, minSamples: 4, signal: ac ? ac.signal : undefined,
-      onProgress: function (s, n) { st.n = n; st.acc = s.acc; } })
+    Gps.sample({ seconds: secs, goodAcc: min > 0 ? Math.min(5, min) : 5, minSamples: 4, signal: ac ? ac.signal : undefined, method: method,
+      onProgress: function (s, n) { st.n = n; st.acc = s.acc; st.samples.push(s); } })
       .then(function (r) {
         if (st.cancelled) return;
         undoMark('marcar un punto con el GPS');
-        var pt = addPoint({ lat: r.lat, lon: r.lon, alt: r.alt, altGps: r.alt, altSrc: isNum(r.alt) ? 'gps' : null, acc: r.acc, altAcc: r.altAcc, src: 'gps' });
+        var pt = addPoint({ lat: r.lat, lon: r.lon, alt: r.alt, altGps: r.alt, altSrc: isNum(r.alt) ? 'gps' : null, acc: r.acc, altAcc: r.altAcc, src: 'gps', gpsN: r.n, gpsMet: r.method });
         adjustCheck();
-        var base = pt.name + ' guardado' + (isNum(r.acc) ? ' (±' + Math.round(r.acc) + ' m, ' + r.n + ' lecturas)' : '');
+        var base = pt.name + ' guardado' + (isNum(r.acc) ? ' (±' + Math.round(r.acc) + ' m' + (r.n === 1 ? ', una sola lectura' : r.method === 'simple' ? ' de la mejor de ' + r.n + ' lecturas' : ', promedio ponderado de ' + r.n + ' lecturas') + ')' : '');
         if (Gps.precisionState(r.acc, min).worse) {
           toast(base + '. Aviso: la precisión quedó peor que tu mínimo (±' + min + ' m); este punto no es el más preciso.', { action: 'Quitarlo', fn: function () { removePoint(pt.id); } });
         } else {
@@ -374,12 +376,20 @@
   function updateProgress() {
     var st = ui.sampling; if (!st) return;
     var pct = Math.min(100, (Date.now() - st.start) / (st.secs * 1000) * 100);
-    var msg = st.n ? 'Promediando lecturas: ' + st.n + (isNum(st.acc) ? ' · mejor precisión ±' + Math.round(st.acc) + ' m' : '') : 'Esperando la primera lectura del GPS…';
+    var msg = st.n ? liveText(Gps.combine(st.samples, st.method)) : 'Esperando la primera lectura del GPS…';
     [['#progBar', '#progTxt'], ['#mapProgBar', '#mapProgTxt']].forEach(function (ids) {
       var bar = $(ids[0]), txt = $(ids[1]);
       if (bar) bar.style.width = pct + '%';
       if (txt) txt.textContent = msg;
     });
+  }
+  // 2.34.2: lo que se ve mientras se promedia: lecturas usadas, la precisión que se guardaría y cuánto se mueven las lecturas
+  function liveText(r) {
+    if (!r) return 'Esperando la primera lectura del GPS…';
+    var t = (r.method === 'simple' ? 'Promediando (método anterior): ' : 'Promediando: ') + r.n + (r.n === 1 ? ' lectura' : ' lecturas');
+    if (isNum(r.acc)) t += r.method === 'simple' ? ' · mejor precisión ±' + Math.round(r.acc) + ' m' : ' · precisión promedio ±' + Math.round(r.acc) + ' m';
+    if (r.n > 1 && isNum(r.spread)) t += ' · se mueven ±' + Fmt.num(r.spread, r.spread < 10 ? 1 : 0) + ' m';
+    return t;
   }
   function cancelMark() {
     var st = ui.sampling; if (!st) return;
@@ -429,6 +439,8 @@
       alt: isNum(d.alt) ? d.alt : null, altGps: isNum(d.altGps) ? d.altGps : null, altSrc: isNum(d.alt) ? (d.altSrc || 'manual') : null,
       acc: isNum(d.acc) ? d.acc : null, altAcc: isNum(d.altAcc) ? d.altAcc : null, src: d.src || 'manual', ts: Date.now()
     };
+    // 2.34.2: cuántas lecturas del GPS se promediaron y con qué método (para saber qué significa su ±)
+    if (isNum(d.gpsN) && d.gpsN >= 1) { pt.gpsN = Math.round(d.gpsN); pt.gpsMet = d.gpsMet === 'simple' ? 'simple' : 'ponderado'; }
     p.nextPoint++;
     p.points.push(pt);
     save();
@@ -436,6 +448,11 @@
   }
   function pointById(id) { return proj().points.filter(function (p) { return p.id === id; })[0]; }
 
+  // 2.34.2: en la lista, cuántas lecturas se promediaron (con el método anterior, el ± es el de la mejor)
+  function gpsAvgShort(pt) {
+    if (pt.src !== 'gps' || !isNum(pt.gpsN) || pt.gpsN < 2) return '';
+    return pt.gpsMet === 'simple' ? ' (la mejor de ' + pt.gpsN + ' lecturas)' : ' · ' + pt.gpsN + ' lecturas';
+  }
   var ALT_CHIP = { gps: 'GPS', internet: 'internet', manual: 'a mano', archivo: 'archivo', sindato: 'sin dato' };
   function altChip(p) {
     if (!isNum(p.alt)) return '<span class="alt alt-none">sin altitud</span>';
@@ -459,7 +476,7 @@
     h += '<div class="readout"' + (ui.gpsOn || sampling ? '' : ' hidden') + '><div><span class="k">Latitud</span><span class="v" id="rLat">—</span></div><div><span class="k">Longitud</span><span class="v" id="rLon">—</span></div>' +
          '<div><span class="k">Altitud</span><span class="v" id="rAlt">—</span></div><div><span class="k">Precisión</span><span class="v" id="rAcc">—</span></div></div>' +
          '<div id="precBanner" hidden></div>';
-    if (!sampling && ui.gpsOn) h += '<p class="small muted">Quédate quieto unos 10 segundos: se promedian las lecturas para mejorar la posición y la altitud. <button class="link" data-act="gpsOff">Apagar GPS</button></p>';
+    if (!sampling && ui.gpsOn) h += '<p class="small muted">Quédate quieto unos 10 segundos: se promedian las lecturas (las más precisas pesan más) para mejorar la posición y la altitud. <button class="link" data-act="gpsOff">Apagar GPS</button></p>';
     else if (!sampling) h += '<p class="small muted">Con el GPS activo, la altitud del punto se toma sola y la puedes corregir a mano.</p>';
     h += '<label class="f f-inline"><span>Precisión mínima del GPS</span><select data-setting="minAcc" title="Si el GPS está menos preciso que esto, la app te avisa antes de marcar y tú decides. No bloquea nada.">' +
       [[0, 'Sin límite'], [3, '±3 m (muy exigente)'], [5, '±5 m'], [10, '±10 m'], [20, '±20 m (campo difícil)']].map(function (o) {
@@ -475,7 +492,7 @@
       p.points.forEach(function (pt) {
         var low = Gps.precisionState(pt.acc, S.settings.minAcc).worse;
         h += '<li><button class="row pt" data-act="editPoint" data-id="' + esc(pt.id) + '" style="--pc:' + Mapa.pointColor(pt, p.mainColor) + '"><span class="pname">' + esc(pt.name) + '</span>' +
-          '<span class="pcoord">' + Fmt.latlon(pt.lat, pt.lon) + (isNum(pt.acc) ? '<span class="psub' + (low ? ' low' : '') + '">precisión ±' + Math.round(pt.acc) + ' m' + (low ? ' · menos preciso que tu mínimo' : '') + '</span>' : '<span class="psub">' + (pt.src === 'gps' ? 'GPS' : pt.src === 'archivo' ? 'de un archivo' : pt.src === 'manual' ? 'escrito a mano' : 'origen sin dato') + '</span>') + photoStrip(pt) + '</span>' +
+          '<span class="pcoord">' + Fmt.latlon(pt.lat, pt.lon) + (isNum(pt.acc) ? '<span class="psub' + (low ? ' low' : '') + '">precisión ±' + Math.round(pt.acc) + ' m' + gpsAvgShort(pt) + (low ? ' · menos preciso que tu mínimo' : '') + '</span>' : '<span class="psub">' + (pt.src === 'gps' ? 'GPS' : pt.src === 'archivo' ? 'de un archivo' : pt.src === 'manual' ? 'escrito a mano' : 'origen sin dato') + '</span>') + photoStrip(pt) + '</span>' +
           altChip(pt) + '</button></li>';
       });
       h += '</ul>';
@@ -650,6 +667,7 @@
   function pointInfo(pt) {
     var rows = [['Origen de la posición', Object.prototype.hasOwnProperty.call(SRC_TXT, pt.src) ? SRC_TXT[pt.src] : 'sin dato']];
     if (isNum(pt.acc)) rows.push(['Precisión del GPS', '±' + Math.round(pt.acc) + ' m']);
+    if (pt.src === 'gps' && isNum(pt.gpsN)) rows.push(['Lecturas del GPS', pt.gpsN === 1 ? 'una sola' : pt.gpsN + ', ' + (pt.gpsMet === 'simple' ? 'promedio simple (± de la mejor lectura)' : 'promedio ponderado (± promedio de las lecturas)')]);
     if (isNum(pt.altGps)) rows.push(['Altitud del GPS', Fmt.num(pt.altGps, 0) + ' m' + (isNum(pt.altAcc) ? ' (±' + Math.round(pt.altAcc) + ' m)' : '')]);
     var when = isNum(pt.ts) ? Fmt.dateTime(pt.ts) : '';
     if (when) rows.push(['Guardado', when]);
@@ -700,7 +718,7 @@
   function relocate(pt, lat, lon) {
     var moved = Geo.haversine(pt.lat, pt.lon, lat, lon) >= 0.5;
     pt.lat = lat; pt.lon = lon;
-    if (moved) { pt.src = 'manual'; pt.acc = null; }
+    if (moved) { pt.src = 'manual'; pt.acc = null; delete pt.gpsN; delete pt.gpsMet; }
     return moved;
   }
   function saveEdit(id) {

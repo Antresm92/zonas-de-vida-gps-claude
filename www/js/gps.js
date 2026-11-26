@@ -58,16 +58,40 @@
     return '';
   }
 
-  // Promedia lecturas: descarta las que tienen una precisión mucho peor que la mejor.
-  function combine(samples) {
-    if (!samples.length) return null;
+  /* Promedia las lecturas de un punto (2.34.2).
+   * Primero descarta las que tienen una precisión mucho peor que la mejor (igual que antes). Con las que quedan:
+   *  - Método «ponderado» (el de siempre desde la 2.34.2): cada lectura pesa 1 / precisión², el promedio ponderado estándar
+   *    (Particle Data Group, Review of Particle Physics 2018, Introducción, sección 5.2.2, ecuación 1). La precisión que se
+   *    guarda es el PROMEDIO de las precisiones de las lecturas usadas, como guarda ArcGIS Field Maps al promediar
+   *    («precisión horizontal promedio»). No se divide entre la raíz del número de lecturas (la otra parte de esa ecuación):
+   *    eso supone errores independientes, y los de lecturas seguidas del GPS están correlacionados en el tiempo; daría una
+   *    precisión mejor que la real.
+   *  - Método «simple» (el anterior, opcional en Preferencias): todas pesan igual y la precisión es la de la mejor lectura.
+   * La altitud es la mediana en los dos (resiste saltos de decenas de metros). Una lectura sin precisión pesa como la peor
+   * conocida. spread: cuánto se mueven las lecturas alrededor del promedio (raíz del promedio ponderado de las distancias
+   * al cuadrado, en metros), para verlo en vivo. */
+  function wrap180(x) { return ((x + 540) % 360 + 360) % 360 - 180; }
+  function mean(a) { return a.reduce(function (s, x) { return s + x; }, 0) / a.length; }
+  function combine(samples, method) {
+    if (!samples || !samples.length) return null;
+    var simple = method === 'simple';
     var best = Infinity;
     samples.forEach(function (s) { if (isNum(s.acc) && s.acc < best) best = s.acc; });
     var keep = samples.filter(function (s) { return !isNum(s.acc) || !isFinite(best) || s.acc <= Math.max(best * 1.6, best + 3); });
     if (!keep.length) keep = samples;
-    var lat = 0, lon = 0;
-    keep.forEach(function (s) { lat += s.lat; lon += s.lon; });
-    lat /= keep.length; lon /= keep.length;
+    var accs = keep.filter(function (s) { return isNum(s.acc); }).map(function (s) { return s.acc; });
+    var worst = accs.length ? Math.max.apply(null, accs) : null;
+    var w = keep.map(function (s) {
+      if (simple || worst === null) return 1;
+      var a = Math.max(isNum(s.acc) ? s.acc : worst, 0.1);     // nunca dividir entre 0
+      return 1 / (a * a);
+    });
+    // Longitudes medidas desde la primera lectura: así el promedio no se rompe cerca de ±180°
+    var lon0 = keep[0].lon, sw = 0, la = 0, lo = 0;
+    keep.forEach(function (s, i) { sw += w[i]; la += w[i] * s.lat; lo += w[i] * wrap180(s.lon - lon0); });
+    var lat = la / sw, lon = wrap180(lon0 + lo / sw);
+    var mLat = 111320, mLon = 111320 * Math.cos(lat * Math.PI / 180), ss = 0;
+    keep.forEach(function (s, i) { var dy = (s.lat - lat) * mLat, dx = wrap180(s.lon - lon) * mLon; ss += w[i] * (dx * dx + dy * dy); });
     var alts = keep.filter(function (s) { return isNum(s.alt); }).map(function (s) { return s.alt; });
     var alt = null;
     if (alts.length) {
@@ -76,12 +100,11 @@
       alt = alts.length % 2 ? alts[mid] : (alts[mid - 1] + alts[mid]) / 2;      // mediana: resiste a lecturas locas
     }
     var altAccs = keep.filter(function (s) { return isNum(s.altAcc); }).map(function (s) { return s.altAcc; });
-    var accs = keep.filter(function (s) { return isNum(s.acc); }).map(function (s) { return s.acc; });
     return {
       lat: lat, lon: lon, alt: alt,
-      acc: accs.length ? Math.min.apply(null, accs) : null,
-      altAcc: altAccs.length ? Math.min.apply(null, altAccs) : null,
-      n: keep.length, total: samples.length, ts: Date.now()
+      acc: accs.length ? (simple ? Math.min.apply(null, accs) : mean(accs)) : null,
+      altAcc: altAccs.length ? (simple ? Math.min.apply(null, altAccs) : mean(altAccs)) : null,
+      n: keep.length, total: samples.length, spread: Math.sqrt(ss / sw), method: simple ? 'simple' : 'ponderado', ts: Date.now()
     };
   }
 
@@ -102,7 +125,7 @@
   }
 
   // Toma lecturas durante "seconds" (o hasta tener "goodAcc" metros y mínimo 4 lecturas) y las promedia.
-  // opts: { seconds, goodAcc, minSamples, targetAcc, maxSeconds, onProgress(sample, count, elapsedMs), geo, signal }
+  // opts: { seconds, goodAcc, minSamples, targetAcc, maxSeconds, onProgress(sample, count, elapsedMs), geo, signal, method ('ponderado' | 'simple') }
   function sample(opts) {
     opts = opts || {};
     var geo = opts.geo || (typeof navigator !== 'undefined' ? navigator.geolocation : null);
@@ -118,7 +141,7 @@
         clearTimeout(timer);
         try { geo.clearWatch(id); } catch (e) { /* nada */ }
         if (opts.signal && opts.signal.removeEventListener) opts.signal.removeEventListener('abort', onAbort);
-        var r = combine(samples);
+        var r = combine(samples, opts.method);
         if (r) resolve(r);
         else reject(err || new Error('No llegó ninguna lectura del GPS.'));
       }
@@ -147,5 +170,5 @@
     });
   }
 
-  return { sample: sample, watch: watch, combine: combine, explain: explain, isOff: isOff, offNotice: offNotice, available: available, precisionState: precisionState, precisionText: precisionText };
+  return { wrap180: wrap180, sample: sample, watch: watch, combine: combine, explain: explain, isOff: isOff, offNotice: offNotice, available: available, precisionState: precisionState, precisionText: precisionText };
 });

@@ -110,9 +110,20 @@ test('combine: sin lecturas no hay resultado; descarta las muy imprecisas; altit
     Object.assign({ lat: 4.6001, alt: 2620, acc: 5.5 }, Object.assign({}, base, { altAcc: 7 }))
   ]);
   assert.equal(r.n, 3); assert.equal(r.total, 4);
-  assert.ok(Math.abs(r.lat - 4.6001) < 1e-9);
   assert.equal(r.alt, 2620);                                                    // mediana de 2600, 2620, 2640
-  assert.equal(r.acc, 5); assert.equal(r.altAcc, 7);
+  // 2.34.2: promedio ponderado (peso 1/precisión²) y la precisión es el promedio de las usadas (5, 6 y 5,5; altitud 10, 10 y 7)
+  const w = [1 / 25, 1 / 36, 1 / 30.25];
+  assert.ok(Math.abs(r.lat - (4.6000 * w[0] + 4.6002 * w[1] + 4.6001 * w[2]) / (w[0] + w[1] + w[2])) < 1e-12);
+  assert.ok(Math.abs(r.acc - 5.5) < 1e-12); assert.ok(Math.abs(r.altAcc - 9) < 1e-12);
+  assert.equal(r.method, 'ponderado');
+  // el método anterior (opcional en Preferencias) queda igual que siempre: todas pesan igual y la precisión es la de la mejor
+  const viejo = Gps.combine([
+    Object.assign({ lat: 4.6000, alt: 2600, acc: 5 }, base), Object.assign({ lat: 4.6002, alt: 2640, acc: 6 }, base),
+    Object.assign({ lat: 4.7000, alt: 9000, acc: 80 }, base),
+    Object.assign({ lat: 4.6001, alt: 2620, acc: 5.5 }, Object.assign({}, base, { altAcc: 7 }))
+  ], 'simple');
+  assert.ok(Math.abs(viejo.lat - 4.6001) < 1e-9);
+  assert.equal(viejo.acc, 5); assert.equal(viejo.altAcc, 7); assert.equal(viejo.alt, 2620); assert.equal(viejo.n, 3); assert.equal(viejo.method, 'simple');
   const par = Gps.combine([{ lat: 1, lon: 1, alt: 100, acc: 5 }, { lat: 1, lon: 1, alt: 110, acc: 5 }]);
   assert.equal(par.alt, 105);                                                   // cantidad par: promedio de los dos del medio
   const sinDatos = Gps.combine([{ lat: 1, lon: 1, alt: null, acc: null }, { lat: 3, lon: 3, alt: null, acc: null }]);
@@ -178,7 +189,10 @@ test('sample: sin GPS rechaza; ignora lecturas sin coordenadas y avisa el avance
   const geo = scripted([{ at: 10, pos: { coords: { latitude: NaN, longitude: NaN, accuracy: 3 } } }, { at: 30, pos: pos(4.6, 12) }, { at: 50, pos: pos(4.6, 11) }]);
   const r = await Gps.sample({ geo, seconds: 1, onProgress: (s, n) => progress.push([s.acc, n]) });
   assert.deepEqual(progress, [[12, 1], [11, 2]]);                              // la lectura sin coordenadas no cuenta
-  assert.equal(r.n, 2); assert.equal(r.acc, 11);
+  assert.equal(r.n, 2); assert.equal(r.acc, 11.5, 'precisión promedio de 12 y 11 (2.34.2)'); assert.equal(r.method, 'ponderado');
+  const geo2 = scripted([{ at: 30, pos: pos(4.6, 12) }, { at: 50, pos: pos(4.6, 11) }]);
+  const v = await Gps.sample({ geo: geo2, seconds: 1, method: 'simple' });
+  assert.equal(v.acc, 11, 'con el método anterior, la de la mejor'); assert.equal(v.method, 'simple');
 });
 
 test('sample: cancelar con la señal entrega lo leído, o falla si aún no hay nada', async () => {
@@ -192,4 +206,51 @@ test('sample: cancelar con la señal entrega lo leído, o falla si aún no hay n
   const q = Gps.sample({ geo: scripted([]), seconds: 5, signal: vacio.signal });
   setTimeout(() => vacio.abort(), 20);
   await assert.rejects(q, /Cancelado/);
+});
+
+/* ---------- 2.34.2: promedio ponderado ---------- */
+// Desplazamiento hacia el este, en metros, desde -74.08 a la latitud 4.6
+const ESTE = (m) => -74.08 + m / (111320 * Math.cos(4.6 * Math.PI / 180));
+const metros = (lon) => (lon + 74.08) * 111320 * Math.cos(4.6 * Math.PI / 180);
+
+test('promedio ponderado: el ejemplo de la propuesta (±3, ±4 y ±4,5 m, a 0, 2 y 4 m al este)', () => {
+  const lect = [{ lat: 4.6, lon: ESTE(0), acc: 3 }, { lat: 4.6, lon: ESTE(2), acc: 4 }, { lat: 4.6, lon: ESTE(4), acc: 4.5 }];
+  const r = Gps.combine(lect);
+  assert.ok(Math.abs(metros(r.lon) - 1.4464) < 0.001, 'más cerca de la lectura más precisa: ' + metros(r.lon));
+  assert.ok(Math.abs(r.acc - 3.8333) < 0.001, 'precisión guardada: el promedio, ±4 m');
+  const s = Gps.combine(lect, 'simple');
+  assert.ok(Math.abs(metros(s.lon) - 2) < 0.001); assert.equal(s.acc, 3, 'antes: la de la mejor lectura');
+});
+
+test('promedio ponderado: una lectura de ±2 m pesa 4 veces lo que una de ±4 m', () => {
+  const r = Gps.combine([{ lat: 4.6, lon: ESTE(0), acc: 2 }, { lat: 4.6, lon: ESTE(10), acc: 4 }]);
+  assert.ok(Math.abs(metros(r.lon) - 2) < 0.001, '10 × 1/(4+1) = 2 m');
+  // y el descarte de siempre sigue: con la mejor en ±4 m, una de ±8 m (más de 1,6 veces y de 3 m peor) no entra
+  const d = Gps.combine([{ lat: 4.6, lon: ESTE(0), acc: 4 }, { lat: 4.6, lon: ESTE(10), acc: 8 }]);
+  assert.equal(d.n, 1); assert.equal(d.total, 2); assert.ok(Math.abs(metros(d.lon)) < 0.001);
+});
+
+test('promedio ponderado: la dispersión dice cuánto se mueven las lecturas; una sola lectura no se mueve', () => {
+  const quietas = Gps.combine([{ lat: 4.6, lon: ESTE(0), acc: 4 }, { lat: 4.6, lon: ESTE(0), acc: 4 }]);
+  assert.ok(quietas.spread < 1e-6);
+  const moviendo = Gps.combine([{ lat: 4.6, lon: ESTE(-3), acc: 4 }, { lat: 4.6, lon: ESTE(3), acc: 4 }]);
+  assert.ok(Math.abs(moviendo.spread - 3) < 0.01, 'a 3 m del promedio cada una: ' + moviendo.spread);
+  assert.equal(Gps.combine([{ lat: 4.6, lon: ESTE(0), acc: 4 }]).spread, 0);
+});
+
+test('promedio ponderado: una lectura sin precisión pesa como la peor conocida; sin ninguna, todas igual', () => {
+  const r = Gps.combine([{ lat: 4.6, lon: ESTE(0), acc: 4 }, { lat: 4.6, lon: ESTE(6), acc: null }, { lat: 4.6, lon: ESTE(3), acc: 5 }]);
+  const w = [1 / 16, 1 / 25, 1 / 25];
+  assert.ok(Math.abs(metros(r.lon) - (0 * w[0] + 6 * w[1] + 3 * w[2]) / (w[0] + w[1] + w[2])) < 0.001);
+  assert.ok(Math.abs(r.acc - 4.5) < 1e-12, 'el promedio de las que sí tienen precisión');
+  const sin = Gps.combine([{ lat: 4.6, lon: ESTE(0) }, { lat: 4.6, lon: ESTE(4) }]);
+  assert.ok(Math.abs(metros(sin.lon) - 2) < 0.001); assert.equal(sin.acc, null);
+  const cero = Gps.combine([{ lat: 4.6, lon: ESTE(0), acc: 0 }, { lat: 4.6, lon: ESTE(1), acc: 0.05 }]);
+  assert.ok(isFinite(cero.lat) && isFinite(cero.lon), 'una precisión de 0 no divide entre 0');
+});
+
+test('promedio ponderado: no se rompe cerca de ±180° de longitud', () => {
+  const r = Gps.combine([{ lat: 0, lon: 179.9999, acc: 5 }, { lat: 0, lon: -179.9999, acc: 5 }]);
+  assert.ok(Math.abs(Math.abs(r.lon) - 180) < 1e-9, String(r.lon));
+  assert.equal(Gps.wrap180(190), -170); assert.equal(Gps.wrap180(-190), 170); assert.equal(Gps.wrap180(10), 10);
 });

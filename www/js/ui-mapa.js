@@ -155,7 +155,7 @@
       var pt = pointById(id);
       if (!pt || Geo.haversine(pt.lat, pt.lon, ll.lat, ll.lon) < 0.5) return;
       if (lockStop()) { renderTab('area'); return; }
-      var before = { lat: pt.lat, lon: pt.lon, src: pt.src, acc: pt.acc }, sn = snapFor(ll);
+      var before = { lat: pt.lat, lon: pt.lon, src: pt.src, acc: pt.acc, gpsN: pt.gpsN, gpsMet: pt.gpsMet }, sn = snapFor(ll);
       undoMark('mover ' + pt.name);
       relocate(pt, sn ? sn.lat : ll.lat, sn ? sn.lon : ll.lon);
       ui.mapFitKey = mapKey();
@@ -164,6 +164,7 @@
         var q = pointById(id);
         if (!q) return;
         q.lat = before.lat; q.lon = before.lon; q.src = before.src; q.acc = before.acc;
+        if (before.gpsN !== undefined) { q.gpsN = before.gpsN; q.gpsMet = before.gpsMet; }      // vuelve también cómo se promedió (2.34.2)
         save(); renderTab(ui.tab);
       } });
       adjustCheck();

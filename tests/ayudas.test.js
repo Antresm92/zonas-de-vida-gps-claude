@@ -134,3 +134,19 @@ test('2.34.1: las ayudas explican el origen de cada punto en el reporte', () => 
   assert.ok(nuevo.indexOf('Origen de cada punto en el reporte') < nuevo.indexOf('Alto contraste'), 'lo de la 2.34.1 va primero');
   assert.match(nuevo, /la app ya no supone «a mano»/);
 });
+
+test('2.34.2: las ayudas explican el promedio ponderado del GPS y la opción del método anterior', () => {
+  const { A, sheets } = load();
+  assert.ok(atLeast(A.WHATS_NEW_ID, '2.34.2'), A.WHATS_NEW_ID);
+  A.openAppGuide();
+  assert.match(sheets[sheets.length - 1][1], /Marcar con el GPS.*las más precisas pesan más \(cada una pesa 1 ÷ precisión²\).*precisión promedio.*Marcar con el método anterior/s);
+  A.openWhatsNew();
+  const nuevo = sheets[sheets.length - 1][1];
+  assert.ok(nuevo.indexOf('Promedio ponderado del GPS') < nuevo.indexOf('Origen de cada punto en el reporte'), 'lo de la 2.34.2 va primero');
+  assert.match(nuevo, /Los puntos ya guardados no cambian/);
+  A.openMapGuide();
+  assert.match(sheets[sheets.length - 1][1], /Marcar punto.*las más precisas pesan más/s);
+  const ref = A.LICENSES.find((x) => x[0] === 'Promedio de las lecturas del GPS');
+  assert.ok(ref, 'la referencia del método está en Fuentes y licencias');
+  assert.deepEqual([...ref[2]].map((l) => l[1]), ['https://pdg.lbl.gov/2018/mobile/reviews/pdf/rpp2018-rev-rpp-intro-m.pdf', 'https://doc.arcgis.com/en/field-maps/latest/prepare-maps/high-accuracy-data-collection.htm']);
+});

@@ -141,11 +141,18 @@
   var ALT_TXT = { gps: 'del GPS', manual: 'a mano', internet: 'de internet', archivo: 'del archivo' };
   function has(o, k) { return typeof k === 'string' && Object.prototype.hasOwnProperty.call(o, k); }
   function pm(x) { return '±' + Math.round(x) + ' m'; }
+  // 2.34.2: cuántas lecturas del GPS se promediaron y cómo; con el método anterior el ± es el de la mejor lectura
+  function avgText(p) {
+    var n = isNum(p.gpsN) ? Math.round(p.gpsN) : 0;
+    if (n < 1) return '';
+    if (n === 1) return ' · una sola lectura';
+    return p.gpsMet === 'simple' ? ' · promedio simple de ' + n + ' lecturas (± de la mejor)' : ' · promedio ponderado de ' + n + ' lecturas';
+  }
   // «GPS ±4 m · altitud ±9 m», «a mano · altitud de internet», «de un archivo · sin altitud», «origen sin dato»…
   function originText(p) {
     p = p || {};
     var pos = has(POS_TXT, p.src), alt = has(ALT_TXT, p.altSrc);
-    var t = pos ? POS_TXT[p.src] + (p.src === 'gps' && isNum(p.acc) ? ' ' + pm(p.acc) : '') : 'origen sin dato';
+    var t = pos ? POS_TXT[p.src] + (p.src === 'gps' && isNum(p.acc) ? ' ' + pm(p.acc) : '') + (p.src === 'gps' ? avgText(p) : '') : 'origen sin dato';
     if (!isNum(p.alt)) return t + ' · sin altitud';
     if (alt && p.altSrc === p.src) return t + (p.altSrc === 'gps' && isNum(p.altAcc) ? ' · altitud ' + pm(p.altAcc) : '');   // la altitud viene de lo mismo
     if (!alt && !pos) return t;                                    // no se sabe ninguno de los dos: se dice una sola vez

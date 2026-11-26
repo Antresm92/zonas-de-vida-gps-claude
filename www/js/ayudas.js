@@ -23,7 +23,7 @@
         ['Mi posición', 'el botón redondo de abajo centra el mapa donde estás y te sigue hasta que muevas el mapa.']
       ]],
       ['Crear y cambiar puntos', [
-        ['Marcar punto', 'el botón azul de abajo guarda el lugar donde estás, con el GPS.'],
+        ['Marcar punto', 'el botón azul de abajo guarda el lugar donde estás, con el GPS: junta lecturas unos segundos y las promedia (las más precisas pesan más). Quédate quieto mientras mide.'],
         ['Menú ⋮', '«Ingresar puntos» crea un punto donde toques. «Posición manual» deja mover un punto manteniéndolo pulsado un segundo y arrastrándolo.'],
         ['Insertar entre dos', 'con «Posición manual» aparece un «+» en la mitad de cada lado: al tocarlo entre P4 y P5, el nuevo es P5 y los que siguen suben un número. La forma del polígono no cambia.'],
         ['Cambiar el orden', 'en la tarjeta del punto, marca la casilla «Orden» y usa las flechas ◀ ▶. La casilla viene desmarcada para que el orden no cambie por descuido.'],
@@ -70,6 +70,7 @@
         ['5 · Comparte', '«Compartir reporte» en PDF o HTML: completo, solo los predios o un solo polígono. Para Google Earth o QGIS, Polígono › Croquis › Exportar.']
       ]],
       ['Lo demás', [
+        ['Marcar con el GPS', 'En Puntos, «Marcar punto aquí» junta lecturas unos 10 segundos (quédate quieto) y las promedia: las más precisas pesan más (cada una pesa 1 ÷ precisión²). El punto guarda la precisión promedio de esas lecturas, que es la real, y cuántas se usaron; mientras mide ves también cuánto se mueven. Herramientas › Preferencias › «Marcar con el método anterior» vuelve al promedio simple, que guarda la precisión de la mejor lectura (más optimista). Para más precisión: cielo abierto, quieto todo el tiempo y, en las esquinas importantes, vuelve a medir en otro momento del día y compara.'],
         ['Polígono', 'El croquis con las medidas y para exportar (KML, GeoJSON, GPX, CSV y Shapefile; todo el proyecto o los polígonos que elijas en una lista). En «Mapa», el terreno sobre calles, satélite o topográfico: ahí se crean, mueven y ordenan los puntos, y se mide.'],
         ['Predios y lotes', 'Todo proyecto empieza con su predio (el terreno completo); dentro de él van los lotes (potrero, cafetal, cultivo…), y puede haber varios predios. Cada polígono tiene sus puntos, su clima y su zona de vida. Se eligen en la fila de arriba; «＋ Predio» y «＋ Lote» crean otro, dibujándolo en el mapa o importándolo de un archivo. Si uno se sale de su predio o se monta sobre otro, un aviso en el mapa ofrece «Ajustar» sus linderos.'],
         ['Varios polígonos a la vez', 'En Información, «Elegir polígonos ▾» completa con internet los que marques, uno por uno, y al final dice cuáles quedaron listos. «Limpiar información ▾» borra, en los polígonos que marques, lo que elijas (clima o altitudes según su origen) para volver a completarlos; se puede deshacer.'],
@@ -90,8 +91,9 @@
     /* ---------- Qué hay de nuevo (2.23.5) ----------
      * Quien ya usaba la app y la actualiza ve, una sola vez, un resumen corto de lo nuevo; quien la instala por primera vez ve la ayuda
      * completa y no esto. Para una actualización grande futura basta con cambiar WHATS_NEW_ID y la lista. */
-    var WHATS_NEW_ID = '2.34.1';
+    var WHATS_NEW_ID = '2.34.2';
     var WHATS_NEW = [
+      ['Promedio ponderado del GPS', 'al marcar un punto, las lecturas más precisas pesan más y el punto guarda la precisión promedio de las lecturas (antes guardaba la de la mejor, que prometía más de lo real) y cuántas se usaron; mientras mide ves esa precisión y cuánto se mueven las lecturas. El método anterior queda como opción en Herramientas › Preferencias y las referencias están en Fuentes y licencias. Los puntos ya guardados no cambian.'],
       ['Origen de cada punto en el reporte', 'cada punto dice de dónde salió su posición y su altitud (GPS con su precisión, a mano, de un archivo o de internet) y el reporte trae el resumen «Origen de los puntos». Si un punto no guardó su origen dice «sin dato»: la app ya no supone «a mano». Las altitudes de un archivo importado ya no salen como «a mano».'],
       ['Alto contraste', 'nuevo en Herramientas › Preferencias: negro sobre blanco y bordes marcados, para leer al sol. El texto de las pantallas queda con el contraste más alto que piden las pautas de accesibilidad (7 a 1).'],
       ['Registro de errores', 'en Herramientas › Ayuda: anota los errores y cuánto tarda la app en abrir, para que puedas enviárselo a quien la mantiene. Se guarda solo en tu teléfono y nunca se envía solo.'],
@@ -179,7 +181,8 @@
       ['Mapa del IGAC', 'Instituto Geográfico Agustín Codazzi (IGAC), «Capacidad de uso de las tierras», mapa multiescalar (escalas 1:100.000, 1:25.000 y 1:10.000), servicio mapas2.igac.gov.co. Datos abiertos del IGAC, licencia CC BY 4.0 (Resolución 616 de 2020). Fuente: IGAC.', [['Datos abiertos del IGAC', 'https://www.igac.gov.co/datos-abiertos/datos-abiertos-geoespaciales'], ['Resolución 616 de 2020', 'https://vlex.com.co/vid/resolucion-numero-616-2020-846199912']]],
       ['Catastro', 'Instituto Geográfico Agustín Codazzi (IGAC), datos catastrales que la persona descarga de Colombia en Mapas (colombiaenmapas.gov.co) e importa. Cada dato de esa plataforma tiene su propia licencia de uso. Solo de referencia: no sirve para áreas oficiales ni para definir límites.', [['Colombia en Mapas', 'https://www.colombiaenmapas.gov.co/']]],
       ['Clases de pendiente', 'Instituto Geográfico Agustín Codazzi (IGAC), clases de pendiente de sus levantamientos de suelos y geomorfología.'],
-      ['Coordenadas planas', 'MAGNA-SIRGAS / Origen Nacional (EPSG:9377), sistema único adoptado por el IGAC en 2020.']
+      ['Coordenadas planas', 'MAGNA-SIRGAS / Origen Nacional (EPSG:9377), sistema único adoptado por el IGAC en 2020.'],
+      ['Promedio de las lecturas del GPS', 'Promedio ponderado: cada lectura pesa 1 ÷ precisión² (Particle Data Group, «Review of Particle Physics» 2018, Introducción, sección 5.2.2). La precisión del punto es el promedio de la de las lecturas usadas, como la «precisión horizontal promedio» de ArcGIS Field Maps.', [['Particle Data Group (PDF)', 'https://pdg.lbl.gov/2018/mobile/reviews/pdf/rpp2018-rev-rpp-intro-m.pdf'], ['ArcGIS Field Maps: datos de alta precisión', 'https://doc.arcgis.com/en/field-maps/latest/prepare-maps/high-accuracy-data-collection.htm']]]
     ];
     function extLink(l) { return '<a href="' + esc(l[1]) + '" target="_blank" rel="noopener noreferrer" data-ext="1">' + esc(l[0]) + '</a>'; }
     function openLicenses() {

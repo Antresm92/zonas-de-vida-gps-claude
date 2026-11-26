@@ -34,6 +34,8 @@
       h += '<h3 class="sub">Reporte</h3><div class="menu">' + menuRow('authorEdit', 'Encabezado del reporte', auSub || 'Autor, entidad y logo') + '</div>';
       h += '<h3 class="sub">Preferencias</h3><div class="menu"><label class="menurow"><span><b>Alto contraste</b><small>Negro sobre blanco y bordes marcados, para leer al sol. Solo cambia los colores.</small></span>' +
         '<input type="checkbox" data-flag="altoContraste"' + (Store.loadFlag('altoContraste') === true ? ' checked' : '') + '></label>' +
+        '<label class="menurow"><span><b>Marcar con el método anterior</b><small>Promedio simple: todas las lecturas pesan igual y el punto guarda la precisión de la mejor, que es más optimista que la real. Viene apagado: lo recomendado es el promedio ponderado.</small></span>' +
+        '<input type="checkbox" data-flag="gpsSimple"' + (Store.loadFlag('gpsSimple') === true ? ' checked' : '') + '></label>' +
         '<label class="menurow"><span><b>Reporte con todas las secciones abiertas</b><small>Si no, cada sección se abre al tocar su título.</small></span>' +
         '<input type="checkbox" data-flag="reportOpen"' + (Store.loadFlag('reportOpen') === true ? ' checked' : '') + '></label>' +
         '<label class="menurow"><span><b>Pegar puntos a las esquinas de otros polígonos</b><small>Al marcar o mover un punto en el mapa muy cerca de la esquina de otro predio o lote, queda exactamente sobre ella.</small></span>' +
