@@ -92,8 +92,9 @@
     /* ---------- Qué hay de nuevo (2.23.5) ----------
      * Quien ya usaba la app y la actualiza ve, una sola vez, un resumen corto de lo nuevo; quien la instala por primera vez ve la ayuda
      * completa y no esto. Para una actualización grande futura basta con cambiar WHATS_NEW_ID y la lista. */
-    var WHATS_NEW_ID = '2.34.3';
+    var WHATS_NEW_ID = '2.34.4';
     var WHATS_NEW = [
+      ['Nombre corto bajo el ícono', 'en la pantalla de inicio y en la lista de aplicaciones la app ahora dice «Florentino SIG», para que el nombre se vea completo y sin puntos suspensivos. Su nombre sigue siendo Don Florentino SIG: así aparece en Ajustes, en los permisos y dentro de la app. Se actualiza encima, sin perder tus proyectos.'],
       ['Firma y tarjeta profesional en el reporte', 'en Herramientas › Encabezado del reporte puedes poner el número de tu tarjeta profesional y tu firma, con una foto (la app deja el fondo blanco) o dibujada con el dedo. Salen al final del reporte con tu nombre; debajo, el reporte aclara que una firma en imagen no es una firma digital. Se guardan solo en este teléfono.'],
       ['Promedio ponderado del GPS', 'al marcar un punto, las lecturas más precisas pesan más y el punto guarda la precisión promedio de las lecturas (antes guardaba la de la mejor, que prometía más de lo real) y cuántas se usaron; mientras mide ves esa precisión y cuánto se mueven las lecturas. El método anterior queda como opción en Herramientas › Preferencias y las referencias están en Fuentes y licencias. Los puntos ya guardados no cambian.'],
       ['Origen de cada punto en el reporte', 'cada punto dice de dónde salió su posición y su altitud (GPS con su precisión, a mano, de un archivo o de internet) y el reporte trae el resumen «Origen de los puntos». Si un punto no guardó su origen dice «sin dato»: la app ya no supone «a mano». Las altitudes de un archivo importado ya no salen como «a mano».'],

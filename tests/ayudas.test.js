@@ -166,3 +166,12 @@ test('2.34.3: las ayudas explican la firma y la tarjeta profesional, y que una f
   assert.match(ley[1], /artículos 2 y 28/);
   assert.deepEqual([...ley[2]].map((l) => l[1]), ['https://cancilleria.gov.co/sites/default/files/Normograma/docs/ley_0527_1999.htm']);
 });
+
+test('2.34.4: «Qué hay de nuevo» explica el nombre corto bajo el ícono y que el nombre completo sigue', () => {
+  const { A, sheets } = load();
+  assert.ok(atLeast(A.WHATS_NEW_ID, '2.34.4'), A.WHATS_NEW_ID);
+  A.openWhatsNew();
+  const nuevo = sheets[sheets.length - 1][1];
+  assert.ok(nuevo.indexOf('Nombre corto bajo el ícono') < nuevo.indexOf('Firma y tarjeta profesional en el reporte'), 'lo de la 2.34.4 va primero');
+  assert.match(nuevo, /dice «Florentino SIG».*sigue siendo Don Florentino SIG: así aparece en Ajustes, en los permisos y dentro de la app/s);
+});

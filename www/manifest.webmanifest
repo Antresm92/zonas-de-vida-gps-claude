@@ -1,6 +1,6 @@
 {
   "name": "Don Florentino SIG",
-  "short_name": "Don Florentino SIG",
+  "short_name": "Florentino SIG",
   "description": "Marca puntos con el GPS, calcula el área y obtén la zona de vida de Holdridge. Funciona sin conexión.",
   "lang": "es",
   "start_url": "./index.html",

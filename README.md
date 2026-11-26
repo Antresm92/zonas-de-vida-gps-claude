@@ -118,6 +118,12 @@ Sube la carpeta `www/` a cualquier alojamiento web con HTTPS (por ejemplo GitHub
 - **Exportar**: KML, GeoJSON y GPX llevan todos los lotes (el elegido como polígono principal, los demás como capas con su nombre); el CSV añade la columna `Lote` y el Shapefile la columna `LOTE`, con una figura por lote.
 - **Guardado**: los proyectos de versiones anteriores pasan solos a tener un «Lote 1» con todo lo que tenían. La copia de seguridad lleva los lotes, y una copia hecha con una versión anterior se sigue pudiendo restaurar. Una copia hecha con la 2.15.0 (formato 2) no se puede restaurar en una versión anterior de la app: esta avisa que hay que actualizar.
 
+**2.34.4: nombre corto bajo el ícono.**
+- En la pantalla de inicio el nombre «Don Florentino SIG» se cortaba con puntos suspensivos. Ahora bajo el ícono (y en la lista de aplicaciones) dice «Florentino SIG»; el nombre de la app sigue siendo «Don Florentino SIG» en Ajustes, en los permisos y dentro de la app.
+- Cómo: `scripts/patch-android.js` pone en `title_activity_main` (la etiqueta de la actividad que abre el ícono) el `short_name` de `www/manifest.webmanifest`, que ahora es «Florentino SIG»; `app_name` (la etiqueta de la aplicación) no cambia. La compilación comprueba los dos nombres después de `cap sync`. Si una versión futura de Capacitor deja de usar `title_activity_main` en la actividad principal, el script se detiene y lo dice.
+- No cambia el identificador de la app ni los datos: se instala encima sin perder proyectos. Qué hay de nuevo al día; lista de pruebas de campo con su sección 20.
+- Verificado con 790 pruebas unitarias y los 356 pasos del navegador.
+
 **2.34.3: tarjeta profesional y firma al final del reporte.**
 - *Herramientas › Encabezado del reporte* tiene dos campos nuevos y opcionales: el número de la tarjeta profesional y la firma. La firma se pone con una foto («Subir foto») o se dibuja con el dedo («Dibujar», en su propia hoja; «Usar esta firma» o «Cancelar» vuelven al encabezado sin perder lo escrito; un toque suelto no cuenta como firma).
 - Foto: cada píxel se compara con el brillo de su vecindad (`Fotos.inkLevels`), así el papel queda blanco aunque tenga sombra y la tinta queda oscura; después se recortan los bordes, se reduce a 600 píxeles y se guarda como JPEG. Dibujo (`js/firma.js`): los trazos se recortan con margen y se dibujan a 600 × 240 píxeles como mucho, sobre blanco.

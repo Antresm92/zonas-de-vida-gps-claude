@@ -116,20 +116,39 @@ const MANIFEST = `<?xml version="1.0" encoding="utf-8"?>
 
     <application
         android:allowBackup="true"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name">
+        <activity
+            android:name=".MainActivity"
+            android:label="@string/title_activity_main"
+            android:exported="true">
+        </activity>
     </application>
 
     <uses-permission android:name="android.permission.INTERNET" />
 </manifest>
 `;
 
-function proyecto(gradle, version) {
+// strings.xml como lo deja «cap add android» con el appName de capacitor.config.json (2.34.4)
+const STRINGS = `<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Don Florentino SIG</string>
+    <string name="title_activity_main">Don Florentino SIG</string>
+    <string name="package_name">co.donflorentino.sig</string>
+    <string name="custom_url_scheme">co.donflorentino.sig</string>
+</resources>
+`;
+function proyecto(gradle, version, shortName) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'zv-patch-'));
   fs.mkdirSync(path.join(dir, 'scripts'));
   for (const f of ['patch-android.js', 'version-android.js']) fs.copyFileSync(path.join(__dirname, '..', 'scripts', f), path.join(dir, 'scripts', f));
   fs.mkdirSync(path.join(dir, 'android', 'app', 'src', 'main'), { recursive: true });
   fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ name: 'x', version }));
   fs.writeFileSync(path.join(dir, 'android', 'app', 'src', 'main', 'AndroidManifest.xml'), MANIFEST);
+  fs.mkdirSync(path.join(dir, 'android', 'app', 'src', 'main', 'res', 'values'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'android', 'app', 'src', 'main', 'res', 'values', 'strings.xml'), STRINGS);
+  fs.mkdirSync(path.join(dir, 'www'));
+  fs.writeFileSync(path.join(dir, 'www', 'manifest.webmanifest'), JSON.stringify({ name: 'Don Florentino SIG', short_name: shortName === undefined ? 'Florentino SIG' : shortName }));
   if (gradle !== null) fs.writeFileSync(path.join(dir, 'android', 'app', 'build.gradle'), gradle);
   return dir;
 }
@@ -169,5 +188,43 @@ test('patch-android.js: si el build.gradle no existe o no tiene versión, termin
     const r = correr(dir);
     assert.notEqual(r.status, 0);
     assert.match(r.stderr, /versión no válida/);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('2.34.4 patch-android.js: bajo el ícono va el nombre corto del manifiesto web; el nombre completo sigue en Ajustes y permisos', () => {
+  const dir = proyecto(GRADLE, '2.34.4');
+  const strings = path.join(dir, 'android', 'app', 'src', 'main', 'res', 'values', 'strings.xml');
+  try {
+    const r1 = correr(dir);
+    assert.equal(r1.status, 0, r1.stderr);
+    assert.match(r1.stdout, /bajo el ícono dice «Florentino SIG»/);
+    const s1 = fs.readFileSync(strings, 'utf8');
+    assert.match(s1, /<string name="title_activity_main">Florentino SIG<\/string>/, 'la actividad que abre el ícono');
+    assert.match(s1, /<string name="app_name">Don Florentino SIG<\/string>/, 'Ajustes y permisos siguen con el nombre completo');
+    assert.equal(s1, STRINGS.replace('<string name="title_activity_main">Don Florentino SIG<', '<string name="title_activity_main">Florentino SIG<'), 'no cambia nada más');
+    const r2 = correr(dir);
+    assert.equal(r2.status, 0, r2.stderr);
+    assert.match(r2.stdout, /el nombre bajo el ícono ya estaba/);
+    assert.equal(fs.readFileSync(strings, 'utf8'), s1, 'segunda vuelta sin cambios');
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  for (const malo of ['', '<b>x</b>', 'Don & Co', "D'Florentino", '@string/x', 'x'.repeat(31), null]) {
+    const d = proyecto(GRADLE, '2.34.4', malo);
+    try {
+      const r = correr(d);
+      assert.notEqual(r.status, 0, String(malo));
+      assert.match(r.stderr, /short_name válido/);
+      assert.match(fs.readFileSync(path.join(d, 'android', 'app', 'src', 'main', 'res', 'values', 'strings.xml'), 'utf8'), /title_activity_main">Don Florentino SIG</, 'no toca nada');
+    } finally { fs.rmSync(d, { recursive: true, force: true }); }
+  }
+});
+
+test('2.34.4 patch-android.js: si la actividad principal no usa title_activity_main, lo dice en vez de compilar con el nombre cortado', () => {
+  const dir = proyecto(GRADLE, '2.34.4');
+  try {
+    const m = path.join(dir, 'android', 'app', 'src', 'main', 'AndroidManifest.xml');
+    fs.writeFileSync(m, fs.readFileSync(m, 'utf8').replace('android:label="@string/title_activity_main"', 'android:label="@string/app_name"'));
+    const r = correr(dir);
+    assert.notEqual(r.status, 0);
+    assert.match(r.stderr, /no usa @string\/title_activity_main/);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });

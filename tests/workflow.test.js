@@ -101,7 +101,7 @@ test('2.33.0: la app se llama «Don Florentino SIG» y tiene identificador propi
   assert.equal(pkg.name, 'don-florentino-sig');
   assert.equal(lock.name, 'don-florentino-sig'); assert.equal(lock.packages[''].name, 'don-florentino-sig');
   const man = JSON.parse(fs.readFileSync(path.join(ROOT, 'www', 'manifest.webmanifest'), 'utf8'));
-  assert.equal(man.name, 'Don Florentino SIG'); assert.equal(man.short_name, 'Don Florentino SIG');
+  assert.equal(man.name, 'Don Florentino SIG'); assert.equal(man.short_name, 'Florentino SIG', '2.34.4: el nombre corto, el que va bajo el ícono');
   assert.match(fs.readFileSync(path.join(ROOT, 'www', 'index.html'), 'utf8'), /<title>Don Florentino SIG<\/title>/);
 });
 
@@ -125,4 +125,14 @@ test('2.33.0: el .aab se revisa (no lleva la llave de prueba) DESPUÉS de compil
   assert.ok(i(/gradlew bundleRelease/) < i(/check-aab-key\.js/));
   assert.ok(i(/check-aab-key\.js/) < i(/Guardar el paquete de publicación/));
   assert.ok(fs.existsSync(path.join(ROOT, 'scripts', 'check-aab-key.js')));
+});
+
+test('2.34.4: la compilación comprueba que bajo el ícono quede el nombre corto y en Ajustes el completo, después de copiar la web', () => {
+  const sin = lineas(wf);
+  const i = sin.indexOf('name: Comprobar el nombre bajo el ícono'), sync = sin.indexOf('run: npx cap sync android'), apk = sin.indexOf('name: Compilar el APK');
+  assert.ok(i > sync && i < apk, 'entre «cap sync» y la compilación');
+  assert.ok(sin.includes(`grep -q '<string name="title_activity_main">Florentino SIG</string>' android/app/src/main/res/values/strings.xml`));
+  assert.ok(sin.includes(`grep -q '<string name="app_name">Don Florentino SIG</string>' android/app/src/main/res/values/strings.xml`));
+  const man = JSON.parse(fs.readFileSync(path.join(ROOT, 'www', 'manifest.webmanifest'), 'utf8'));
+  assert.ok(sin.includes('>' + man.short_name + '</string>'), 'la comprobación usa el mismo nombre corto del manifiesto web');
 });

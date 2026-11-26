@@ -53,6 +53,12 @@ jobs:
       - name: Copiar la web a Android
         run: npx cap sync android
 
+      # 2.34.4: bajo el ícono va el nombre corto (el completo se cortaba con «…»); en Ajustes y en los permisos sigue el completo
+      - name: Comprobar el nombre bajo el ícono
+        run: |
+          grep -q '<string name="title_activity_main">Florentino SIG</string>' android/app/src/main/res/values/strings.xml
+          grep -q '<string name="app_name">Don Florentino SIG</string>' android/app/src/main/res/values/strings.xml
+
       # APK de PRUEBA: se firma con una clave fija (de depuración), así cada APK nuevo se instala SOBRE el anterior
       # y no pierdes tus proyectos al actualizar. Esa clave es pública: este APK sirve para probar, no para publicar.
       # Por eso el archivo y el artefacto llevan «prueba» en el nombre (2.33.0): no se confunden con el paquete de Google Play.
