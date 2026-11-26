@@ -14,10 +14,24 @@
     var ui = ctx.ui, lot = ctx.lot, analysis = ctx.analysis, esc = ctx.esc, toast = ctx.toast,
       openSheet = ctx.openSheet, closeSheet = ctx.closeSheet, save = ctx.save, renderTab = ctx.renderTab, lotArea = ctx.lotArea,
       igacBlock = ctx.igacBlock, igacRows = ctx.igacRows;
-    var Usos = window.Usos, Capacidad = window.Capacidad, Cultivos = window.Cultivos, Fmt = window.Fmt;
+    var Usos = window.Usos, Capacidad = window.Capacidad, Cultivos = window.Cultivos, Fmt = window.Fmt, Perfil = window.Perfil, Store = window.Store;
+    // 2.35.0: el margen de la pendiente que eligió la persona en Preferencias: 1 desviación (68 %) o 2 (95 %, viene así)
+    function slopeLevel() { return Store && Store.loadFlag('pendiente68') === true ? 1 : 2; }
 
     function monthlyOf(a) { var cl = a && a.climate; return cl && cl.chartT && cl.chartP ? { T: cl.chartT, P: cl.chartP } : null; }
-    function modelFor(l, a) { return Usos.model(l.points, a, l.terreno, monthlyOf(a)); }
+    function modelFor(l, a) { return Usos.model(l.points, a, l.terreno, monthlyOf(a), { level: slopeLevel() }); }
+    // La fila «Pendiente» (2.35.0): medida en campo, o calculada con su margen, incierta o sin margen; y si hace falta medirla
+    function slopeDd(m) {
+      var au = m.auto, p = au.pendiente, md = m.medida, txt;
+      if (md) txt = 'medida en campo: ' + (md.pct !== null ? Fmt.num(md.pct, md.pct % 1 ? 1 : 0) + ' % (' + Usos.catName('pendiente', md.cat) + ')' : Usos.catName('pendiente', md.cat)) + (p ? ' · calculada: ' + Perfil.slopeText(p.sl) : '');
+      else if (p) txt = Perfil.slopeShort(p.sl) + ' (' + (p.uncertain ? 'incierta: ' + Perfil.rangesText(p.sl.classes) : Usos.catName('pendiente', p.cat)) + '), de ' + p.n +
+        ' puntos con altitudes ' + Perfil.SRC_PHRASE[p.sl.src] + (p.sl.marginKnown ? ', margen al ' + Perfil.levelText(p.sl) : ', margen desconocido') +
+        (p.sl.excluded.length ? ' · no se usaron ' + p.sl.excluded.map(function (e) { return e.name; }).join(', ') : '');
+      else if (au.pendienteNo) txt = 'no se calcula: ' + au.pendienteNo;
+      else txt = 'falta: se necesitan 3 puntos con altitud que no estén en línea';
+      return esc(txt);
+    }
+    function needsMeasure(m) { var p = m.auto.pendiente; return !m.medida && (!p || p.uncertain || !p.sl.marginKnown); }
     // Cultivos a evaluar del polígono, con el clima del análisis y la clase del IGAC
     function cultivosOf(l, a, m) {
       m = m || modelFor(l, a);
@@ -43,13 +57,15 @@
       } else {
         h += '<p class="muted">Todavía no hay datos para la clase: hacen falta la pendiente (3 puntos con altitud), la temperatura o la evaluación del terreno.</p>';
       }
-      h += '<p class="small" id="usosCuenta"><b>Evaluación: ' + e.conocidas + ' de ' + e.total + ' datos.</b>' + (e.conocidas && e.provisional ? ' Provisional: lo que falta puede bajar la clase.' : '') + '</p>';
+      h += '<p class="small" id="usosCuenta"><b>Evaluación: ' + e.conocidas + ' de ' + e.total + ' datos.</b>' + (e.conocidas && e.provisional ? ' Provisional: lo que falta puede bajar la clase.' : '') +
+        (m.conPendiente && m.conPendiente.length ? ' Con la pendiente, que es incierta, sería ' + esc(Usos.clasesText(m.conPendiente)) + '.' : '') + '</p>';
       h += '<dl class="guide" id="usosAuto">' +
-        '<div><dt>Pendiente</dt><dd>' + (au.pendiente ? esc(Fmt.num(au.pendiente.pct, au.pendiente.pct < 10 ? 1 : 0) + ' % (' + Usos.catName('pendiente', au.pendiente.cat) + '), de ' + au.pendiente.n + ' puntos con altitud') : 'falta: se necesitan 3 puntos con altitud que no estén en línea') + '</dd></div>' +
+        '<div><dt>Pendiente</dt><dd id="usosPend">' + slopeDd(m) + '</dd></div>' +
         '<div><dt>Piso térmico</dt><dd>' + (au.piso ? esc(Usos.catName('piso', au.piso.cat) + ' (' + Fmt.num(au.piso.T, 1) + ' °C)') : 'falta la temperatura') + '</dd></div>' +
         '<div><dt>Humedad del clima</dt><dd>' + (au.humedad ? esc(Usos.catName('humedad', au.humedad.cat) + ' (ETP/P ' + Fmt.num(au.humedad.ratio, 2) + ')') : 'falta la precipitación') + '</dd></div></dl>';
-      var nT = Object.keys(m.terreno).filter(function (k) { return k !== 'lluviasEst'; }).length;
-      h += '<button class="btn btn-block" data-act="usosEdit" id="usosEditBtn" style="margin-top:8px">' + (nT ? 'Evaluación del terreno (' + nT + ' respuestas) ▾' : 'Evaluar el terreno ▾') + '</button>';
+      if (needsMeasure(m)) h += '<button class="btn btn-block" data-act="usosSlopePick" id="usosSlopeBtn" style="margin-top:8px">Elegir la pendiente medida</button>';
+      var nT = Object.keys(m.terreno).filter(function (k) { return k !== 'lluviasEst' && k !== 'pendientePct'; }).length;
+      h += '<button class="btn btn-block" data-act="usosEdit" id="usosEditBtn" style="margin-top:8px">' + (nT ? 'Evaluación del terreno (' + nT + (nT === 1 ? ' respuesta' : ' respuestas') + ') ▾' : 'Evaluar el terreno ▾') + '</button>';
       h += igacBlock(l, e.clase, ref);                      // «Según el mapa del IGAC» (2.31.0)
       var cu = cultivosOf(l, a, m);
       if (cu) h += '<button class="btn btn-block" data-act="cultivosOpen" id="cultivosBtn" style="margin-top:10px" aria-haspopup="true">Cultivos a evaluar (' + cu.grupos.optimo.length + ' óptimos, ' + cu.grupos.posible.length + ' posibles) ▾</button>';
@@ -62,7 +78,9 @@
       return '<label class="f"><span>' + esc(v.name) + '</span><select data-var="' + v.key + '"><option value="">No sé</option>' +
         v.cats.map(function (c) { return '<option value="' + esc(c[0]) + '"' + (cur === c[0] ? ' selected' : '') + '>' + esc(c[1]) + '</option>'; }).join('') + '</select></label>';
     }
-    function openEdit() {
+    // focus === true: se abre desde «Elegir la pendiente medida», con «Lo calcula la app» desplegado y un aviso (2.35.0)
+    function openEdit(focus) {
+      focus = focus === true;
       var l = lot(), a = analysis(), m = modelFor(l, a), t = m.terreno, est = m.lluviasEst;
       var group = function (g) { return Capacidad.VARS.filter(function (v) { return v.group === g && v.key !== 'lluvias'; }).map(function (v) { return field(v, t[v.key]); }).join(''); };
       var lluv = Capacidad.VARS.filter(function (v) { return v.key === 'lluvias'; })[0];
@@ -77,12 +95,22 @@
           '<div class="btns" style="margin-top:8px">' + est.options.map(function (o) { return '<button class="btn" data-act="usosEstUse" data-v="' + o + '">Usar ' + (est.options.length > 1 ? 'opción ' + o : 'la estimación') + '</button>'; }).join('') + '</div></div>';
       }
       h += '<h3 class="sub">Del laboratorio</h3><p class="small muted">Cópialos del análisis de suelos, si lo tienes.</p>' + group('lab');
-      h += '<details class="help"><summary>Lo calcula la app</summary><p class="small">La pendiente, el piso térmico y la humedad del clima salen de tus puntos y del clima. Si en campo ves algo distinto, puedes corregirlos aquí:</p>' + group('app') + '</details>';
+      var pa = m.auto.pendiente, why = !pa ? 'La app no pudo calcular la pendiente.' : pa.uncertain ? 'La pendiente calculada no alcanza para decidir la clase.' : !pa.sl.marginKnown ? 'La pendiente calculada no tiene un margen conocido.' : '';
+      var appFields = Capacidad.VARS.filter(function (v) { return v.group === 'app'; }).map(function (v) {
+        return field(v, t[v.key]) + (v.key !== 'pendiente' ? '' : '<label class="f"><span>Pendiente medida, en % (opcional)</span><input type="text" inputmode="decimal" id="usosSlopePct" maxlength="6" value="' +
+          esc(t.pendientePct ? String(t.pendientePct).replace('.', ',') : '') + '" placeholder="Ej.: 16"></label><p class="small muted" style="margin-top:-4px">Si escribes el número, manda sobre el rango de arriba.</p>');
+      }).join('');
+      h += '<details class="help" id="usosAppDet"' + (focus ? ' open' : '') + '><summary>Lo calcula la app</summary>' +
+        (focus ? '<div class="tip" id="usosSlopeTip">' + (why ? why + ' ' : '') + 'Si mediste la pendiente en campo, con un clinómetro o un nivel, elige su rango o escribe el valor: manda sobre la calculada.</div>' : '') +
+        '<p class="small">La pendiente, el piso térmico y la humedad del clima salen de tus puntos y del clima. Si en campo ves algo distinto, puedes corregirlos aquí:</p>' + appFields + '</details>';
       h += '<div class="btns" style="margin-top:12px"><button class="btn btn-primary" data-act="usosSave">Guardar</button><button class="btn" data-act="closeSheet">Cancelar</button></div>';
       if (Object.keys(t).length) h += '<div class="btns"><button class="btn btn-danger" data-act="usosClear">Borrar las respuestas</button></div>';
       ui.usosEstPick = false;
       openSheet('Evaluar el terreno', h);
+      var det = focus && document.getElementById('usosAppDet');
+      if (det && det.scrollIntoView) det.scrollIntoView({ block: 'start' });
     }
+    function openSlopePick() { openEdit(true); }
     // «Usar la estimación»: la marca en la lista (se guarda con «Guardar» y queda anotada como estimada)
     function estUse(t) {
       var s = document.getElementById('usosLluvias');
@@ -91,13 +119,21 @@
       toast('Marcada la opción ' + s.value + ' de la estimación. Revísala y toca «Guardar».');
     }
     function saveEdit() {
-      var l = lot(), a = analysis(), auto = Usos.auto(l.points, a), out = {};
+      var l = lot(), a = analysis(), auto = Usos.auto(l.points, a, { level: slopeLevel() }), out = {};
       [].forEach.call(document.querySelectorAll('#sheet select[data-var]'), function (s) {
         var k = s.getAttribute('data-var');
         if (!s.value) return;
-        if ((k === 'pendiente' || k === 'piso' || k === 'humedad') && auto[k] && auto[k].cat === s.value) return;   // igual a lo calculado: no se guarda
+        if ((k === 'piso' || k === 'humedad') && auto[k] && auto[k].cat === s.value) return;   // igual a lo calculado: no se guarda
+        // 2.35.0: la pendiente elegida sí se guarda aunque coincida con la calculada: es una medida de campo y el reporte lo dice
         out[k] = s.value;
       });
+      // 2.35.0: la pendiente medida como número manda sobre el rango y pone el rango que le corresponde
+      var pin = document.getElementById('usosSlopePct'), ptxt = pin ? pin.value.trim() : '';
+      if (ptxt) {
+        var stored = Usos.pctToStore(ptxt);
+        if (stored === null) { toast('La pendiente medida debe ser un número entre 0 y 300 %.', { err: true }); return; }
+        out.pendientePct = stored; out.pendiente = Capacidad.pendienteCat(parseFloat(stored));
+      }
       if (out.lluvias && ui.usosEstPick === out.lluvias) out.lluviasEst = true;
       var before = l.terreno ? JSON.stringify(l.terreno) : null, c = Usos.clean(out);
       if (c) l.terreno = c; else delete l.terreno;
@@ -146,7 +182,9 @@
       var lab = Capacidad.VARS.some(function (v) { return v.group === 'lab' && m.terreno[v.key]; });
       var k = Cultivos.conclusion({ nombre: l.name, ha: lotArea(l) ? lotArea(l) / 10000 : null, zona: r && r.ok ? r.zone.name + ' (' + r.zone.symbol + ')' : null, T: cl ? cl.T : null, P: cl ? cl.P : null,
         secos: secosOf(a), clase: e.clase, subclase: e.subclase, limita: e.limita.map(function (x) { return x.name; }), provisional: e.provisional, faltan: e.total - e.conocidas,
-        pendiente: m.auto.pendiente ? m.auto.pendiente.pct : null, humedad: m.datos.humedad, lab: lab, cultivos: cu });
+        pendiente: Usos.slopePct(m), pendienteRango: m.medida && m.medida.pct === null ? { cat: m.medida.cat, txt: Usos.catName('pendiente', m.medida.cat) } : null,
+        pendienteIncierta: m.conPendiente && m.conPendiente.some(function (k) { return k !== e.clase; }) ? Usos.clasesText(m.conPendiente) : null,
+        humedad: m.datos.humedad, lab: lab, cultivos: cu });
       if (!k) return null;
       return { parrafo: k.parrafo, recomendaciones: k.recomendaciones.map(function (x) { return x.t + (x.f ? ' [' + x.f + ']' : ''); }),
         optimos: cu ? cu.grupos.optimo.map(function (c) { return c.es; }) : [],
@@ -161,7 +199,7 @@
       return rows.length ? { rows: rows, note: Usos.NOTE, fuente: fuente } : null;
     }
 
-    return { block: block, openEdit: openEdit, estUse: estUse, saveEdit: saveEdit, clearEdit: clearEdit, openFuente: openFuente, reportModel: reportModel,
+    return { block: block, openEdit: openEdit, openSlopePick: openSlopePick, estUse: estUse, saveEdit: saveEdit, clearEdit: clearEdit, openFuente: openFuente, reportModel: reportModel,
       openCultivos: openCultivos, conclusionModel: conclusionModel };
   };
 })();

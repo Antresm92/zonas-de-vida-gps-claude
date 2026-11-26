@@ -68,7 +68,7 @@ module.exports = async function (c) {
 
   await step('2.34.5: los dos métodos juntos en un recuadro, cada uno con su explicación; se elige uno, viene el ponderado y lo elegido se recuerda', async () => {
     await tab('herramientas');
-    const grupo = page.locator('#tab-herramientas [role="radiogroup"]');
+    const grupo = page.locator('#tab-herramientas [role="radiogroup"][aria-labelledby="gpsMetT"]');   // 2.35.0: abajo va el del margen de la pendiente
     assert.equal(await grupo.count(), 1);
     assert.equal(await grupo.getAttribute('aria-labelledby'), 'gpsMetT');
     assert.equal(await text('#gpsMetT'), 'Promedio del GPS al marcar un puntoElige uno. Los puntos ya guardados no cambian.');

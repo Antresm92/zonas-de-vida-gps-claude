@@ -24,7 +24,7 @@
   function pointColor(p, project) { return HEX.test(p.color || '') ? p.color : HEX.test(project.mainColor || '') ? project.mainColor : '#2F8F4E'; }
 
   /* ---------- Las gráficas que hay que convertir a imagen ---------- */
-  function perfilModel(project) { return Perfil.build(project.points); }
+  function perfilModel(project, o) { return Perfil.build(project.points, { level: o && o.slopeLevel }); }
 
   function sketches(project, a, o) {
     o = o || {};
@@ -33,7 +33,7 @@
       out.push({ key: 'croquis', svg: Diagram.polygonSVG(project.points, { width: 560, height: 380, center: a.center, bad: a.selfIntersects, dots: !!project.dots, layers: project.layers, color: project.mainColor, focus: true }) });
       if (!Report.skips(o, 'sat') && o.satellite && o.satellite.svg) out.push({ key: 'satelital', svg: o.satellite.svg, px: PX_MAP });
       if (!Report.skips(o, 'topo') && o.topo && o.topo.svg) out.push({ key: 'topo', svg: o.topo.svg, px: PX_MAP });
-      var m = perfilModel(project);
+      var m = perfilModel(project, o);
       if (!Report.skips(o, 'perfil') && m.ok) out.push({ key: 'perfil', svg: Perfil.svg(m, { color: project.mainColor, id: 'perfil-reporte' }) });
     }
     if (!Report.skips(o, 'walter') && o.walter && o.walter.svg) out.push({ key: 'walter', svg: o.walter.svg });
@@ -169,7 +169,7 @@
           else if (d.svg) B.push({ t: 'note', text: 'No se pudo dibujar el ' + s[1] + ' en el PDF.' });
           else B.push({ t: 'note', text: 'No se pudo preparar el ' + s[1] + (d.unavailable ? ': ' + d.unavailable : '.') });
         });
-        var m = perfilModel(project);
+        var m = perfilModel(project, o);
         if (skip('perfil')) m = null;
         if (m) B.push({ t: 'h2', text: 'Perfil del relieve' });
         if (!m) { /* sección quitada del reporte */ }

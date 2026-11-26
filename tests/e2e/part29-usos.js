@@ -18,7 +18,7 @@ module.exports = async function (c) {
     assert.equal(await text('#usosLimita'), 'La limita: Pendiente (25–50 %).');
     assert.equal(await text('#usosCuenta'), 'Evaluación: 3 de 21 datos. Provisional: lo que falta puede bajar la clase.');
     const auto = await page.$$eval('#usosAuto dd', (d) => d.map((x) => x.textContent));
-    assert.match(auto[0], /^30 % \(25–50 %\), de 4 puntos con altitud$/);
+    assert.match(auto[0], /^30 % \(25–50 %\), de 4 puntos con altitudes escritas a mano, margen desconocido$/);   // 2.35.0
     assert.equal(auto[1], 'Templado (21,0 °C)');
     assert.match(auto[2], /^Húmedo \(ETP\/P 0,\d\d\)$/);
     assert.match(await text('#usosBlock'), /no reemplaza un estudio de suelos/);

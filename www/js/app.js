@@ -5,7 +5,7 @@
   var Geo = window.Geo, H = window.Holdridge, Climate = window.Climate, A = window.Analysis, Fmt = window.Fmt,
       Gps = window.Gps, Store = window.Store, Diagram = window.Diagram, Report = window.Report,
       Gis = window.Gis, Backup = window.Backup, IO = window.IO, WL = window.WalterLieth, Mapa = window.Mapa, MapView = window.MapView, Satelite = window.Satelite, Perfil = window.Perfil, Fotos = window.Fotos, Zip = window.Zip, Units = window.Units;
-  var APP_VERSION = '2.34.5';
+  var APP_VERSION = '2.35.0';
   var Errores = window.Errores;
   if (Errores) Errores.setVersion(APP_VERSION);            // 2.34.0: el registro de errores anota en qué versión pasó cada uno
 
@@ -1348,7 +1348,7 @@
     reorder: reorder,
     clearField: function (t) { delete proj().climate[t.getAttribute('data-field')]; save(); renderTab('clima'); },
     fetchOnline: Completar.fetchOnline, fetchPick: Completar.openFetchPick, fetchPickAll: Completar.fetchPickAll, fetchPickGo: Completar.fetchPickGo,
-    usosEdit: UsosUI.openEdit, usosSave: UsosUI.saveEdit, usosClear: UsosUI.clearEdit, usosEstUse: UsosUI.estUse, usosFuente: UsosUI.openFuente, cultivosOpen: UsosUI.openCultivos,
+    usosEdit: UsosUI.openEdit, usosSlopePick: UsosUI.openSlopePick, usosSave: UsosUI.saveEdit, usosClear: UsosUI.clearEdit, usosEstUse: UsosUI.estUse, usosFuente: UsosUI.openFuente, cultivosOpen: UsosUI.openCultivos,
     catOpen: function () { CatastroUI.open(); }, catQuitar: function () { CatastroUI.quitar(); }, catGuardarManual: function () { CatastroUI.guardarManual(); },
     igacConsult: function () { IgacUI.consult(); }, igacQuitar: function () { IgacUI.quitar(); }, mapIgac: function () { IgacUI.toggle(); }, igacDownload: function () { IgacUI.download(); }, igacBorrar: function () { IgacUI.borrar(); },
     cleanAsk: Completar.openClean, cleanDo: Completar.cleanDo, cleanUndo: Completar.cleanUndo,

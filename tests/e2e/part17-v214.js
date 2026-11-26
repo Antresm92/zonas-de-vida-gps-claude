@@ -31,7 +31,8 @@ module.exports = async function (c) {
     assert.ok(i >= 0, 'dt: ' + kv.join(' | '));
     assert.equal(kv[i + 1], 'Clase de pendiente (IGAC)');
     const dd = await page.$$eval('#tab-informe dl.kv dd', (d) => d.map((x) => x.textContent));
-    assert.equal(dd[i], '8,1 % (4,7°) · baja hacia el suroeste');       // sube 50 m al este y 75 m al norte en ~1,1 km: cae hacia el suroeste
+    // sube 50 m al este y 75 m al norte en ~1,1 km: cae hacia el suroeste; las altitudes escritas a mano no traen su precisión (2.35.0)
+    assert.equal(dd[i], '8,1 % · 4,7° · baja hacia el suroeste · margen desconocido (altitudes escritas a mano)');
     assert.equal(dd[i + 1], 'c · moderadamente inclinado (7–12 %)');
     const tips = await page.$$eval('#tab-informe .tip', (d) => d.map((x) => x.textContent));
     assert.ok(tips.some((t) => /ajustar un plano a los 3 puntos/.test(t)), 'avisos: ' + tips.join(' | '));

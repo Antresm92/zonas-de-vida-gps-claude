@@ -20,7 +20,7 @@ test('lo que pone la app: pendiente, piso térmico y humedad', () => {
   assert.deepEqual(au.piso, { T: 21, cat: 'templado' });
   assert.deepEqual(au.humedad, { ratio: 0.7, cat: 'humedo' });
   const nada = Usos.auto([{ lat: 5, lon: -75 }], {});
-  assert.deepEqual(nada, { pendiente: null, piso: null, humedad: null });
+  assert.deepEqual(nada, { pendiente: null, piso: null, humedad: null, pendienteNo: null });
   assert.equal(Usos.auto(rampa(), { climate: { T: 21 }, result: { ok: false } }).humedad, null);
 });
 
@@ -70,7 +70,8 @@ test('filas del reporte: clase, usos con página, qué limita, cuántos datos y 
   assert.match(r[1][1], /semiperennes o perennes.*\(pp\. 10–11\)$/);
   assert.deepEqual(r[2], ['La limita', 'Pendiente: 25–50 %']);
   assert.deepEqual(r[3], ['Datos evaluados', '4 de 21 (provisional: puede bajar con lo que falta)']);
-  assert.deepEqual(r[4], ['Distribución de las lluvias', 'Suficientes los dos semestres (estimada con la lluvia mes por mes)']);
+  assert.deepEqual(r[4], ['Pendiente para la clase', '30 %, calculada con altitudes sin dato de origen (margen desconocido)'], '2.35.0');
+  assert.deepEqual(r[5], ['Distribución de las lluvias', 'Suficientes los dos semestres (estimada con la lluvia mes por mes)']);
   m = Usos.model([{ lat: 5, lon: -75 }], {}, { pendiente: '0-3', drenaje: 'muypobre' }, null);
   assert.ok(Usos.reportRows(m).some((x) => x[0] === 'Revisar en campo'));
   assert.deepEqual(Usos.reportRows(Usos.model([], {}, null, null)), []);

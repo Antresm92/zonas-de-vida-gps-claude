@@ -80,7 +80,7 @@ test('pendiente: sin 3 puntos con altitud o con puntos en línea no hay plano', 
   assert.equal(Perfil.slope(null), null);
   const flat = Perfil.slope(plane(0, 0, 4));
   assert.equal(flat.pct, 0); assert.equal(flat.aspect, null); assert.equal(flat.wind, null);
-  assert.deepEqual(Perfil.slopeRows(flat)[0], ['Pendiente media del terreno', '0,0 % (0,0°)']);
+  assert.deepEqual(Perfil.slopeRows(flat)[0], ['Pendiente media del terreno', '0,0 % · 0,0° · margen desconocido (altitudes sin dato de origen)'], '2.35.0: sin origen, sin margen');
   assert.deepEqual(Perfil.slopeRows(null), []);
 });
 
@@ -96,7 +96,7 @@ test('pendiente: va al principio de la tabla del perfil y con su aviso', () => {
   const m = Perfil.build(plane(18, 90, 5));
   const r = Perfil.rows(m);
   assert.equal(r[0][0], 'Pendiente media del terreno');
-  assert.match(r[0][1], /^18 % \(10,2°\) · baja hacia el oeste$/);
+  assert.match(r[0][1], /^18 % · 10,2° · baja hacia el oeste · margen desconocido \(altitudes sin dato de origen\)$/);
   assert.equal(r[1][1], 'd · fuertemente inclinado (12–25 %)');
   assert.ok(m.notes.some((n) => /ajustar un plano a los 5 puntos/.test(n)));
   // con un número de un dígito lleva un decimal

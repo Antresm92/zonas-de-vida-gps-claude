@@ -137,7 +137,7 @@
 
     /* ---------- Reporte: perfil del relieve y croquis con imagen de fondo ---------- */
     function perfilBlock() {
-      var p = proj(), m = Perfil.build(p.points), h = '<div class="block"><h2>Perfil del relieve</h2>';
+      var p = proj(), m = Perfil.build(p.points, { level: Store.loadFlag('pendiente68') === true ? 1 : 2 }), h = '<div class="block"><h2>Perfil del relieve</h2>';
       if (!m.ok) return h + '<p class="small muted">' + esc(m.reason) + '</p></div>';
       h += '<div class="plot">' + Perfil.svg(m, { color: p.mainColor, id: 'perfil-app' }) + '</div><dl class="kv" style="margin-top:12px">';
       Perfil.rows(m).forEach(function (x) { h += '<div><dt>' + esc(x[0]) + '</dt><dd>' + esc(x[1]) + '</dd></div>'; });
@@ -217,7 +217,7 @@
     function reportOpts(a) {
       var w = walterModel(a);
       var sk = repSkip();
-      return { walter: w ? { svg: w.svg, lines: w.lines, source: w.source } : null, author: Store.loadAuthor(), skip: sk, usos: sk.usos ? null : usosReport(a), conclusion: sk.conclusion ? null : conclusionReport(a), catastro: catastroReport() };
+      return { walter: w ? { svg: w.svg, lines: w.lines, source: w.source } : null, author: Store.loadAuthor(), slopeLevel: Store.loadFlag('pendiente68') === true ? 1 : 2, skip: sk, usos: sk.usos ? null : usosReport(a), conclusion: sk.conclusion ? null : conclusionReport(a), catastro: catastroReport() };
     }
     /* ---------- Qué polígonos van en el reporte (2.20.0) ----------
      *   all    «Completo»: el resumen y luego cada polígono, en orden de jerarquía (cada finca seguida de sus áreas)

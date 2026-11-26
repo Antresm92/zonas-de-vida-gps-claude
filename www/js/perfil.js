@@ -22,7 +22,8 @@
 
   // Cuentas del perfil. Los puntos se recorren en el orden de la lista (sin volver al primero).
   // Devuelve { ok:false, reason } o { ok:true, items, total, ... }.
-  function build(points) {
+  // opts: { level: 1 | 2 } — el margen de la pendiente (68 % o 95 %, 2.35.0)
+  function build(points, opts) {
     var pts = (points || []).filter(validLL);
     var items = [], missing = 0, dist = 0, prev = null;
     pts.forEach(function (p, i) {
@@ -53,14 +54,19 @@
       }
     });
     var relief = hi.alt - lo.alt;
-    var sl = slope(pts);
-    var m = { ok: true, slope: sl, items: items, total: total, missing: missing, high: hi, low: lo, relief: relief, ascent: up, descent: down, steepest: steep, srcCounts: srcCounts, notes: [] };
+    var info = slopeInfo(pts, opts), sl = info.ok ? info : null;
+    var m = { ok: true, slope: sl, slopeInfo: info, items: items, total: total, missing: missing, high: hi, low: lo, relief: relief, ascent: up, descent: down, steepest: steep, srcCounts: srcCounts, notes: [] };
 
     var gps = srcCounts.gps || 0, kinds = Object.keys(srcCounts).length;
     if (gps) m.notes.push(gps + (gps === 1 ? ' altitud fue tomada' : ' altitudes fueron tomadas') + ' con el GPS del teléfono, que suele tener un error de varios metros (a veces decenas).');
     if (gps && relief < GPS_QUIET_RELIEF) m.notes.push('La diferencia entre el punto más alto y el más bajo (' + Fmt.num(relief, 0) + ' m) es del orden de ese error: el perfil podría mostrar ruido del GPS y no el relieve real.');
     if (kinds > 1) m.notes.push('Las altitudes vienen de varias fuentes (' + Object.keys(srcCounts).map(srcLabel).join(', ') + '): pueden no ser comparables entre sí.');
-    if (sl) m.notes.push('La pendiente media sale de ajustar un plano a los ' + sl.n + ' puntos con altitud: es una aproximación y depende de qué tan buenas sean esas altitudes; no reemplaza un levantamiento topográfico.');
+    if (sl) {
+      m.notes.push('La pendiente media sale de ajustar un plano a los ' + sl.n + ' puntos con altitudes ' + SRC_PHRASE[sl.src] + (sl.marginKnown ? ', con su margen al ' + (sl.level === 1 ? '68' : '95') + ' %' : '; su margen es desconocido porque no se sabe con qué precisión se midieron') + ': es una aproximación y no reemplaza un levantamiento topográfico.');
+      if (sl.excluded.length) m.notes.push('Para la pendiente no se usaron ' + sl.excluded.map(function (e) { return e.name + ' (' + SRC_PHRASE[e.src] + ')'; }).join(', ') + ', para no mezclar altitudes con distinta referencia.');
+      if (sl.surface) m.notes.push('Las altitudes de internet son de la superficie del terreno, con árboles y construcciones: en un lote con árboles la pendiente puede ser la de las copas.');
+      if (sl.uncertain) m.notes.push('Con su margen, la pendiente puede estar en ' + sl.classes.length + ' clases del IGAC: mídela en campo (Información › Usos recomendados › Evaluar el terreno).');
+    } else if (info.reason) m.notes.push(info.reason);
     if (missing) m.notes.push(missing + (missing === 1 ? ' punto sin altitud no aparece' : ' puntos sin altitud no aparecen') + ' en el perfil.');
     return m;
   }
@@ -78,10 +84,9 @@
     return { code: c[0], name: c[2], range: c[1] === Infinity ? 'más de ' + from + ' %' : from + '–' + c[1] + ' %' };
   }
   function wind(brg) { return WINDS[Math.round((((brg % 360) + 360) % 360) / 45) % 8]; }
-  // Ajusta un plano (mínimos cuadrados) a los puntos que tienen altitud. Devuelve { pct, deg, aspect, wind, cls, n } o null
-  // si hay menos de 3 puntos con altitud o si están casi en línea recta (un plano no queda definido).
-  function slope(points) {
-    var pts = (points || []).filter(function (p) { return validLL(p) && isNum(p.alt); });
+  // Ajusta un plano (mínimos cuadrados) a los puntos dados (todos con altitud). Devuelve { a, b, sxx, syy, sxy, n } o null si
+  // hay menos de 3 o si están casi en línea recta (un plano no queda definido).
+  function fitPlane(pts) {
     if (pts.length < 3) return null;
     var fr = Geo.localFrame(pts), xy = pts.map(function (p) { return Geo.toXY(fr, p); }), n = pts.length;
     var mx = 0, my = 0, mz = 0;
@@ -95,24 +100,126 @@
     var det = sxx * syy - sxy * sxy;
     if (!(sxx > 0 && syy > 0) || det < 0.01 * sxx * syy) return null;       // en línea recta (o casi)
     var a = (sxz * syy - syz * sxy) / det, b = (syz * sxx - sxz * sxy) / det;   // subida por metro hacia el este y hacia el norte
-    var g = Math.sqrt(a * a + b * b), pct = g * 100;
-    var aspect = g > 0 ? (Math.atan2(-a, -b) * 180 / Math.PI + 360) % 360 : null;   // hacia dónde baja el terreno
-    return { pct: pct, deg: Math.atan(g) * 180 / Math.PI, aspect: aspect, wind: aspect === null ? null : wind(aspect), cls: slopeClass(pct), n: n };
+    var span = 0;
+    xy.forEach(function (q, i) { for (var j = i + 1; j < n; j++) span = Math.max(span, Math.hypot(q.x - xy[j].x, q.y - xy[j].y)); });
+    return { a: a, b: b, sxx: sxx, syy: syy, sxy: sxy, n: n, span: span };
   }
-  function slopeRows(sl) {
-    if (!sl) return [];
-    var flat = sl.pct < 0.5;
-    return [
-      ['Pendiente media del terreno', Fmt.num(sl.pct, sl.pct < 10 ? 1 : 0) + ' % (' + Fmt.num(sl.deg, 1) + '°)' + (flat || !sl.wind ? '' : ' · baja hacia ' + sl.wind)],
-      ['Clase de pendiente (IGAC)', sl.cls.code + ' · ' + sl.cls.name + ' (' + sl.cls.range + ')']
+  function planeResult(f) {
+    var g = Math.sqrt(f.a * f.a + f.b * f.b), pct = g * 100;
+    var aspect = g > 0 ? (Math.atan2(-f.a, -f.b) * 180 / Math.PI + 360) % 360 : null;   // hacia dónde baja el terreno
+    return { pct: pct, deg: Math.atan(g) * 180 / Math.PI, aspect: aspect, wind: aspect === null ? null : wind(aspect), cls: slopeClass(pct), n: f.n };
+  }
+
+  /* ---------- Pendiente con su margen (2.35.0) ----------
+   * 1. Una sola fuente de altitud: la del grupo con más puntos (empate: a mano, GPS, internet, archivo, sin dato). Mezcladas,
+   *    la diferencia de referencia se vuelve desnivel: en Android el GPS da la altura sobre el elipsoide y la de internet es
+   *    sobre el nivel del mar.
+   * 2. Margen: con un error vertical σz igual en los puntos usados, la covarianza de las dos componentes del plano es
+   *    σz² (XᵀX)⁻¹ (H. P. Gavin, «Generalized Linear Least Squares and Error Analysis», Duke University, ec. 18), y el de la
+   *    pendiente sale por propagación de primer orden (ec. 3). Casi plano (pendiente menor que dos veces el eje largo de esa
+   *    covarianza): se usa el eje largo, más prudente. Supone errores independientes: si se parecen, el margen real es
+   *    menor, porque un error igual en todos los puntos no cambia la pendiente.
+   *    σz: GPS = promedio cuadrático de la precisión vertical guardada (Android la da al 68 %, ~1 desviación); internet =
+   *    4 / 1,645 ≈ 2,4 m (Copernicus GLO-90: error vertical menor de 4 m al 90 %); a mano, archivo o sin dato = desconocido.
+   * 3. Nivel: 1 desviación (68 %) o 2 (95 %), lo elige la persona en Preferencias (viene 95 %). Si pendiente ± margen cruza
+   *    un límite de las clases (3, 7, 12, 25, 50 o 75 %), la clase es incierta.
+   * 4. Internet en un lote de menos de 270 m (3 celdas del modelo de 90 m): no se calcula. */
+  var SRC_ORDER = ['manual', 'gps', 'internet', 'archivo', 'sindato'];
+  var DEM_SIGMA = 4 / 1.645, DEM_MIN_SPAN = 270;
+  var SRC_PHRASE = { gps: 'del GPS', internet: 'de internet', manual: 'escritas a mano', archivo: 'de un archivo', sindato: 'sin dato de origen' };
+  function srcOf(p) { return Object.prototype.hasOwnProperty.call(SRC_LABEL, p.altSrc) ? p.altSrc : 'sindato'; }
+  // Las clases que toca el rango [lo, hi]; un límite cuenta solo si queda estrictamente adentro
+  function classesIn(lo, hi) {
+    var out = [], from = 0;
+    SLOPE_CLASSES.forEach(function (c) {
+      var to = c[1];
+      if (hi > from && lo < to) out.push({ code: c[0], name: c[2], range: to === Infinity ? 'más de ' + from + ' %' : from + '–' + to + ' %', from: from, to: to });
+      from = to;
+    });
+    if (!out.length) out.push(slopeClass(lo));
+    return out;
+  }
+  // { ok:true, pct, deg, aspect, wind, cls, n, src, excluded, sigma, margin, level, low, high, classes, uncertain, marginKnown, surface }
+  // o { ok:false, reason, mixed?, small? } (sin reason cuando no hay 3 puntos con altitud o están en línea, como antes)
+  function slopeInfo(points, opts) {
+    var level = opts && opts.level === 1 ? 1 : 2;
+    var list = points || [], all = list.filter(function (p) { return validLL(p) && isNum(p.alt); });
+    if (all.length < 3) return { ok: false, reason: null };
+    var groups = {};
+    all.forEach(function (p) { var s = srcOf(p); (groups[s] = groups[s] || []).push(p); });
+    var src = Object.keys(groups).sort(function (x, y) { return groups[y].length - groups[x].length || SRC_ORDER.indexOf(x) - SRC_ORDER.indexOf(y); })[0];
+    var use = groups[src], nameOf = function (p) { return p.name || ('P' + (list.indexOf(p) + 1)); };
+    var excluded = all.filter(function (p) { return srcOf(p) !== src; }).map(function (p) { return { name: nameOf(p), src: srcOf(p) }; });
+    if (use.length < 3) {
+      return { ok: false, mixed: true, reason: 'Las altitudes vienen de fuentes distintas (' + Object.keys(groups).map(function (k) { return groups[k].length + ' ' + SRC_PHRASE[k]; }).join(', ') +
+        '): para la pendiente hacen falta 3 de la misma fuente, porque mezcladas la diferencia de referencia se vuelve desnivel.' };
+    }
+    var f = fitPlane(use);
+    if (!f) return { ok: false, reason: null };
+    if (src === 'internet' && f.span < DEM_MIN_SPAN) {
+      return { ok: false, small: true, reason: 'Las altitudes son de internet, de un modelo con celdas de 90 m, y los puntos están a menos de 270 m entre sí: con ellas no sale la pendiente. Usa el GPS o mídela en campo.' };
+    }
+    var out = planeResult(f);
+    out.ok = true; out.src = src; out.excluded = excluded; out.level = level; out.surface = src === 'internet';
+    var sz = null;
+    if (src === 'gps') {
+      var acc = use.map(function (p) { return p.altAcc; }).filter(function (v) { return isNum(v) && v > 0; });
+      if (acc.length) sz = Math.sqrt(acc.reduce(function (s, v) { return s + v * v; }, 0) / acc.length);
+    } else if (src === 'internet') sz = DEM_SIGMA;
+    out.marginKnown = sz !== null;
+    out.sigma = null; out.margin = null; out.low = null; out.high = null; out.classes = [out.cls]; out.uncertain = false;
+    if (sz !== null) {
+      var det = f.sxx * f.syy - f.sxy * f.sxy, k = sz * sz / det;
+      var caa = k * f.syy, cbb = k * f.sxx, cab = -k * f.sxy;                // covarianza de las componentes (Gavin, ec. 18)
+      var lmax = (caa + cbb) / 2 + Math.sqrt(Math.pow((caa - cbb) / 2, 2) + cab * cab), g = out.pct / 100;
+      var s = g >= 2 * Math.sqrt(lmax) ? Math.sqrt((f.a * f.a * caa + 2 * f.a * f.b * cab + f.b * f.b * cbb) / (g * g)) : Math.sqrt(lmax);   // ec. 3, o el eje largo
+      out.sigma = s * 100; out.margin = level * out.sigma;
+      out.low = Math.max(0, out.pct - out.margin); out.high = out.pct + out.margin;
+      out.classes = classesIn(out.low, out.high); out.uncertain = out.classes.length > 1;
+    }
+    return out;
+  }
+  // La pendiente de siempre (para quien solo necesita el número): null si no se puede calcular
+  function slope(points, opts) {
+    var s = slopeInfo(points, opts);
+    return s.ok ? s : null;
+  }
+  // «3–7, 7–12 o 12–25 %»
+  function rangesText(classes) {
+    var r = classes.map(function (c) { return c.range.replace(/ %$/, ''); });
+    return (r.length > 1 ? r.slice(0, -1).join(', ') + ' o ' + r[r.length - 1] : r[0]) + ' %';
+  }
+  function pctText(v) { return Fmt.num(v, v < 10 ? 1 : 0); }
+  function levelText(sl) { return (sl.level === 1 ? '68' : '95') + ' %'; }
+  // La pendiente en palabras: «14,2 % ± 9,1 %» (slopeShort) y con el nivel, «14,2 % ± 9,1 % (95 %)»; «11 %» si el margen no se
+  // conoce. Con margen va con un decimal (dos si el margen es menor de 0,1), para que se vea si cruza un límite de clase: con
+  // enteros, «10 % ± 2 %» parecería no pasar de 12 aunque sea 10,4 ± 2,0.
+  function slopeShort(sl) {
+    if (!sl.marginKnown) return pctText(sl.pct) + ' %';
+    var d = sl.margin < 0.1 ? 2 : 1;
+    return Fmt.num(sl.pct, d) + ' % ± ' + Fmt.num(sl.margin, d) + ' %';
+  }
+  function slopeText(sl) { return slopeShort(sl) + (sl.marginKnown ? ' (' + levelText(sl) + ')' : ''); }
+  function slopeRows(sl, info) {
+    if (!sl) return info && info.reason ? [['Pendiente media del terreno', 'no se calcula: ' + info.reason]] : [];
+    var flat = sl.pct < 0.5, known = sl.marginKnown !== false && sl.margin !== undefined && sl.margin !== null;
+    var rows = [
+      ['Pendiente media del terreno', slopeText(sl) + ' · ' + Fmt.num(sl.deg, 1) + '°' + (flat || !sl.wind ? '' : ' · baja hacia ' + sl.wind) +
+        (known || sl.src === undefined ? '' : ' · margen desconocido (altitudes ' + SRC_PHRASE[sl.src] + ')')],
+      ['Clase de pendiente (IGAC)', sl.uncertain ? 'incierta: puede ser ' + rangesText(sl.classes) : sl.cls.code + ' · ' + sl.cls.name + ' (' + sl.cls.range + ')']
     ];
+    if ((sl.excluded && sl.excluded.length) || sl.surface) {
+      rows.push(['Altitudes usadas para la pendiente', sl.n + ' ' + SRC_PHRASE[sl.src] + (sl.surface ? ' (superficie del terreno, con árboles y construcciones)' : '') +
+        (sl.excluded && sl.excluded.length ? '; no se usaron ' + sl.excluded.map(function (e) { return e.name + ' (' + SRC_PHRASE[e.src] + ')'; }).join(', ') : '')]);
+    }
+    return rows;
   }
 
   // Datos para una tabla: [etiqueta, valor]
   function rows(m) {
     if (!m || !m.ok) return [];
     // build() solo da ok si el recorrido mide más de 0 m, así que siempre hay un tramo más inclinado
-    return slopeRows(m.slope).concat([
+    return slopeRows(m.slope, m.slopeInfo).concat([
       ['Punto más alto', m.high.name + ' · ' + Fmt.num(m.high.alt, 0) + ' m'],
       ['Punto más bajo', m.low.name + ' · ' + Fmt.num(m.low.alt, 0) + ' m'],
       ['Desnivel entre ambos', Fmt.num(m.relief, 0) + ' m'],
@@ -182,5 +289,5 @@
     return s + '</svg>';
   }
 
-  return { build: build, rows: rows, svg: svg, niceStep: niceStep, slope: slope, slopeClass: slopeClass, slopeRows: slopeRows, SLOPE_CLASSES: SLOPE_CLASSES, srcLabel: srcLabel, COL: COL, GPS_QUIET_RELIEF: GPS_QUIET_RELIEF };
+  return { build: build, rows: rows, svg: svg, niceStep: niceStep, slope: slope, slopeInfo: slopeInfo, slopeText: slopeText, slopeShort: slopeShort, levelText: levelText, rangesText: rangesText, classesIn: classesIn, SRC_PHRASE: SRC_PHRASE, DEM_SIGMA: DEM_SIGMA, DEM_MIN_SPAN: DEM_MIN_SPAN, slopeClass: slopeClass, slopeRows: slopeRows, SLOPE_CLASSES: SLOPE_CLASSES, srcLabel: srcLabel, COL: COL, GPS_QUIET_RELIEF: GPS_QUIET_RELIEF };
 });

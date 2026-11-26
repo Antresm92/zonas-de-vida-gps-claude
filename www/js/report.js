@@ -381,8 +381,8 @@
   }
 
   // Perfil del relieve con lo que está guardado en el proyecto (no consulta internet)
-  function profileHtml(project) {
-    var m = Perfil.build(project.points);
+  function profileHtml(project, o) {
+    var m = Perfil.build(project.points, { level: o && o.slopeLevel });
     var h = '<h2>Perfil del relieve</h2>';
     if (!m.ok) return h + '<div class="note">' + esc(m.reason) + '</div>';
     h += '<div style="max-width:700px">' + Perfil.svg(m, { color: project.mainColor, id: 'perfil-reporte' }) + '</div><table>';
@@ -454,7 +454,7 @@
       });
       h += '</table>' + (anyPlana(project, a) ? '<p class="small">' + esc(Fmt.PLANA_NOTE) + '</p>' : '');
       if (a.n >= 2) h += '<h2>Croquis</h2><div style="max-width:560px;margin-top:12px">' + Diagram.polygonSVG(project.points, { width: 560, height: 380, center: a.center, bad: a.selfIntersects, dots: !!project.dots, layers: project.layers, color: project.mainColor, focus: true }) + Diagram.legendHTML(project.layers, project.mainColor, project.lotName || 'Mis puntos', true) + '</div>';
-      if (a.n >= 2) h += (skips(o, 'sat') ? '' : sketchHtml('Croquis satelital', 'croquis satelital', o.satellite)) + (skips(o, 'topo') ? '' : sketchHtml('Croquis topográfico', 'croquis topográfico', o.topo)) + (skips(o, 'perfil') ? '' : profileHtml(project));
+      if (a.n >= 2) h += (skips(o, 'sat') ? '' : sketchHtml('Croquis satelital', 'croquis satelital', o.satellite)) + (skips(o, 'topo') ? '' : sketchHtml('Croquis topográfico', 'croquis topográfico', o.topo)) + (skips(o, 'perfil') ? '' : profileHtml(project, o));
     }
     if (!skips(o, 'fotos')) h += photosHtml(project, o);
     if (!skips(o, 'zonas') && a.vertexZones && a.vertexZones.length && a.distinctZones && a.distinctZones.length > 1) {

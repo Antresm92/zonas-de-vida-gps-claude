@@ -72,7 +72,9 @@
   }
 
   // Conclusión y recomendaciones del polígono. m: { nombre, ha, zona, T, P, secos (meses secos), clase, subclase, limita (nombres),
-  // provisional, faltan (n), usos, pendiente (%), humedad (categoría IGAC), lab (si hay datos de laboratorio), cultivos (evaluar()) }
+  // provisional, faltan (n), usos, pendiente (%), humedad (categoría IGAC), lab (si hay datos de laboratorio), cultivos (evaluar()),
+  // pendienteRango (2.35.0: la medida en campo solo como rango del IGAC, { cat: '25-50', txt: '25–50 %' }; se usa si no hay pendiente en %),
+  // pendienteIncierta (2.35.0: la calculada no alcanza para la clase; el texto de la clase que daría, «clase 3 o 4») }
   function conclusion(m) {
     if (!m || !isNum(m.T) || !isNum(m.P)) return null;
     var f = function (x, n) { return Number(x).toFixed(n).replace('.', ','); };
@@ -83,10 +85,14 @@
     var cu = m.cultivos, top = cu ? cu.grupos.optimo.slice(0, 8).map(function (c) { return c.es; }) : [];
     if (cu) p += top.length ? ' Por clima y tierra, los cultivos con mejor aptitud son: ' + top.join(', ') + (cu.grupos.optimo.length > 8 ? ' y otros ' + (cu.grupos.optimo.length - 8) : '') + '.' :
       cu.grupos.posible.length ? ' Ningún cultivo de la lista queda óptimo; ' + cu.grupos.posible.length + ' son posibles con limitaciones.' : ' Ningún cultivo de la lista queda apto con estos datos.';
-    var R = [];
+    var R = [], pr = !isNum(m.pendiente) && m.pendienteRango && m.pendienteRango.cat ? m.pendienteRango : null;
+    var pTxt = isNum(m.pendiente) ? Math.round(m.pendiente) + ' %' : pr ? pr.txt.charAt(0).toLowerCase() + pr.txt.slice(1) : '';
+    var empinada = isNum(m.pendiente) ? m.pendiente > 25 : !!pr && ['25-50', '50-75', '75+'].indexOf(pr.cat) >= 0;
+    var inclinada = isNum(m.pendiente) ? m.pendiente > 7 : !!pr && ['7-12', '12-25'].indexOf(pr.cat) >= 0;
     if (isNum(m.clase) && m.clase >= 7) R.push({ t: m.clase === 8 ? 'Destinar el polígono a conservación o recuperación de la vegetación natural.' : 'Mantener o establecer bosque protector; el IGAC excluye la ganadería en esta clase.', f: 1 });
-    else if (isNum(m.pendiente) && m.pendiente > 25) R.push({ t: 'Con ' + Math.round(m.pendiente) + ' % de pendiente, preferir cultivos permanentes densos, agroforestería o pastos con cobertura permanente, y evitar dejar el suelo desnudo.', f: 1 });
-    else if (isNum(m.pendiente) && m.pendiente > 7) R.push({ t: 'Con ' + Math.round(m.pendiente) + ' % de pendiente, sembrar con prácticas de conservación de suelos (por ejemplo, siembra en contorno y coberturas).', f: 1 });
+    else if (empinada) R.push({ t: 'Con ' + pTxt + ' de pendiente, preferir cultivos permanentes densos, agroforestería o pastos con cobertura permanente, y evitar dejar el suelo desnudo.', f: 1 });
+    else if (inclinada) R.push({ t: 'Con ' + pTxt + ' de pendiente, sembrar con prácticas de conservación de suelos (por ejemplo, siembra en contorno y coberturas).', f: 1 });
+    if (m.pendienteIncierta) R.push({ t: 'Medir la pendiente en campo, con un clinómetro o un nivel: la calculada es incierta y con ella sería ' + m.pendienteIncierta + '.', f: 1 });
     if (isNum(m.secos) && m.secos > 0) R.push({ t: 'Prever riego, cosecha de agua o cultivos tolerantes a la sequía para ' + (m.secos === 1 ? 'el mes seco' : 'los ' + m.secos + ' meses secos') + '.', f: 2 });
     if (m.humedad === 'muyhumedo' || m.humedad === 'pluvial') R.push({ t: 'El clima es ' + (m.humedad === 'pluvial' ? 'pluvial' : 'muy húmedo') + ': revisar el drenaje y preferir cultivos que toleren el exceso de humedad.', f: 1 });
     if (m.provisional) R.push({ t: 'Completar la evaluación del terreno (' + m.faltan + ' datos sin responder): lo que falta puede bajar la clase.', f: 1 });

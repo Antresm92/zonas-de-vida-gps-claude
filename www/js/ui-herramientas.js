@@ -37,7 +37,7 @@
         '<label class="menurow"><span><b>Reporte con todas las secciones abiertas</b><small>Si no, cada sección se abre al tocar su título.</small></span>' +
         '<input type="checkbox" data-flag="reportOpen"' + (Store.loadFlag('reportOpen') === true ? ' checked' : '') + '></label>' +
         '<label class="menurow"><span><b>Pegar puntos a las esquinas de otros polígonos</b><small>Al marcar o mover un punto en el mapa muy cerca de la esquina de otro predio o lote, queda exactamente sobre ella.</small></span>' +
-        '<input type="checkbox" data-flag="lotSnap"' + (Store.loadFlag('lotSnap') === false ? '' : ' checked') + '></label></div>' + gpsMethodGroup();
+        '<input type="checkbox" data-flag="lotSnap"' + (Store.loadFlag('lotSnap') === false ? '' : ' checked') + '></label></div>' + gpsMethodGroup() + slopeMarginGroup();
       h += '<h3 class="sub">Ayuda</h3><div class="menu">' + menuRow('appGuide', 'Cómo usar la app', 'Los tres pasos y todo lo demás') + menuRow('whatsNew', 'Qué hay de nuevo', 'Lo nuevo de la versión ' + WHATS_NEW_ID) + menuRow('usesGuide', 'Para qué sirve la app', 'Usos por área y hasta dónde llega') + menuRow('mapGuide', 'Cómo usar el mapa', 'Puntos, polígonos, predios y lotes') +
         menuRow('licenses', 'Fuentes y licencias', 'Mapas y datos de clima') + menuRow('diag', 'Registro de errores', diagSub()) + '</div>';
       h += '<p class="small muted" style="margin-top:14px">Don Florentino SIG · versión ' + APP_VERSION + '. Funciona sin internet, salvo los mapas y los datos de clima.</p>';
@@ -191,6 +191,18 @@
       return '<div class="menu menu-sub" role="radiogroup" aria-labelledby="gpsMetT"><div class="menuhead" id="gpsMetT"><b>Promedio del GPS al marcar un punto</b><small>Elige uno. Los puntos ya guardados no cambian.</small></div>' +
         opt('1', simple, 'Promedio simple (método anterior)', 'Todas las lecturas pesan igual. El punto guarda la precisión de la mejor lectura, que suele prometer más de lo real.') +
         opt('0', !simple, 'Promedio ponderado (recomendado)', 'Las lecturas más precisas pesan más (cada una pesa 1 ÷ precisión²). El punto guarda la precisión promedio de las lecturas. Viene elegido.') + '</div>';
+    }
+    /* 2.35.0: el margen que decide si la clase de pendiente del IGAC sale firme o incierta. Dos opciones, cada una con lo que
+     * quiere decir su porcentaje; la persona elige la que más se ajusta a su necesidad. Viene 95 % (pendiente68 sin marcar). */
+    function slopeMarginGroup() {
+      var m68 = Store.loadFlag('pendiente68') === true;
+      function opt(v, on, title, sub) {
+        return '<label class="menurow"><span><b>' + title + '</b><small>' + sub + '</small></span>' +
+          '<input type="radio" name="pendMargen" data-flag-radio="pendiente68" value="' + v + '"' + (on ? ' checked' : '') + '></label>';
+      }
+      return '<div class="menu menu-sub" role="radiogroup" aria-labelledby="pendMarT"><div class="menuhead" id="pendMarT"><b>Margen de la pendiente</b><small>Decide cuándo la clase de pendiente del IGAC sale firme o incierta. Elige el que más se ajuste a tu necesidad.</small></div>' +
+        opt('1', m68, '68 % (una desviación)', '68 % quiere decir que la pendiente real cae dentro del margen dos de cada tres veces. El margen es más angosto: menos lotes salen inciertos, pero una clase firme es menos segura.') +
+        opt('0', !m68, '95 % (dos desviaciones, recomendado)', '95 % quiere decir que la pendiente real cae dentro del margen 19 de cada 20 veces. El margen es el doble de ancho: más lotes piden la medida en campo, pero una clase firme es muy confiable. Viene elegido.') + '</div>';
     }
     function menuRow(act, title, sub) {
       return '<button class="menurow" data-act="' + act + '"><span><b>' + esc(title) + '</b>' + (sub ? '<small>' + esc(sub) + '</small>' : '') + '</span><i aria-hidden="true">›</i></button>';

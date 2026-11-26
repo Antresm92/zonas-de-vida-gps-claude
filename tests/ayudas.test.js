@@ -184,3 +184,21 @@ test('2.34.5: «Qué hay de nuevo» explica el recuadro para elegir el promedio 
   assert.ok(nuevo.indexOf('Elegir el promedio del GPS') < nuevo.indexOf('Nombre corto bajo el ícono'), 'lo de la 2.34.5 va primero');
   assert.match(nuevo, /los dos métodos juntos, cada uno con una explicación corta.*viene elegido\. Si ya habías elegido el anterior, sigue elegido/s);
 });
+
+test('2.35.0: las ayudas explican la pendiente con su margen, la medida en campo y las dos opciones del margen', () => {
+  const { A, sheets } = load();
+  assert.ok(atLeast(A.WHATS_NEW_ID, '2.35.0'), A.WHATS_NEW_ID);
+  A.openAppGuide();
+  assert.match(sheets[sheets.length - 1][1], /Pendiente y su margen.*una sola fuente.*«15,2 % ± 4,1 % \(95 %\)».*«incierta».*el margen es desconocido.*«Elegir la pendiente medida».*el número manda.*68 % \(la pendiente real cae dentro dos de cada tres veces\) o 95 % \(19 de cada 20 veces, recomendado\)/s);
+  A.openUses();
+  assert.match(sheets[sheets.length - 1][1], /qué tan inclinado es el terreno, con su margen/);
+  A.openWhatsNew();
+  const nuevo = sheets[sheets.length - 1][1];
+  assert.ok(nuevo.indexOf('Pendiente con su margen') < nuevo.indexOf('Elegir el promedio del GPS'), 'lo de la 2.35.0 va primero');
+  assert.match(nuevo, /Pendiente medida en campo.*el número manda.*Margen al 68 % o al 95 %.*dos de cada tres veces.*19 de cada 20 veces/s);
+  const ref = A.LICENSES.find((x) => x[0] === 'Pendiente y su margen');
+  assert.ok(ref, 'la fórmula y la exactitud del modelo de 90 m están en Fuentes y licencias');
+  assert.match(ref[1], /ecuaciones 18 y 3/); assert.match(ref[1], /menor de 4 m en el 90 % de los casos/); assert.match(ref[1], /Android la da al 68 %/);
+  assert.deepEqual([...ref[2]].map((l) => l[1]), ['https://people.duke.edu/~hpgavin/SystemID/CourseNotes/linear-least-squares.pdf', 'https://cis2.eea.europa.eu/data/489',
+    'https://developer.android.com/reference/android/location/Location#getVerticalAccuracyMeters()']);
+});
